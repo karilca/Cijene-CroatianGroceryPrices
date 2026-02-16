@@ -1,0 +1,121 @@
+from datetime import datetime
+from pathlib import Path
+from typing import List, Dict, Any
+from zoneinfo import ZoneInfo
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
+
+from service.config import settings
+
+router = APIRouter(tags=["ZIP archives"])
+
+
+def format_datetime_with_timezone(dt: datetime) -> str:
+    """
+    Format a datetime object with proper timezone information.
+
+    Args:
+        dt: A naive datetime object (assumed to be in the configured timezone)
+
+    Returns:
+        ISO 8601 formatted datetime string with timezone offset
+    """
+    # Assume the naive datetime is in the configured timezone
+    timezone = ZoneInfo(settings.timezone)
+    dt_with_tz = dt.replace(tzinfo=timezone)
+
+    # Remove microseconds and format as ISO string
+    return dt_with_tz.replace(microsecond=0).isoformat()
+
+
+def find_archives() -> list[tuple[str, int, datetime]]:
+    """
+    Find all ZIP archive files in the archive directory and return their metadata.
+
+    Assumes the filename pattern is `YYYY-MM-DD.zip`.
+
+    Returns:
+        List of tuples containing the date (filename without extension),
+        size, and modification time of each archive.
+    """
+
+    archive_path = Path(settings.archive_dir)
+    if not archive_path.is_dir():
+        return []
+
+    archives = []
+    for file_path in archive_path.iterdir():
+        if file_path.is_file() and file_path.suffix == ".zip":
+            date = file_path.stem
+            size = file_path.stat().st_size
+            mtime = datetime.fromtimestamp(file_path.stat().st_mtime)
+            archives.append((date, size, mtime))
+
+    # Sort by date in reverse chronological order (newest first)
+    archives.sort(key=lambda x: x[0], reverse=True)
+    return archives
+
+
+@router.get("/list", summary="List available ZIP archives")
+async def list_archives() -> Dict[str, List[Dict[str, Any]]]:
+    """
+    List all available archive files with their metadata.
+
+    Response format:
+    ```json
+    {
+        "archives": [
+            {
+                "date": "YYYY-MM-DD",
+                "url": "https://api.cijene.dev/v0/archive/YYYY-MM-DD.zip",
+                "size": 123456,
+                "updated": "YYYY-MM-DDTHH:MM:SS+00:00"
+            },
+            ...
+        ]
+    }
+    ```
+    """
+
+    archives = []
+    for date, size, mtime in find_archives():
+        url = f"{settings.base_url}/v0/archive/{date}.zip"
+        updated = format_datetime_with_timezone(mtime)
+        archives.append({"date": date, "url": url, "size": size, "updated": updated})
+
+    return {"archives": archives}
+
+
+@router.get("/archive/{date}.zip", summary="Download ZIP archive for a specific date")
+async def download_archive(date: str):
+    """
+    Download a ZIP archive for a specific date.
+
+    Args:
+        date: Date in YYYY-MM-DD format
+
+    Returns:
+        ZIP file containing price data for the specified date
+    """
+    # Validate date format
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date format. Use YYYY-MM-DD format."
+        )
+
+    archive_path = Path(settings.archive_dir) / f"{date}.zip"
+
+    if not archive_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Archive for date {date} not found"
+        )
+
+    return FileResponse(
+        path=archive_path,
+        filename=f"{date}.zip",
+        media_type="application/zip"
+    )

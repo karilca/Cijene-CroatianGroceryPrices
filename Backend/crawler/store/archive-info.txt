@@ -1,0 +1,65 @@
+ZIP arhiva sadrži CSV datoteke s podacima o cijenama za taj dan.
+
+## Struktura arhive
+
+Svaki trgovački lanac ima vlastitu mapu s tri datoteke:
+- stores.csv
+- products.csv
+- prices.csv
+
+Datoteka stores.csv sadrži popis poslovnica.
+Datoteka products.csv sadrži popis jedinstvenih proizvoda.
+Datoteka prices.csv sadrži cijene proizvoda po poslovnici.
+
+Pokriveni lanci: Konzum, Spar, Studenac, Plodine, Lidl, Tommy,
+Kaufland, Eurospin, Metro, Žabac, Vrutak, Ribola, NTL.
+
+## Format CSV datoteka
+
+Sve datoteke koriste UTF-8 kodiranje bez BOM-a.
+Separator je zarez. Prva linija sadrži nazive stupaca.
+
+### Poslovnice (stores.csv)
+
+Stupci:
+- store_id - šifra poslovnice
+- type - tip poslovnice
+- address - adresa
+- city - grad
+- zipcode - poštanski broj
+
+### Proizvodi (products.csv)
+
+Stupci:
+- product_id - šifra proizvoda
+- barcode - EAN kod ili interna šifra
+- name - naziv
+- brand - marka
+- category - kategorija
+- unit - jedinica mjere
+- quantity - količina
+
+EAN kodovi nisu uvijek dostupni.
+Tada se koristi format lanac:product_id.
+Šifra proizvoda je jedinstvena samo unutar trgovačkog lanca.
+
+### Cijene (prices.csv)
+
+Stupci:
+- store_id - šifra poslovnice
+- product_id - šifra proizvoda
+- price - cijena
+- unit_price - cijena po jedinici
+- best_price_30 - najbolja cijena u 30 dana
+- anchor_price - cijena na 2.5.2025.
+- special_price - akcijska cijena
+
+Prazna polja označavaju nedostupne podatke.
+
+## Izvor podataka
+
+Podaci su prikupljeni web scrapingom s javno dostupnih cjenika.
+Prikupljanje je usklađeno s Odlukom o objavi cjenika i isticanju
+dodatne cijene (NN 75/2025 od 2.5.2025.).
+
+Vaš KKPDI Team
