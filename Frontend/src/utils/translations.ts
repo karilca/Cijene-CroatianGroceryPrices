@@ -235,43 +235,6 @@ export const translations = {
         'favorites.history.text': 'View price trends for your favorite items.',
         'favorites.history.action': 'View history →',
 
-        // Auth
-        'auth.login.title': 'Sign In',
-        'auth.login.subtitle': 'Welcome back! Please sign in to your account.',
-        'auth.email.label': 'Email Address',
-        'auth.email.placeholder': 'Enter your email',
-        'auth.password.label': 'Password',
-        'auth.password.placeholder': 'Enter your password',
-        'auth.rememberMe': 'Remember me',
-        'auth.forgotPassword': 'Forgot password?',
-        'auth.signIn': 'Sign In',
-        'auth.signingIn': 'Signing In...',
-        'auth.noAccount': 'Don\'t have an account?',
-        'auth.signUp': 'Sign up',
-        'auth.createAccount.title': 'Create Account',
-        'auth.createAccount.subtitle': 'Join us to track prices and save money',
-        'auth.username.label': 'Username',
-        'auth.username.placeholder': 'Choose a username (optional)',
-        'auth.firstName.label': 'First Name',
-        'auth.firstName.placeholder': 'First name',
-        'auth.lastName.label': 'Last Name',
-        'auth.lastName.placeholder': 'Last name',
-        'auth.password.create': 'Create a password',
-        'auth.confirmPassword.label': 'Confirm Password',
-        'auth.confirmPassword.placeholder': 'Confirm your password',
-        'auth.creatingAccount': 'Creating Account...',
-        'auth.createAccount.action': 'Create Account',
-        'auth.hasAccount': 'Already have an account?',
-
-        // Validation
-        'validation.email.required': 'Email is required',
-        'validation.email.invalid': 'Please enter a valid email address',
-        'validation.password.required': 'Password is required',
-        'validation.password.minLength': 'Password must be at least {min} characters long',
-        'validation.confirmPassword.required': 'Please confirm your password',
-        'validation.confirmPassword.mismatch': 'Passwords do not match',
-        'validation.username.minLength': 'Username must be at least {min} characters long',
-
         // 404 Page
         'notFound.title': 'Page Not Found',
         'notFound.message': 'Sorry, the page you are looking for doesn\'t exist or has been moved.',
@@ -320,12 +283,7 @@ export const translations = {
         'settings.manage': 'Manage your application preferences',
         'settings.noAuth': 'Settings functionality available. No authentication required.',
 
-        // Error Boundary
-        'error.somethingWrong': 'Something went wrong',
-        'error.unexpected': 'An unexpected error occurred. Please try refreshing the page.',
-        'error.tryAgain': 'Try Again',
-        'error.refreshPage': 'Refresh Page',
-        'error.details': 'Error Details (Development)',
+
 
         // Chain Details
         'chainDetails.loading': 'Loading chain details...',
@@ -721,43 +679,6 @@ export const translations = {
         'favorites.history.text': 'Pogledajte kretanje cijena za svoje omiljene artikle.',
         'favorites.history.action': 'Pogledaj povijest →',
 
-        // Auth
-        'auth.login.title': 'Prijava',
-        'auth.login.subtitle': 'Dobrodošli natrag! Molimo prijavite se na svoj račun.',
-        'auth.email.label': 'Email adresa',
-        'auth.email.placeholder': 'Unesite svoj email',
-        'auth.password.label': 'Lozinka',
-        'auth.password.placeholder': 'Unesite svoju lozinku',
-        'auth.rememberMe': 'Zapamti me',
-        'auth.forgotPassword': 'Zaboravljena lozinka?',
-        'auth.signIn': 'Prijavi se',
-        'auth.signingIn': 'Prijava u tijeku...',
-        'auth.noAccount': 'Nemate račun?',
-        'auth.signUp': 'Registriraj se',
-        'auth.createAccount.title': 'Kreirajte račun',
-        'auth.createAccount.subtitle': 'Pridružite nam se kako biste pratili cijene i uštedjeli.',
-        'auth.username.label': 'Korisničko ime',
-        'auth.username.placeholder': 'Odaberite korisničko ime (neobavezno)',
-        'auth.firstName.label': 'Ime',
-        'auth.firstName.placeholder': 'Ime',
-        'auth.lastName.label': 'Prezime',
-        'auth.lastName.placeholder': 'Prezime',
-        'auth.password.create': 'Kreirajte lozinku',
-        'auth.confirmPassword.label': 'Potvrdite lozinku',
-        'auth.confirmPassword.placeholder': 'Potvrdite svoju lozinku',
-        'auth.creatingAccount': 'Kreiranje računa...',
-        'auth.createAccount.action': 'Kreiraj račun',
-        'auth.hasAccount': 'Već imate račun?',
-
-        // Validation
-        'validation.email.required': 'Email je obavezan',
-        'validation.email.invalid': 'Molimo unesite valjanu email adresu',
-        'validation.password.required': 'Lozinka je obavezna',
-        'validation.password.minLength': 'Lozinka mora imati barem {min} znakova',
-        'validation.confirmPassword.required': 'Molimo potvrdite svoju lozinku',
-        'validation.confirmPassword.mismatch': 'Lozinke se ne podudaraju',
-        'validation.username.minLength': 'Korisničko ime mora imati barem {min} znakova',
-
         // 404 Page
         'notFound.title': 'Stranica nije pronađena',
         'notFound.message': 'Nažalost, stranica koju tražite ne postoji ili je premještena.',
@@ -806,12 +727,7 @@ export const translations = {
         'settings.manage': 'Upravljajte postavkama aplikacije',
         'settings.noAuth': 'Funkcionalnost postavki dostupna. Autentifikacija nije potrebna.',
 
-        // Error Boundary
-        'error.somethingWrong': 'Nešto je pošlo po zlu',
-        'error.unexpected': 'Došlo je do neočekivane pogreške. Molimo osvježite stranicu.',
-        'error.tryAgain': 'Pokušaj ponovno',
-        'error.refreshPage': 'Osvježi stranicu',
-        'error.details': 'Detalji pogreške (razvoj)',
+
 
         // Chain Details
         'chainDetails.loading': 'Učitavanje detalja lanca...',
