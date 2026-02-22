@@ -125,7 +125,7 @@ const NotificationContainer: React.FC = () => {
   if (notifications.length === 0) return null;
 
   return (
-    <div className="fixed top-4 left-0 right-0 sm:left-auto sm:right-4 z-50 flex flex-col items-center sm:items-end space-y-2 px-4 pointer-events-none">
+    <div className="fixed top-4 left-0 right-0 sm:left-auto sm:right-4 sm:w-96 z-50 flex flex-col items-center sm:items-end space-y-2 px-4 sm:px-0 pointer-events-none">
       {notifications.map(notification => (
         <NotificationCard
           key={notification.id}
