@@ -2,7 +2,7 @@
 
 Servis za preuzimanje javnih podataka o cijenama proizvoda u trgovačkim lancima u Republici Hrvatskoj.
 
-**Podržani trgovački lanci:** Konzum, Lidl, Plodine, Spar, Tommy, Studenac, Kaufland, Eurospin, dm, KTC, Metro, Trgocentar, Žabac, Vrutak, Ribola, NTL, Boso, Brodokomerc, Lorenco, Trgovina Krk
+**Podržani trgovački lanci:** Konzum, Lidl, Plodine, Spar, Tommy, Studenac, Kaufland, Eurospin, Metro, Žabac, Vrutak, Ribola, NTL
 
 Popis trgovačkih lanaca preuzet sa [IamMusavaRibica/cijene.org](https://github.com/IamMusavaRibica/cijene.org) (AGPL).
 
