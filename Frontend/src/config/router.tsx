@@ -15,7 +15,6 @@ import { PrivacyPolicyPage } from '../pages/PrivacyPolicyPage';
 import { TermsOfServicePage } from '../pages/TermsOfServicePage';
 import { ContactPage } from '../pages/ContactPage';
 import { ChainDetails } from '../components/chain/ChainDetails';
-import { MobileOptimizationDemo } from '../components/common/MobileOptimizationDemo';
 
 // Create router with all routes
 const router = createBrowserRouter([
@@ -59,10 +58,6 @@ const router = createBrowserRouter([
   {
     path: "/settings",
     element: <AppLayout><SettingsPage /></AppLayout>,
-  },
-  {
-    path: "/mobile-demo",
-    element: <AppLayout><MobileOptimizationDemo /></AppLayout>,
   },
   {
     path: "/privacy",

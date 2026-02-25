@@ -90,7 +90,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       message,
       title,
       action,
-      persistent: !!action // Make persistent if action is provided
+      persistent: false // Do not make persistent so they auto dismiss
     });
   }, [addNotification]);
 
@@ -125,7 +125,7 @@ const NotificationContainer: React.FC = () => {
   if (notifications.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2">
+    <div className="fixed top-4 left-0 right-0 sm:left-auto sm:right-4 sm:w-96 z-50 flex flex-col items-center sm:items-end space-y-2 px-4 sm:px-0 pointer-events-none">
       {notifications.map(notification => (
         <NotificationCard
           key={notification.id}
@@ -213,7 +213,7 @@ const NotificationCard: React.FC<NotificationCardProps> = ({ notification, onClo
           <div className={`flex-shrink-0 ${iconStyles[notification.type]}`}>
             {getIcon(notification.type)}
           </div>
-          <div className="ml-3 w-0 flex-1">
+          <div className="ml-3 w-0 flex-1 break-words">
             {notification.title && (
               <p className="text-sm font-medium">
                 {notification.title}
