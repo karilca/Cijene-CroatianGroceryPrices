@@ -14,10 +14,14 @@ Moderna React aplikacija za usporedbu cijena namirnica u hrvatskim trgovačkim l
 
 ## Brzi početak
 
-**Preduvjeti:** Node.js 18+ i npm
+**Preduvjeti:** Node.js 22.13+ (LTS) i npm 10+
 
 ```bash
 # Uđi u projekt
+# (Opcionalno) Ako koristiš nvm (Windows):
+nvm install 22.13.0
+nvm use 22.13.0
+
 # Instaliraj ovisnosti
 npm install
 
