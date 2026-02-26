@@ -84,39 +84,45 @@ class PostgresDatabase(Database):
             self.logger.error(f"Error creating tables: {e}")
             raise
 
-    async def prune_old_price_data(self, retention_days: int) -> dict[str, int]:
+    async def prune_old_price_data(
+        self, retention_days: int, batch_size: int = 10_000
+    ) -> dict[str, int]:
         if retention_days <= 0:
             return {"prices": 0, "chain_prices": 0, "chain_stats": 0}
 
         cutoff_date = date.today() - timedelta(days=retention_days)
         deleted: dict[str, int] = {"prices": 0, "chain_prices": 0, "chain_stats": 0}
 
-        async with self._atomic() as conn:
-            prices_result = await conn.execute(
-                """
-                DELETE FROM prices
-                WHERE price_date < $1
-                """,
-                cutoff_date,
-            )
-            chain_prices_result = await conn.execute(
-                """
-                DELETE FROM chain_prices
-                WHERE price_date < $1
-                """,
-                cutoff_date,
-            )
-            chain_stats_result = await conn.execute(
-                """
-                DELETE FROM chain_stats
-                WHERE price_date < $1
-                """,
-                cutoff_date,
-            )
-
-        deleted["prices"] = int(prices_result.split()[-1])
-        deleted["chain_prices"] = int(chain_prices_result.split()[-1])
-        deleted["chain_stats"] = int(chain_stats_result.split()[-1])
+        tables = ["prices", "chain_prices", "chain_stats"]
+        for table in tables:
+            total = 0
+            while True:
+                async with self._atomic() as conn:
+                    result = await conn.execute(
+                        f"""
+                        DELETE FROM {table}
+                        WHERE ctid = ANY(
+                            ARRAY(
+                                SELECT ctid FROM {table}
+                                WHERE price_date < $1
+                                LIMIT $2
+                            )
+                        )
+                        """,
+                        cutoff_date,
+                        batch_size,
+                    )
+                    rows_deleted = int(result.split()[-1])
+                    total += rows_deleted
+                    if rows_deleted < batch_size:
+                        break
+                self.logger.debug(
+                    "Pruned %s rows from %s so far (%s total)",
+                    rows_deleted,
+                    table,
+                    total,
+                )
+            deleted[table] = total
 
         self.logger.info(
             "Pruned data older than %s (retention=%s days): prices=%s, chain_prices=%s, chain_stats=%s",
