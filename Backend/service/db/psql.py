@@ -8,7 +8,7 @@ from typing import (
 )
 import logging
 import os
-from datetime import date
+from datetime import date, timedelta
 from .base import Database
 from .models import (
     Chain,
@@ -83,6 +83,50 @@ class PostgresDatabase(Database):
         except Exception as e:
             self.logger.error(f"Error creating tables: {e}")
             raise
+
+    async def prune_old_price_data(self, retention_days: int) -> dict[str, int]:
+        if retention_days <= 0:
+            return {"prices": 0, "chain_prices": 0, "chain_stats": 0}
+
+        cutoff_date = date.today() - timedelta(days=retention_days)
+        deleted: dict[str, int] = {"prices": 0, "chain_prices": 0, "chain_stats": 0}
+
+        async with self._atomic() as conn:
+            prices_result = await conn.execute(
+                """
+                DELETE FROM prices
+                WHERE price_date < $1
+                """,
+                cutoff_date,
+            )
+            chain_prices_result = await conn.execute(
+                """
+                DELETE FROM chain_prices
+                WHERE price_date < $1
+                """,
+                cutoff_date,
+            )
+            chain_stats_result = await conn.execute(
+                """
+                DELETE FROM chain_stats
+                WHERE price_date < $1
+                """,
+                cutoff_date,
+            )
+
+        deleted["prices"] = int(prices_result.split()[-1])
+        deleted["chain_prices"] = int(chain_prices_result.split()[-1])
+        deleted["chain_stats"] = int(chain_stats_result.split()[-1])
+
+        self.logger.info(
+            "Pruned data older than %s (retention=%s days): prices=%s, chain_prices=%s, chain_stats=%s",
+            cutoff_date.isoformat(),
+            retention_days,
+            deleted["prices"],
+            deleted["chain_prices"],
+            deleted["chain_stats"],
+        )
+        return deleted
 
     async def _fetchval(self, query: str, *args: Any) -> Any:
         async with self._get_conn() as conn:

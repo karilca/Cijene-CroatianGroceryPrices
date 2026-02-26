@@ -32,6 +32,19 @@ class Database(ABC):
         pass
 
     @abstractmethod
+    async def prune_old_price_data(self, retention_days: int) -> dict[str, int]:
+        """
+        Delete price-related rows older than configured retention period.
+
+        Args:
+            retention_days: Number of latest days to keep. Values <= 0 disable cleanup.
+
+        Returns:
+            Dictionary containing number of deleted rows per table.
+        """
+        pass
+
+    @abstractmethod
     async def close(self) -> None:
         """Close all database connections."""
         pass

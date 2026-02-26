@@ -32,6 +32,8 @@ cp .env.docker.example .env
 docker-compose up -d
 ```
 
+Napomena: backend koristi jedan predložak varijabli okruženja, `Backend/.env.docker.example`, koji se kopira u `.env`.
+
 API servis bit ce dostupan na `http://localhost:8080`.
 
 ## Struktura repozitorija i upute

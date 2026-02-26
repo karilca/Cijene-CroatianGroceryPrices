@@ -17,12 +17,12 @@ class Settings:
     def __init__(self):
         self.version: str = os.getenv("VERSION", "0.1.0")
         self.archive_dir: str = os.getenv("ARCHIVE_DIR", "output")
-        self.base_url: str = os.getenv("BASE_URL", "http://192.168.1.232:8080")
+        self.base_url: str = os.getenv("BASE_URL", "http://127.0.0.1:8080")
         self.host: str = os.getenv("HOST", "0.0.0.0")
         self.port: int = int(os.getenv("PORT", "8080"))
         self.debug: bool = os.getenv("DEBUG", "false").lower() == "true"
         self.timezone: str = os.getenv("TIMEZONE", "Europe/Zagreb")
-        self.redirect_url: str = os.getenv("REDIRECT_URL", "https://cijene.dev")
+        self.redirect_url: str = os.getenv("REDIRECT_URL", "https://cijene.netlify.app/")
 
         # Database configuration
         self.db_dsn: str = os.getenv(
@@ -31,6 +31,7 @@ class Settings:
         )
         self.db_min_connections: int = int(os.getenv("DB_MIN_CONNECTIONS", "5"))
         self.db_max_connections: int = int(os.getenv("DB_MAX_CONNECTIONS", "20"))
+        self.db_retention_days: int = max(0, int(os.getenv("DB_RETENTION_DAYS", "0")))
 
     def get_db(self) -> "Database":
         """

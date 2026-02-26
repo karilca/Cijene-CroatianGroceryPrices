@@ -18,6 +18,8 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager to handle startup and shutdown events."""
     await db.connect()
     await db.create_tables()
+    if settings.db_retention_days > 0:
+        await db.prune_old_price_data(settings.db_retention_days)
     yield
     await db.close()
 

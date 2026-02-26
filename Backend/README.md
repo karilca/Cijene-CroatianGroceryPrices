@@ -35,6 +35,7 @@ docker-compose up -d
 - `BASE_URL` - javni API URL
 - `DEBUG` - `false` za produkciju
 - `TIMEZONE` - `Europe/Zagreb`
+- `DB_RETENTION_DAYS` - broj dana price podataka za čuvanje (`0` = bez brisanja)
 
 ## Korištenje
 

@@ -440,6 +440,15 @@ async def main():
                 await import_archive(path, compute_stats_flag)
             else:
                 logger.error(f"Path `{path}` is neither a directory nor a zip archive.")
+
+        if settings.db_retention_days > 0:
+            deleted = await db.prune_old_price_data(settings.db_retention_days)
+            logger.info(
+                "Retention cleanup completed: prices=%s, chain_prices=%s, chain_stats=%s",
+                deleted["prices"],
+                deleted["chain_prices"],
+                deleted["chain_stats"],
+            )
     finally:
         await db.close()
 
