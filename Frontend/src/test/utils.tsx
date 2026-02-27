@@ -2,6 +2,7 @@ import React from 'react'
 import { render, renderHook, type RenderOptions } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
+import { vi } from 'vitest'
 
 // Test utilities for React Query
 export const createTestQueryClient = () => {
@@ -18,56 +19,21 @@ export const createTestQueryClient = () => {
   })
 }
 
-// Wrapper for components that need QueryClient
-const QueryWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const queryClient = createTestQueryClient()
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  )
-}
-
-// Wrapper for components that need Router
-const RouterWrapper: React.FC<{ children: React.ReactNode; initialEntries?: string[] }> = ({
-  children,
-  initialEntries = ['/']
-}) => {
-  return (
-    <MemoryRouter initialEntries={initialEntries}>
-      {children}
-    </MemoryRouter>
-  )
-}
-
-// Combined wrapper for components that need both QueryClient and Router
-const AllProvidersWrapper: React.FC<{
-  children: React.ReactNode
-  initialEntries?: string[]
-}> = ({ children, initialEntries = ['/'] }) => {
-  const queryClient = createTestQueryClient()
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={initialEntries}>
-        {children}
-      </MemoryRouter>
-    </QueryClientProvider>
-  )
-}
-
 // Custom render function with providers
 export const renderWithProviders = (
   ui: React.ReactElement,
   options?: RenderOptions & { initialEntries?: string[] }
 ) => {
   const { initialEntries, ...renderOptions } = options || {}
+  const queryClient = createTestQueryClient()
 
   return render(ui, {
     wrapper: ({ children }) => (
-      <AllProvidersWrapper initialEntries={initialEntries}>
-        {children}
-      </AllProvidersWrapper>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={initialEntries || ['/']}>
+          {children}
+        </MemoryRouter>
+      </QueryClientProvider>
     ),
     ...renderOptions,
   })
@@ -79,12 +45,15 @@ export const renderHookWithProviders = <T,>(
   options?: { initialEntries?: string[] }
 ) => {
   const { initialEntries } = options || {}
+  const queryClient = createTestQueryClient()
 
   return renderHook(hook, {
     wrapper: ({ children }) => (
-      <AllProvidersWrapper initialEntries={initialEntries}>
-        {children}
-      </AllProvidersWrapper>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={initialEntries || ['/']}>
+          {children}
+        </MemoryRouter>
+      </QueryClientProvider>
     ),
   })
 }
@@ -135,6 +104,5 @@ export const waitForLoadingToFinish = () => {
   return new Promise(resolve => setTimeout(resolve, 0))
 }
 
-// Import userEvent
 import userEvent from '@testing-library/user-event'
 export { userEvent }

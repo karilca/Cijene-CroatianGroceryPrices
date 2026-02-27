@@ -1,7 +1,7 @@
 // Enhanced error handling hooks for components
 
 import { useCallback } from 'react';
-import { useNotifications } from '../components/common/NotificationSystem';
+import { useNotifications } from '../components/common/NotificationContext';
 import { useErrorState, classifyError, getUserFriendlyMessage } from '../utils/errorHandling';
 import { ERROR_MESSAGES } from '../constants';
 
@@ -9,7 +9,7 @@ export interface UseComponentErrorOptions {
   showNotifications?: boolean;
   maxRetries?: number;
   retryDelay?: number;
-  onError?: (error: any) => void;
+  onError?: (error: unknown) => void;
   onRetry?: () => void;
 }
 
@@ -32,7 +32,7 @@ export const useComponentError = (options: UseComponentErrorOptions = {}) => {
     onRetry
   });
 
-  const handleError = useCallback((error: any) => {
+  const handleError = useCallback((error: unknown) => {
     const enhancedError = classifyError(error);
     errorState.setError(error);
 
@@ -73,7 +73,7 @@ export const useComponentError = (options: UseComponentErrorOptions = {}) => {
 export const useApiError = () => {
   const { notifyError, notifyWarning } = useNotifications();
 
-  const handleApiError = useCallback((error: any) => {
+  const handleApiError = useCallback((error: unknown) => {
     const enhancedError = classifyError(error);
 
     switch (enhancedError.type) {
@@ -130,7 +130,7 @@ export const useFormError = () => {
     }
   }, [notifyWarning]);
 
-  const handleFormSubmitError = useCallback((error: any) => {
+  const handleFormSubmitError = useCallback((error: unknown) => {
     const enhancedError = classifyError(error);
     
     if (enhancedError.type === 'VALIDATION') {

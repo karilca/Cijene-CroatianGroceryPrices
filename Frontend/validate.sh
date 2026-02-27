@@ -3,10 +3,11 @@
 # Comprehensive validation script for Cijene Frontend
 # This script validates the entire application is ready for production
 
-echo "Starting Cijene Frontend Validation..."
+echo "Starting Cijene Frontend Validation"
 
-# Change to the frontend directory
-cd /home/runner/work/cijene-web-ui/cijene-web-ui/cijene-frontend
+# Change to the script directory (works locally and in CI)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 # Colors for output
 RED='\033[0;31m'
@@ -18,19 +19,23 @@ NC='\033[0m' # No Color
 # Function to print status
 print_status() {
     if [ $1 -eq 0 ]; then
-        echo -e "${GREEN}✅ $2${NC}"
+        echo -e "${GREEN}OK: $2${NC}"
     else
-        echo -e "${RED}❌ $2${NC}"
+        if [ -n "$3" ]; then
+            echo -e "${RED}ERROR: $3${NC}"
+        else
+            echo -e "${RED}ERROR: $2${NC}"
+        fi
         exit 1
     fi
 }
 
 print_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+    echo -e "${BLUE}INFO: $1${NC}"
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}WARNING: $1${NC}"
 }
 
 # 1. Check Node.js and npm versions
@@ -50,13 +55,13 @@ print_status $? "Linting passed"
 
 # 4. Run tests
 print_info "Running test suite..."
-npm test -- --run
+npx vitest run
 print_status $? "All tests passed"
 
 # 5. Build the application
 print_info "Building application for production..."
 npm run build
-print_status $? "Production build successful"
+print_status $? "Production build successful" "Production build failed"
 
 # 6. Check build output
 print_info "Validating build output..."
@@ -135,7 +140,7 @@ fi
 
 # 13. Validate test coverage (if configured)
 print_info "Test configuration validation..."
-if npm test -- --help | grep -q "coverage"; then
+if npx vitest --help | grep -q "coverage"; then
     print_status 0 "Test coverage configuration available"
 else
     print_warning "Test coverage not configured"
@@ -143,22 +148,22 @@ fi
 
 # 14. Final summary
 echo ""
-echo -e "${GREEN}🎉 VALIDATION COMPLETE!${NC}"
+echo -e "${GREEN}VALIDATION COMPLETE${NC}"
 echo ""
-echo -e "${BLUE}📊 Summary:${NC}"
-echo "• All tests passing: ✅"
-echo "• Production build successful: ✅"
-echo "• Dependencies secure: ✅"
-echo "• Deployment configs ready: ✅"
-echo "• Code quality checks passed: ✅"
+echo -e "${BLUE}Summary:${NC}"
+echo "All tests passing: YES"
+echo "Production build successful: YES"
+echo "Dependencies secure: YES"
+echo "Deployment configs ready: YES"
+echo "Code quality checks passed: YES"
 echo ""
-echo -e "${GREEN}🚀 Application is ready for deployment!${NC}"
+echo -e "${GREEN}Application is ready for deployment${NC}"
 echo ""
-echo -e "${BLUE}📋 Next steps:${NC}"
+echo -e "${BLUE}Next steps:${NC}"
 echo "1. Set up environment variables in production"
 echo "2. Configure API endpoints for production"
 echo "3. Deploy to your chosen hosting platform (Vercel, Netlify, etc.)"
 echo "4. Set up monitoring and analytics"
 echo ""
-echo -e "${YELLOW}📁 Build artifacts are in the 'dist' directory${NC}"
+echo -e "${YELLOW}Build artifacts are in the dist directory${NC}"
 echo "Build size: $(du -sh dist | cut -f1)"

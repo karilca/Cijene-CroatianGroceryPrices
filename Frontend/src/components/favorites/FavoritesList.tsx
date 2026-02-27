@@ -20,6 +20,8 @@ interface FavoriteItemProps {
   onRemove: (id: string) => void;
 }
 
+type StoreWithDistance = StoreType & { distance?: number };
+
 const FavoriteItem: React.FC<FavoriteItemProps> = ({ item, type, onRemove }) => {
   const { t } = useLanguage();
 
@@ -128,9 +130,9 @@ const FavoriteItem: React.FC<FavoriteItemProps> = ({ item, type, onRemove }) => 
               </div>
             )}
 
-            {(store as any).distance && (
+            {(store as StoreWithDistance).distance && (
               <div className="text-xs text-gray-500 mb-2">
-                {t('favoritesList.distance').replace('{distance}', formatDistance((store as any).distance))}
+                {t('favoritesList.distance').replace('{distance}', formatDistance((store as StoreWithDistance).distance ?? 0))}
               </div>
             )}
 

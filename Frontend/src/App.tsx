@@ -1,4 +1,4 @@
-import { LanguageProvider } from './contexts/LanguageContext';
+import { LanguageProvider } from './contexts/LanguageProvider';
 import { LanguageSelectionPopup } from './components/common/LanguageSelectionPopup';
 import { ErrorBoundary, NotificationProvider } from './components/common';
 import { GlobalErrorHandlerProvider } from './hooks/useGlobalErrorHandler';

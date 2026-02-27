@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useNetworkStatus } from '../../utils/errorHandling';
-import { useNotifications } from './NotificationSystem';
+import { useNotifications } from './NotificationContext';
 import { useEffect, useRef } from 'react';
 
 export const OfflineIndicator: React.FC = () => {

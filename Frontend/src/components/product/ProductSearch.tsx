@@ -48,7 +48,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
   // Normalize chains data to handle both string[] (API docs) and Chain[] (Mock data)
   const availableChains = React.useMemo(() => {
     if (!chainsData?.chains) return [];
-    return (chainsData.chains as any[]).map((c) => {
+    return (chainsData.chains as Array<string | { code: string; name: string }>).map((c) => {
       if (typeof c === 'string') {
         return { code: c, name: c.charAt(0).toUpperCase() + c.slice(1).toLowerCase() };
       }

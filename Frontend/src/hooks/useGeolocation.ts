@@ -93,8 +93,6 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
   useEffect(() => {
     if (!options.watchPosition || !state.supported) return;
 
-    let watchId: number;
-
     const handleSuccess = (position: GeolocationPosition) => {
       setState(prev => ({
         ...prev,
@@ -117,7 +115,7 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
       }));
     };
 
-    watchId = geolocationService.watchPosition(
+    const watchId = geolocationService.watchPosition(
       handleSuccess,
       handleError,
       {

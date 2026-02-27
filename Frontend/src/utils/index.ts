@@ -99,12 +99,12 @@ export const isValidChainCode = (code: string): boolean => {
 /**
  * Debounce function
  */
-export const debounce = <T extends (...args: any[]) => any>(
-  func: T,
+export const debounce = <TArgs extends unknown[]>(
+  func: (...args: TArgs) => void,
   wait: number
-): ((...args: Parameters<T>) => void) => {
+): ((...args: TArgs) => void) => {
   let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
+  return (...args: TArgs) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
   };
@@ -113,12 +113,12 @@ export const debounce = <T extends (...args: any[]) => any>(
 /**
  * Throttle function
  */
-export const throttle = <T extends (...args: any[]) => any>(
-  func: T,
+export const throttle = <TArgs extends unknown[]>(
+  func: (...args: TArgs) => void,
   limit: number
-): ((...args: Parameters<T>) => void) => {
+): ((...args: TArgs) => void) => {
   let inThrottle: boolean;
-  return (...args: Parameters<T>) => {
+  return (...args: TArgs) => {
     if (!inThrottle) {
       func(...args);
       inThrottle = true;

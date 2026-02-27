@@ -1,11 +1,14 @@
-import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
-import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { ArchivesPage } from '../pages/ArchivesPage';
+import { LanguageContext } from '../contexts/LanguageContext';
+import { translations } from '../utils/translations';
+import type { TranslationKey } from '../utils/translations';
+import { server } from './setup';
 
 // Create mock archives data
 const mockArchives = [
@@ -35,16 +38,13 @@ const mockArchives = [
   }
 ];
 
-// Setup MSW server
-const server = setupServer(
-  http.get('https://cijene.searxngmate.tk/v0/list', () => {
-    return HttpResponse.json({ archives: mockArchives });
-  })
-);
-
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+beforeEach(() => {
+  server.use(
+    http.get('*/v0/list', () => {
+      return HttpResponse.json({ archives: mockArchives });
+    })
+  );
+});
 
 // Helper function to render the component
 const renderArchivesPage = () => {
@@ -58,17 +58,25 @@ const renderArchivesPage = () => {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <ArchivesPage />
-      </BrowserRouter>
+      <LanguageContext.Provider
+        value={{
+          language: 'en',
+          setLanguage: () => undefined,
+          t: (key: TranslationKey) => translations.en[key] || key,
+        }}
+      >
+        <BrowserRouter>
+          <ArchivesPage />
+        </BrowserRouter>
+      </LanguageContext.Provider>
     </QueryClientProvider>
   );
 };
 
 describe('ArchivesPage', () => {
   it('renders loading state initially', () => {
-    renderArchivesPage();
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    const { container } = renderArchivesPage();
+    expect(container.querySelector('.animate-spin')).toBeInTheDocument();
   });
 
   it('displays archive information cards', async () => {
@@ -89,12 +97,8 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText(/Archive for/)).toBeInTheDocument();
+      expect(screen.getAllByText(/Archive for/)).toHaveLength(4);
     });
-
-    // Check that all 4 archives are displayed
-    const archiveElements = screen.getAllByText(/Archive for/);
-    expect(archiveElements).toHaveLength(4);
   });
 
   it('displays date filter controls', async () => {
@@ -228,7 +232,7 @@ describe('ArchivesPage', () => {
 
     // Should display count and size
     await waitFor(() => {
-      expect(screen.getByText(/4 archives selected/)).toBeInTheDocument();
+      expect(screen.getByText(/4 archive\(s\) selected/)).toBeInTheDocument();
     });
   });
 

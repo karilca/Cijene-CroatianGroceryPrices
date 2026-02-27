@@ -9,6 +9,10 @@ interface BarcodeScannerProps {
     onClose: () => void;
 }
 
+interface MediaTrackWithTorch extends MediaTrackCapabilities {
+    torch?: boolean;
+}
+
 export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose }) => {
     const { t } = useLanguage();
     const webcamRef = useRef<Webcam>(null);
@@ -36,7 +40,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
         if (track) {
             try {
                 await track.applyConstraints({
-                    advanced: [{ torch: !torchOn } as any]
+                    advanced: [{ torch: !torchOn } as unknown as MediaTrackConstraintSet]
                 });
                 setTorchOn(!torchOn);
             } catch (err) {
@@ -56,7 +60,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
         const track = stream.getVideoTracks()[0];
 
         try {
-            const capabilities = track.getCapabilities() as any;
+            const capabilities = track.getCapabilities() as MediaTrackWithTorch;
             if (capabilities.torch) {
                 setHasTorch(true);
             }

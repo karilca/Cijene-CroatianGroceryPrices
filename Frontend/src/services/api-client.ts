@@ -144,12 +144,12 @@ export class ApiClient {
     return response.data;
   }
 
-  async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async post<T, TRequest = unknown>(url: string, data?: TRequest, config?: AxiosRequestConfig): Promise<T> {
     const response: AxiosResponse<T> = await this.client.post(url, data, config);
     return response.data;
   }
 
-  async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async put<T, TRequest = unknown>(url: string, data?: TRequest, config?: AxiosRequestConfig): Promise<T> {
     const response: AxiosResponse<T> = await this.client.put(url, data, config);
     return response.data;
   }
@@ -159,7 +159,7 @@ export class ApiClient {
     return response.data;
   }
 
-  async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  async patch<T, TRequest = unknown>(url: string, data?: TRequest, config?: AxiosRequestConfig): Promise<T> {
     const response: AxiosResponse<T> = await this.client.patch(url, data, config);
     return response.data;
   }
@@ -191,7 +191,7 @@ export class ApiClient {
     try {
       const response = await this.client.get('/health');
       return response.data;
-    } catch (error) {
+    } catch {
       return {
         status: 'error',
         timestamp: new Date().toISOString()
@@ -204,7 +204,7 @@ export class ApiClient {
     try {
       const response = await this.client.get('/version');
       return response.data.version || 'unknown';
-    } catch (error) {
+    } catch {
       return 'unknown';
     }
   }
@@ -257,14 +257,14 @@ export class ApiClient {
 export class ApiError extends Error {
   public message: string;
   public code: string;
-  public details?: any;
+  public details?: unknown;
   public status?: number;
   public timestamp: string;
 
   constructor(
     message: string,
     code: string,
-    details?: any,
+    details?: unknown,
     status?: number
   ) {
     super(message);
@@ -301,7 +301,7 @@ export class ApiError extends Error {
 
 // Request validation helper
 export class RequestValidator {
-  static validateRequired(value: any, fieldName: string): void {
+  static validateRequired(value: unknown, fieldName: string): void {
     if (value === undefined || value === null || value === '') {
       throw new ApiError(
         `Field '${fieldName}' is required`,

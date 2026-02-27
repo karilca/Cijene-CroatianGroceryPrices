@@ -22,16 +22,24 @@ export interface EnhancedError {
   type: ErrorType;
   message: string;
   code?: string;
-  details?: any;
+  details?: unknown;
   timestamp: string;
   isRetryable: boolean;
   retryCount?: number;
   maxRetries?: number;
 }
 
+interface ErrorLike {
+  name?: string;
+  message?: string;
+  code?: string;
+  details?: unknown;
+}
+
 // Error classification utility
-export const classifyError = (error: any): EnhancedError => {
+export const classifyError = (error: unknown): EnhancedError => {
   const timestamp = new Date().toISOString();
+  const typedError = error as ErrorLike;
   
   if (error instanceof ApiError) {
     let type: ErrorType = ErrorType.API;
@@ -75,12 +83,12 @@ export const classifyError = (error: any): EnhancedError => {
   }
   
   // Validation errors (usually from forms)
-  if (error.name === 'ValidationError' || error.code === 'VALIDATION_ERROR') {
+  if (typedError.name === 'ValidationError' || typedError.code === 'VALIDATION_ERROR') {
     return {
       type: ErrorType.VALIDATION,
-      message: error.message || 'Invalid input provided.',
-      code: error.code,
-      details: error.details,
+      message: typedError.message || 'Invalid input provided.',
+      code: typedError.code,
+      details: typedError.details,
       timestamp,
       isRetryable: false
     };
@@ -89,7 +97,7 @@ export const classifyError = (error: any): EnhancedError => {
   // Generic error fallback
   return {
     type: ErrorType.UNKNOWN,
-    message: error.message || 'An unexpected error occurred.',
+    message: typedError.message || 'An unexpected error occurred.',
     timestamp,
     isRetryable: false
   };
@@ -132,7 +140,7 @@ export const useErrorState = (options: UseErrorStateOptions = {}) => {
     onMaxRetriesReached
   } = options;
 
-  const setEnhancedError = useCallback((rawError: any) => {
+  const setEnhancedError = useCallback((rawError: unknown) => {
     const enhancedError = classifyError(rawError);
     enhancedError.maxRetries = maxRetries;
     enhancedError.retryCount = 0;
@@ -222,7 +230,7 @@ export class GlobalErrorHandler {
     };
   }
   
-  handleError(error: any): void {
+  handleError(error: unknown): void {
     const enhancedError = classifyError(error);
     console.error('Global error:', enhancedError);
     
