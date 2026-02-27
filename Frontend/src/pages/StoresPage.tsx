@@ -103,15 +103,14 @@ export const StoresPage: React.FC = () => {
 
   // Handle store selection
   const handleStoreClick = useCallback((store: Store) => {
-    setSelectedStore(store);
-    setShowDetails(true);
-
-    // Update URL with store ID for deep linking
+    // Update URL with store ID for deep linking.
+    // Details view is opened by the URL-driven effect to avoid open/close flicker.
     const storeId = store.id || store.code || `${store.chain_code}-${store.address}`;
     if (storeId) {
       setUrlSearchParams(prev => {
-        prev.set('id', storeId);
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.set('id', storeId);
+        return next;
       });
     }
   }, [setUrlSearchParams]);
@@ -120,8 +119,9 @@ export const StoresPage: React.FC = () => {
   const handleBackFromDetails = useCallback(() => {
     // Only update URL. The centralized useEffect will handle state cleanup.
     setUrlSearchParams(prev => {
-      prev.delete('id');
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.delete('id');
+      return next;
     });
   }, [setUrlSearchParams]);
 
