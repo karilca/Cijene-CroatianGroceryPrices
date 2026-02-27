@@ -3,10 +3,24 @@ import { describe, it, expect } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+interface MockProductChain {
+  chain: string
+  min_price: string
+  max_price: string
+  avg_price: string
+}
+
+interface MockProduct {
+  ean: string
+  name: string
+  brand: string
+  chains: MockProductChain[]
+}
+
 // Mock ProductsPage component for integration testing
 const MockProductsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = React.useState('')
-  const [products, setProducts] = React.useState<any[]>([])
+  const [products, setProducts] = React.useState<MockProduct[]>([])
   const [loading, setLoading] = React.useState(false)
 
   const handleSearch = async (query: string) => {
@@ -70,7 +84,7 @@ const MockProductsPage: React.FC = () => {
             <h3>{product.name}</h3>
             <p>Brand: {product.brand}</p>
             <div data-testid="price-info">
-              {product.chains.map((chain: any) => (
+              {product.chains.map((chain) => (
                 <div key={chain.chain}>
                   {chain.chain}: €{chain.min_price} - €{chain.max_price}
                 </div>

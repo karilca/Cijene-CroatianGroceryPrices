@@ -23,6 +23,7 @@ export const StoreSearch: React.FC<StoreSearchProps> = ({ onSearch, className = 
   const [showFilters, setShowFilters] = useState(false);
   const [radius, setRadius] = useState(5000); // 5km default
   const [selectedChains, setSelectedChains] = useState<string[]>([]);
+  const [locationActive, setLocationActive] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionRef = useRef<HTMLDivElement>(null);
@@ -31,7 +32,6 @@ export const StoreSearch: React.FC<StoreSearchProps> = ({ onSearch, className = 
   const searchHistory = useAppStore((state) => state.searchHistory.stores);
   const addStoreSearch = useAppStore((state) => state.addStoreSearch);
   const preferredChains = useAppStore((state) => state.preferredChains);
-  const defaultLocation = useAppStore((state) => state.defaultLocation);
   const searchRadius = useAppStore((state) => state.searchRadius);
 
   // Initialize radius from user preferences
@@ -68,9 +68,11 @@ export const StoreSearch: React.FC<StoreSearchProps> = ({ onSearch, className = 
   const handleSearch = useCallback((searchQuery?: string, searchCity?: string, forcePosition?: { latitude: number; longitude: number }) => {
     const finalQuery = searchQuery || query;
     const finalCity = searchCity || city;
-    const finalPosition = forcePosition || position;
 
-    if (!finalQuery.trim() && !finalCity.trim() && !finalPosition && !defaultLocation.latitude) return;
+    // Only use coordinates when the user explicitly clicked "Use my location"
+    const activePosition = forcePosition || (locationActive ? position : null);
+
+    if (!finalQuery.trim() && !finalCity.trim() && !activePosition) return;
 
     const searchParams: StoreSearchRequest = {};
 
@@ -84,13 +86,10 @@ export const StoreSearch: React.FC<StoreSearchProps> = ({ onSearch, className = 
       addStoreSearch(finalCity.trim());
     }
 
-    // Use current position or default location
-    if (finalPosition) {
-      searchParams.latitude = finalPosition.latitude;
-      searchParams.longitude = finalPosition.longitude;
-    } else if (defaultLocation.latitude && defaultLocation.longitude) {
-      searchParams.latitude = defaultLocation.latitude;
-      searchParams.longitude = defaultLocation.longitude;
+    // Attach coordinates only when location is active (user clicked the button)
+    if (activePosition) {
+      searchParams.latitude = activePosition.latitude;
+      searchParams.longitude = activePosition.longitude;
     }
 
     if (searchParams.latitude && searchParams.longitude) {
@@ -106,7 +105,7 @@ export const StoreSearch: React.FC<StoreSearchProps> = ({ onSearch, className = 
     setShowSuggestions(false);
 
     onSearch(searchParams);
-  }, [query, city, position, defaultLocation, radius, selectedChains, addStoreSearch, onSearch]);
+  }, [query, city, position, locationActive, radius, selectedChains, addStoreSearch, onSearch]);
 
   // Handle input changes
   const handleQueryChange = useCallback((value: string) => {
@@ -157,6 +156,7 @@ export const StoreSearch: React.FC<StoreSearchProps> = ({ onSearch, className = 
     try {
       const pos = await getCurrentPosition();
       if (pos) {
+        setLocationActive(true);
         handleSearch(undefined, undefined, pos);
       }
     } catch (error) {

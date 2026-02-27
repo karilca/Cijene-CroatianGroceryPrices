@@ -66,7 +66,7 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
   const filteredStores = useMemo(() => {
     if (!stores) return [];
 
-    let filtered = stores.filter((store: Store) => {
+    const filtered = stores.filter((store: Store) => {
       const cityMatch = !storeFilters.city ||
         (store.city && store.city.toLowerCase().includes(storeFilters.city.toLowerCase()));
       const typeMatch = !storeFilters.store_type || store.store_type === storeFilters.store_type;
@@ -285,7 +285,10 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
             </label>
             <select
               value={storeFilters.sortBy}
-              onChange={(e) => setStoreFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
+              onChange={(e) => setStoreFilters(prev => ({
+                ...prev,
+                sortBy: e.target.value as 'city' | 'address' | 'store_type'
+              }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="city">{t('chainDetails.city')}</option>

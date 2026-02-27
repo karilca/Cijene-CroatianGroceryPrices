@@ -8,8 +8,8 @@ export interface BaseSearchOptions<TParams, TItem> {
   searchHistory: string[];
   addToHistory: (query: string) => void;
   onSearch: (params: TParams) => void;
-  buildSearchParams: (query: string, additionalData?: any) => TParams;
-  validateSearch?: (query: string, additionalData?: any) => boolean;
+  buildSearchParams: (query: string, additionalData?: unknown) => TParams;
+  validateSearch?: (query: string, additionalData?: unknown) => boolean;
 }
 
 export function useBaseSearch<TParams, TItem>({
@@ -29,7 +29,7 @@ export function useBaseSearch<TParams, TItem>({
   const suggestionRef = useRef<HTMLDivElement>(null);
 
   // Handle search submission
-  const handleSearch = useCallback((searchQuery?: string, additionalData?: any) => {
+  const handleSearch = useCallback((searchQuery?: string, additionalData?: unknown) => {
     const finalQuery = searchQuery || query;
 
     // If validateSearch is provided, use it as the primary validation

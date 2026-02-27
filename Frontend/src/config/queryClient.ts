@@ -1,5 +1,17 @@
 import { QueryClient } from '@tanstack/react-query';
 
+interface QueryErrorWithStatus {
+  status?: number;
+  response?: {
+    status?: number;
+  };
+}
+
+const getStatusCode = (error: Error): number | undefined => {
+  const queryError = error as Error & QueryErrorWithStatus;
+  return queryError.status ?? queryError.response?.status;
+};
+
 // Query client configuration
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -9,13 +21,14 @@ export const queryClient = new QueryClient({
       // 10 minutes garbage collection time
       gcTime: 10 * 60 * 1000,
       // Retry failed requests up to 3 times with backoff
-      retry: (failureCount, error: any) => {
+      retry: (failureCount, error: Error) => {
+        const status = getStatusCode(error);
         // Don't retry on authentication errors
-        if (error?.status === 401 || error?.status === 403) {
+        if (status === 401 || status === 403) {
           return false;
         }
         // Don't retry on client errors (4xx except auth)
-        if (error?.status >= 400 && error?.status < 500) {
+        if (status !== undefined && status >= 400 && status < 500) {
           return false;
         }
         // Retry up to 3 times for other errors
@@ -30,9 +43,10 @@ export const queryClient = new QueryClient({
     },
     mutations: {
       // Retry mutations up to 2 times with custom logic
-      retry: (failureCount, error: any) => {
+      retry: (failureCount, error: Error) => {
+        const status = getStatusCode(error);
         // Don't retry on authentication or client errors
-        if (error?.status >= 400 && error?.status < 500) {
+        if (status !== undefined && status >= 400 && status < 500) {
           return false;
         }
         // Retry up to 2 times for other errors
@@ -48,10 +62,10 @@ export const queryKeys = {
   products: {
     all: ['products'] as const,
     lists: () => [...queryKeys.products.all, 'list'] as const,
-    list: (params: any) => [...queryKeys.products.lists(), params] as const,
+    list: <T extends object>(params: T) => [...queryKeys.products.lists(), params] as const,
     details: () => [...queryKeys.products.all, 'detail'] as const,
     detail: (id: string) => [...queryKeys.products.details(), id] as const,
-    prices: (id: string, params?: any) => [...queryKeys.products.detail(id), 'prices', params] as const,
+    prices: <T extends object>(id: string, params?: T) => [...queryKeys.products.detail(id), 'prices', params] as const,
     suggestions: (query: string) => [...queryKeys.products.all, 'suggestions', query] as const,
     popular: () => [...queryKeys.products.all, 'popular'] as const,
     byEAN: (ean: string) => [...queryKeys.products.all, 'ean', ean] as const,
@@ -62,7 +76,7 @@ export const queryKeys = {
   stores: {
     all: ['stores'] as const,
     lists: () => [...queryKeys.stores.all, 'list'] as const,
-    list: (params: any) => [...queryKeys.stores.lists(), params] as const,
+    list: <T extends object>(params: T) => [...queryKeys.stores.lists(), params] as const,
     details: () => [...queryKeys.stores.all, 'detail'] as const,
     detail: (id: string) => [...queryKeys.stores.details(), id] as const,
     nearby: (lat: number, lng: number, radius: number) =>

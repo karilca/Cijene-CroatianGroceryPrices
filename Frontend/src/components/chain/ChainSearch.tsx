@@ -35,7 +35,7 @@ export const ChainSearch: React.FC<ChainSearchProps> = ({
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const filteredAndSortedChains = useMemo(() => {
-    let filtered = chains.filter(chain => {
+    const filtered = chains.filter(chain => {
       const queryMatch = !filters.query ||
         (chain.name && chain.name.toLowerCase().includes(filters.query.toLowerCase())) ||
         (chain.code && chain.code.toLowerCase().includes(filters.query.toLowerCase()));

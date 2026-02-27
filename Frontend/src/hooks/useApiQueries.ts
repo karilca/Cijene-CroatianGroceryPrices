@@ -22,6 +22,14 @@ import type {
 } from '../types';
 import { queryKeys } from '../config/queryClient';
 
+interface ErrorWithStatus {
+  status?: number;
+  message?: string;
+  response?: {
+    status?: number;
+  };
+}
+
 // Product hooks
 export function useProductSearch(
   params: ProductSearchRequest,
@@ -41,9 +49,14 @@ export function useProductSearch(
             per_page: 1,
             total_pages: 1
           } as ProductSearchResponse;
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const typedError = error as ErrorWithStatus;
           // If product not found (404), return empty result
-          if (error?.response?.status === 404 || error?.status === 404 || error?.message?.includes('404')) {
+          if (
+            typedError?.response?.status === 404 ||
+            typedError?.status === 404 ||
+            typedError?.message?.includes('404')
+          ) {
             return {
               products: [],
               total_count: 0,
