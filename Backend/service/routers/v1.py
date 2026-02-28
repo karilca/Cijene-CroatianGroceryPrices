@@ -96,11 +96,11 @@ async def search_stores(
     ),
     city: str = Query(
         None,
-        description="City name for case-insensitive substring match",
+        description="City name for case-insensitive and accent-insensitive substring match (đ≈dj)",
     ),
     address: str = Query(
         None,
-        description="Address for case-insensitive substring match",
+        description="Address for case-insensitive and accent-insensitive substring match (đ≈dj)",
     ),
     lat: float = Query(
         None,
@@ -125,6 +125,9 @@ async def search_stores(
 ) -> ListStoresResponse:
     """
     Search for stores by chain codes, city, address, and/or geolocation.
+
+    City and address filters are case-insensitive and accent-insensitive,
+    including đ/dj normalization.
 
     For geolocation search, both lat and lon must be provided together.
     Note that the geolocation search will only return stores that have
@@ -367,11 +370,11 @@ async def get_prices(
     ),
     city: str = Query(
         None,
-        description="City name for case-insensitive substring match",
+        description="City name for case-insensitive and accent-insensitive substring match (đ≈dj)",
     ),
     address: str = Query(
         None,
-        description="Address for case-insensitive substring match",
+        description="Address for case-insensitive and accent-insensitive substring match (đ≈dj)",
     ),
     lat: float = Query(
         None,
@@ -390,6 +393,8 @@ async def get_prices(
     Get product prices by store with store filtering capabilities.
 
     Returns prices for products in stores matching the filter criteria.
+    City and address filters are case-insensitive and accent-insensitive,
+    including đ/dj normalization.
     For geolocation search, both lat and lon must be provided together.
     The EANs parameter is required and must contain at least one EAN code.
     """

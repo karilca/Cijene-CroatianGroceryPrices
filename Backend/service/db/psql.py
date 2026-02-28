@@ -310,22 +310,28 @@ class PostgresDatabase(Database):
             params = []
             param_counter = 1
 
+            def normalized_like_expr(column_expr: str, param_idx: int) -> str:
+                return (
+                    "hr_search_normalize(coalesce(" + column_expr + ", '')) "
+                    "LIKE '%' || hr_search_normalize($" + str(param_idx) + ") || '%'"
+                )
+
             # Chain codes filter
             if chain_codes:
                 where_conditions.append(f"c.code = ANY(${param_counter})")
                 params.append(chain_codes)
                 param_counter += 1
 
-            # City filter (case-insensitive substring match)
+            # City filter (case-insensitive and accent-insensitive substring match)
             if city:
-                where_conditions.append(f"s.city ILIKE ${param_counter}")
-                params.append(f"%{city}%")
+                where_conditions.append(normalized_like_expr("s.city", param_counter))
+                params.append(city)
                 param_counter += 1
 
-            # Address filter (case-insensitive substring match)
+            # Address filter (case-insensitive and accent-insensitive substring match)
             if address:
-                where_conditions.append(f"s.address ILIKE ${param_counter}")
-                params.append(f"%{address}%")
+                where_conditions.append(normalized_like_expr("s.address", param_counter))
+                params.append(address)
                 param_counter += 1
 
             # Geolocation filter using computed earth_point column

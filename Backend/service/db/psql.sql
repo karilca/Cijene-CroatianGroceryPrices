@@ -50,11 +50,26 @@ ADD COLUMN IF NOT EXISTS lon DOUBLE PRECISION,
 ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
 
 -- Requires "cube" and "earthdistance" extensions for geospatial queries
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS cube;
 CREATE EXTENSION IF NOT EXISTS earthdistance;
+
+CREATE OR REPLACE FUNCTION hr_search_normalize(input_text TEXT)
+RETURNS TEXT
+LANGUAGE SQL
+IMMUTABLE
+RETURNS NULL ON NULL INPUT
+AS $$
+    SELECT translate(replace(lower(input_text), 'đ', 'dj'), 'ščćž', 'sccz');
+$$;
+
 ALTER TABLE stores
 ADD COLUMN IF NOT EXISTS earth_point earth GENERATED ALWAYS AS (ll_to_earth (lat, lon)) STORED;
 CREATE INDEX IF NOT EXISTS idx_stores_earth_point ON stores USING GIST (earth_point);
+CREATE INDEX IF NOT EXISTS idx_stores_city_normalized_trgm ON stores
+USING GIN (hr_search_normalize(coalesce(city, '')) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_stores_address_normalized_trgm ON stores
+USING GIN (hr_search_normalize(coalesce(address, '')) gin_trgm_ops);
 
 -- Products table to store global product information
 CREATE TABLE IF NOT EXISTS products (

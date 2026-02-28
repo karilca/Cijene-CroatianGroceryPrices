@@ -96,6 +96,10 @@ crontab -e
 
 Servis dostupan na `http://localhost:8000`
 
+Pretraga trgovina po `city` i `address` je case-insensitive i accent-insensitive
+(npr. `Šibenik` = `Sibenik`, te `đ` ≈ `dj`) i ne mijenja originalne vrijednosti
+pohranjene u bazi.
+
 ### Baza podataka
 
 ```bash
