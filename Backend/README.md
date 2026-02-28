@@ -36,6 +36,12 @@ docker-compose up -d
 - `DEBUG` - `false` za produkciju
 - `TIMEZONE` - `Europe/Zagreb`
 - `DB_RETENTION_DAYS` - broj dana price podataka za čuvanje (`0` = bez brisanja)
+- `SEARCH_FTS_WEIGHT` - težina FTS ranka u product pretrazi
+- `SEARCH_PREFIX_WEIGHT` - težina prefix podudaranja u product pretrazi
+- `SEARCH_TRIGRAM_WEIGHT` - težina trigram podudaranja u product pretrazi
+- `SEARCH_TRIGRAM_THRESHOLD_SHORT` - minimalni trigram score za kratke upite
+- `SEARCH_TRIGRAM_THRESHOLD_LONG` - minimalni trigram score za duže upite
+- `SEARCH_TRIGRAM_LONG_QUERY_LEN` - duljina upita od koje se koristi LONG threshold
 
 ## Korištenje
 

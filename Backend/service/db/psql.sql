@@ -100,6 +100,12 @@ CREATE TABLE IF NOT EXISTS chain_products (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chain_products_product_id ON chain_products (product_id);
+CREATE INDEX IF NOT EXISTS idx_chain_products_search_tsv ON chain_products
+USING GIN (to_tsvector('simple', hr_search_normalize(coalesce(name, '') || ' ' || coalesce(brand, ''))));
+CREATE INDEX IF NOT EXISTS idx_chain_products_search_trgm ON chain_products
+USING GIN (hr_search_normalize(coalesce(name, '') || ' ' || coalesce(brand, '')) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_chain_products_name_trgm ON chain_products
+USING GIN (hr_search_normalize(coalesce(name, '')) gin_trgm_ops);
 
 -- Prices table to store product prices
 CREATE TABLE IF NOT EXISTS prices (

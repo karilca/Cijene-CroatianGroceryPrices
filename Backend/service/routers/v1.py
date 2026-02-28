@@ -227,10 +227,23 @@ class ProductResponse(BaseModel):
     )
 
 
+class ProductListItemResponse(BaseModel):
+    """Lightweight product information for search results."""
+
+    ean: str = Field(..., description="EAN barcode of the product.")
+    brand: str | None = Field(..., description="Brand of the product.")
+    name: str | None = Field(..., description="Name of the product.")
+    quantity: str | None = Field(..., description="Quantity of the product.")
+    unit: str | None = Field(..., description="Unit of the product.")
+
+
 class ProductSearchResponse(BaseModel):
-    products: list[ProductResponse] = Field(
+    products: list[ProductListItemResponse] = Field(
         ..., description="List of products matching the search query."
     )
+    total_count: int = Field(..., description="Total number of products matching the query.")
+    page: int = Field(..., description="Current page number.")
+    per_page: int = Field(..., description="Number of items per page.")
 
 
 async def prepare_product_response(
@@ -304,6 +317,49 @@ async def prepare_product_response(
                 product.name = chain_names[0].capitalize()
 
     return [p for p in product_response_map.values() if p.chains]
+
+
+async def prepare_product_list_response(
+    products: list[ProductWithId],
+) -> list[ProductListItemResponse]:
+    def normalize_fallback_text(value: str | None) -> str | None:
+        if not value:
+            return value
+        stripped = value.strip()
+        if not stripped:
+            return None
+        return stripped.capitalize()
+
+    missing_ids = [p.id for p in products if not p.name or not p.brand]
+
+    fallback: dict[int, dict[str, str | None]] = {}
+    if missing_ids:
+        chain_products = await db.get_chain_products_for_product(missing_ids)
+        for cp in chain_products:
+            current = fallback.setdefault(cp.product_id, {"name": None, "brand": None})
+
+            if cp.name and (
+                not current["name"] or len(cp.name) > len(current["name"])
+            ):
+                current["name"] = cp.name
+
+            if cp.brand and (
+                not current["brand"] or len(cp.brand) > len(current["brand"])
+            ):
+                current["brand"] = cp.brand
+
+    return [
+        ProductListItemResponse(
+            ean=product.ean,
+            brand=product.brand
+            or normalize_fallback_text(fallback.get(product.id, {}).get("brand")),
+            name=product.name
+            or normalize_fallback_text(fallback.get(product.id, {}).get("name")),
+            quantity=str(product.quantity) if product.quantity else None,
+            unit=product.unit,
+        )
+        for product in products
+    ]
 
 
 @router.get("/products/{ean}/", summary="Get product data/prices by barcode")
@@ -471,26 +527,62 @@ async def search_products(
         None,
         description="Comma-separated list of chain codes to include",
     ),
+    city: str = Query(
+        None,
+        description="City name for case-insensitive and accent-insensitive filtering",
+    ),
+    page: int = Query(
+        1,
+        description="Page number (default: 1)",
+    ),
+    per_page: int = Query(
+        20,
+        description="Number of items per page (default: 20, max: 100)",
+    ),
 ) -> ProductSearchResponse:
     """
     Search for products by name.
 
-    Returns a list of products that match the search query.
+    Returns a lightweight list of products that match the search query.
+
+    Price and chain-specific details are intentionally omitted for faster
+    response times. Use /products/{ean}/ for full product details.
     """
+    if page < 1:
+        page = 1
+    if per_page < 1:
+        per_page = 20
+    if per_page > 100:
+        per_page = 100
+
+    chain_codes = None
+    if chains:
+        chain_codes = [c.strip().lower() for c in chains.split(",") if c.strip()]
+
     if not q.strip():
-        return ProductSearchResponse(products=[])
+        return ProductSearchResponse(
+            products=[],
+            total_count=0,
+            page=page,
+            per_page=per_page,
+        )
 
-    products = await db.search_products(q)
-
-    product_responses = await prepare_product_response(
-        products=products,
-        date=date,
-        filtered_chains=(
-            [c.lower().strip() for c in chains.split(",")] if chains else None
-        ),
+    products, total_count = await db.search_products(
+        q,
+        chain_codes=chain_codes,
+        city=city,
+        page=page,
+        per_page=per_page,
     )
 
-    return ProductSearchResponse(products=product_responses)
+    product_list = await prepare_product_list_response(products)
+
+    return ProductSearchResponse(
+        products=product_list,
+        total_count=total_count,
+        page=page,
+        per_page=per_page,
+    )
 
 
 class ChainStatsResponse(BaseModel):

@@ -42,7 +42,13 @@ export class ProductService extends BaseService {
     if (params.chain_code) {
       chains.push(params.chain_code);
     }
-    urlParams.addArray('chains', chains);
+    if (chains.length > 0) {
+      urlParams.add('chains', chains.join(','));
+    }
+
+    if (params.city) {
+      urlParams.add('city', params.city.trim());
+    }
 
     urlParams.add('date', params.date ? (this.validateDateFormat(params.date), params.date) : undefined)
       .addPagination(params.page, params.per_page, PAGINATION.MAX_PER_PAGE);

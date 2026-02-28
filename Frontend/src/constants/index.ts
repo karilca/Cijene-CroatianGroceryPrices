@@ -31,6 +31,8 @@ export const ENDPOINTS = {
 export const PAGINATION = {
   DEFAULT_PAGE: 1,
   DEFAULT_PER_PAGE: Number(import.meta.env.VITE_STORES_PER_PAGE) || 20,
+  DEFAULT_PRODUCTS_PER_PAGE: Number(import.meta.env.VITE_PRODUCTS_PER_PAGE) || 20,
+  DEFAULT_STORES_PER_PAGE: Number(import.meta.env.VITE_STORES_PER_PAGE) || 20,
   MAX_PER_PAGE: 100,
 } as const;
 

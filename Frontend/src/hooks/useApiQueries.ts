@@ -72,7 +72,7 @@ export function useProductSearch(
       // Otherwise use the standard search
       return productService.searchProducts(params);
     },
-    enabled: !!(params.query || params.ean || params.chain_code),
+    enabled: !!(params.query || params.ean),
     ...options,
   });
 }

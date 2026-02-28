@@ -65,7 +65,9 @@ async def process_stores(
 
     stores_data = await read_csv(stores_path)
     store_map: dict[str, int] = {}
-    address_map: dict[str, int] = {}
+    stores_to_create: list[Store] = []
+    address_to_store_code: dict[str, str] = {}
+    deduped_codes: dict[str, str] = {}
 
     for store_row in stores_data:
         store = Store(
@@ -80,18 +82,21 @@ async def process_stores(
         if chain_code == "zabac":
             address_key = _normalize_address(store.address)
             if address_key:
-                existing_id = address_map.get(address_key)
-                if existing_id is not None:
-                    store_map[store.code] = existing_id
+                canonical_code = address_to_store_code.get(address_key)
+                if canonical_code is not None:
+                    deduped_codes[store.code] = canonical_code
                     continue
+                address_to_store_code[address_key] = store.code
 
-        store_id = await db.add_store(store)
-        store_map[store.code] = store_id
+        stores_to_create.append(store)
 
-        if chain_code == "zabac":
-            address_key = _normalize_address(store.address)
-            if address_key:
-                address_map[address_key] = store_id
+    inserted_store_map = await db.add_many_stores(stores_to_create)
+    store_map.update(inserted_store_map)
+
+    for store_code, canonical_code in deduped_codes.items():
+        canonical_id = inserted_store_map.get(canonical_code)
+        if canonical_id is not None:
+            store_map[store_code] = canonical_id
 
     logger.debug(f"Processed {len(stores_data)} stores")
     return store_map
@@ -157,14 +162,16 @@ async def process_products(
     )
 
     n_new_barcodes = 0
+    missing_barcodes = []
     for product in new_products:
         barcode = product["barcode"]
-        if barcode in barcodes:
-            continue
+        if barcode not in barcodes:
+            missing_barcodes.append(barcode)
 
-        global_product_id = await db.add_ean(barcode)
-        barcodes[barcode] = global_product_id
-        n_new_barcodes += 1
+    if missing_barcodes:
+        barcode_map = await db.add_many_eans(missing_barcodes)
+        barcodes.update(barcode_map)
+        n_new_barcodes = len(barcode_map)
 
     if n_new_barcodes:
         logger.debug(f"Added {n_new_barcodes} new barcodes to global products")
@@ -379,6 +386,16 @@ async def _import(
         await compute_stats(price_date)
     else:
         logger.debug(f"Skipping statistics computation for {price_date:%Y-%m-%d}")
+
+    analyze_t0 = time()
+    analyze_tables = ["chain_products", "products", "prices"]
+    await db.analyze_tables(analyze_tables)
+    analyze_dt = int(time() - analyze_t0)
+    logger.info(
+        "ANALYZE completed for %s in %s seconds",
+        ", ".join(analyze_tables),
+        analyze_dt,
+    )
 
 
 async def main():

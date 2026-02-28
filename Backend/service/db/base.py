@@ -45,6 +45,16 @@ class Database(ABC):
         pass
 
     @abstractmethod
+    async def analyze_tables(self, tables: list[str]) -> None:
+        """
+        Run ANALYZE for specified tables to refresh planner statistics.
+
+        Args:
+            tables: List of table names to analyze.
+        """
+        pass
+
+    @abstractmethod
     async def close(self) -> None:
         """Close all database connections."""
         pass
@@ -93,6 +103,19 @@ class Database(ABC):
 
         Returns:
             The database ID of the created or updated store.
+        """
+        pass
+
+    @abstractmethod
+    async def add_many_stores(self, stores: list[Store]) -> dict[str, int]:
+        """
+        Add or update multiple stores in a batch operation.
+
+        Args:
+            stores: List of stores from the same chain.
+
+        Returns:
+            Mapping from store code to database ID.
         """
         pass
 
@@ -207,6 +230,19 @@ class Database(ABC):
         pass
 
     @abstractmethod
+    async def add_many_eans(self, eans: list[str]) -> dict[str, int]:
+        """
+        Add missing EAN codes in batch and return IDs for all provided EANs.
+
+        Args:
+            eans: List of EAN codes.
+
+        Returns:
+            Mapping from EAN code to product ID.
+        """
+        pass
+
+    @abstractmethod
     async def get_products_by_ean(self, ean: list[str]) -> list[ProductWithId]:
         """
         Get products by their EAN codes.
@@ -252,16 +288,26 @@ class Database(ABC):
         pass
 
     @abstractmethod
-    async def search_products(self, query: str) -> list[ProductWithId]:
+    async def search_products(
+        self,
+        query: str,
+        chain_codes: list[str] | None = None,
+        city: str | None = None,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> tuple[list[ProductWithId], int]:
         """
-        Search for products by name using full text search.
+        Search for products by name using ranked search.
 
         Args:
             query: The search query string.
+            chain_codes: Optional list of chain codes to filter by.
+            city: Optional city name to filter products that are available in stores.
+            page: Requested page number (1-based).
+            per_page: Number of items per page.
 
         Returns:
-            A list of products matching the search query,
-            ordered by relevance.
+            Tuple of (products, total_count), ordered by relevance.
         """
         pass
 

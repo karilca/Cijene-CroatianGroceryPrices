@@ -33,6 +33,39 @@ class Settings:
         self.db_max_connections: int = int(os.getenv("DB_MAX_CONNECTIONS", "20"))
         self.db_retention_days: int = max(0, int(os.getenv("DB_RETENTION_DAYS", "0")))
 
+        self.search_fts_weight: float = max(
+            0.0,
+            float(os.getenv("SEARCH_FTS_WEIGHT", "0.70")),
+        )
+        self.search_prefix_weight: float = max(
+            0.0,
+            float(os.getenv("SEARCH_PREFIX_WEIGHT", "0.20")),
+        )
+        self.search_trigram_weight: float = max(
+            0.0,
+            float(os.getenv("SEARCH_TRIGRAM_WEIGHT", "0.10")),
+        )
+        self.search_trigram_threshold_short: float = min(
+            1.0,
+            max(0.0, float(os.getenv("SEARCH_TRIGRAM_THRESHOLD_SHORT", "0.32"))),
+        )
+        self.search_trigram_threshold_long: float = min(
+            1.0,
+            max(0.0, float(os.getenv("SEARCH_TRIGRAM_THRESHOLD_LONG", "0.24"))),
+        )
+        self.search_trigram_long_query_len: int = max(
+            1,
+            int(os.getenv("SEARCH_TRIGRAM_LONG_QUERY_LEN", "5")),
+        )
+        self.search_trigram_threshold_multiword: float = min(
+            1.0,
+            max(0.0, float(os.getenv("SEARCH_TRIGRAM_THRESHOLD_MULTIWORD", "0.15"))),
+        )
+        self.search_token_avg_weight: float = max(
+            0.0,
+            float(os.getenv("SEARCH_TOKEN_AVG_WEIGHT", "0.15")),
+        )
+
     def get_db(self) -> "Database":
         """
         Get the database instance based on the configured settings.

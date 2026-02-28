@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Barcode, Camera } from 'lucide-react';
 import { BaseSearchComponent } from '../common/BaseSearchComponent';
 import { useBaseSearch } from '../../hooks/useBaseSearch';
@@ -31,6 +31,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
   const { t } = useLanguage();
   const [ean, setEan] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [filters, setFilters] = useState<SearchFilters>({
     chains: [],
     priceRange: { min: null, max: null },
@@ -111,11 +112,21 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
     }, [ean])
   });
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(query || '');
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [query]);
+
   // Get suggestions for current query
   const { data: suggestions, isLoading: suggestionsLoading } = useProductSuggestions(
-    query || '',
+    debouncedQuery,
     8,
-    { enabled: (query?.length ?? 0) >= 2 && showSuggestions }
+    { enabled: (debouncedQuery?.length ?? 0) >= 2 && showSuggestions }
   );
 
   // Handle EAN input change
