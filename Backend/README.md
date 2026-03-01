@@ -54,7 +54,22 @@ docker-compose run --rm crawler
 Crawler opcije: `-l` listanje lanaca, `-d` datum, `-c` odabir lanaca, `-h` pomoć.
 
 ```bash
-docker-compose run --rm crawler uv run -m crawler.cli.crawl --l
+docker-compose run --rm crawler uv run -m crawler.cli.crawl -l
+```
+
+Paralelizacija crawlera:
+
+- `-w` / `--workers` definira maksimalan broj trgovačkih lanaca koji se crawlaju istovremeno.
+- Efektivni paralelizam je `min(workers, broj_odabranih_lanaca)`.
+
+Primjeri:
+
+```bash
+# Paralelno crawlanje svih lanaca (6 worker-a)
+docker-compose run --rm crawler uv run -m crawler.cli.crawl /app/data -w 6
+
+# Samo odabrani lanci, 3 paralelna workera
+docker-compose run --rm crawler uv run -m crawler.cli.crawl /app/data -c konzum,lidl,spar -w 3
 ```
 
 ### Uvoz i obrada podataka
