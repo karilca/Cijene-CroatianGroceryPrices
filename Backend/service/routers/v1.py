@@ -11,6 +11,15 @@ router = APIRouter(tags=["Products, Chains and Stores"], dependencies=[RequireAu
 db = settings.get_db()
 
 
+def normalize_brand_text(value: str | None) -> str | None:
+    if not value:
+        return None
+    stripped = value.strip()
+    if not stripped or stripped == "#":
+        return None
+    return stripped
+
+
 class ListChainsResponse(BaseModel):
     """List chains response schema."""
 
@@ -269,7 +278,7 @@ async def prepare_product_response(
     product_response_map = {
         product.id: ProductResponse(
             ean=product.ean,
-            brand=product.brand or "",
+            brand=normalize_brand_text(product.brand),
             name=product.name or "",
             quantity=str(product.quantity) if product.quantity else None,
             unit=product.unit,
@@ -285,6 +294,7 @@ async def prepare_product_response(
 
         cpr_data = cp.to_dict()
         cpr_data["chain"] = chain
+        cpr_data["brand"] = normalize_brand_text(cpr_data.get("brand"))
         cpr_map[(product_id, chain)] = cpr_data
 
     prices = await db.get_product_prices(product_ids, date)
@@ -330,7 +340,7 @@ async def prepare_product_list_response(
             return None
         return stripped.capitalize()
 
-    missing_ids = [p.id for p in products if not p.name or not p.brand]
+    missing_ids = [p.id for p in products if not p.name or not normalize_brand_text(p.brand)]
 
     fallback: dict[int, dict[str, str | None]] = {}
     if missing_ids:
@@ -343,15 +353,16 @@ async def prepare_product_list_response(
             ):
                 current["name"] = cp.name
 
-            if cp.brand and (
-                not current["brand"] or len(cp.brand) > len(current["brand"])
+            cp_brand = normalize_brand_text(cp.brand)
+            if cp_brand and (
+                not current["brand"] or len(cp_brand) > len(current["brand"])
             ):
-                current["brand"] = cp.brand
+                current["brand"] = cp_brand
 
     return [
         ProductListItemResponse(
             ean=product.ean,
-            brand=product.brand
+            brand=normalize_brand_text(product.brand)
             or normalize_fallback_text(fallback.get(product.id, {}).get("brand")),
             name=product.name
             or normalize_fallback_text(fallback.get(product.id, {}).get("name")),

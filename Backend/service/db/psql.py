@@ -735,7 +735,15 @@ class PostgresDatabase(Database):
                     "EXISTS ("
                     " SELECT 1"
                     " FROM chain_products cp_city"
+                    " JOIN LATERAL ("
+                    "   SELECT cs.price_date"
+                    "   FROM chain_stats cs"
+                    "   WHERE cs.chain_id = cp_city.chain_id"
+                    "   ORDER BY cs.price_date DESC"
+                    "   LIMIT 1"
+                    " ) lcd ON true"
                     " JOIN prices pr_city ON pr_city.chain_product_id = cp_city.id"
+                    "   AND pr_city.price_date = lcd.price_date"
                     " JOIN stores s_city ON s_city.id = pr_city.store_id"
                     " WHERE cp_city.product_id = cp.product_id"
                     f"   AND hr_search_normalize(coalesce(s_city.city, '')) LIKE '%' || hr_search_normalize(${param_counter}) || '%'"
@@ -803,7 +811,7 @@ class PostgresDatabase(Database):
                     for i in fuzzy_indices
                 )
                 multi_word_fuzzy_union = f"""
-                    UNION
+                    UNION ALL
 
                     SELECT cp.id, cp.product_id, cp.chain_id, cp.name, cp.brand
                     FROM chain_products cp
@@ -872,7 +880,7 @@ class PostgresDatabase(Database):
                         plainto_tsquery('simple', hr_search_normalize($1))
                         {candidate_filter}
 
-                    UNION
+                    UNION ALL
 
                     -- Branch 2: Prefix matching (all tokens, via GIN trigram)
                     SELECT cp.id, cp.product_id, cp.chain_id, cp.name, cp.brand
@@ -882,7 +890,7 @@ class PostgresDatabase(Database):
                         {prefix_where}
                         {candidate_filter}
 
-                    UNION
+                    UNION ALL
 
                     -- Branch 3: Whole-document trigram fuzzy (single-word only)
                     SELECT cp.id, cp.product_id, cp.chain_id, cp.name, cp.brand
@@ -936,8 +944,9 @@ class PostgresDatabase(Database):
                     JOIN products p ON p.id = mr.product_id
                     GROUP BY p.id, p.ean, mr.product_id
                 ),
-                ranked_products AS (
+                ranked_products AS MATERIALIZED (
                     SELECT
+                        product_id,
                         ean,
                         chain_count,
                         (
@@ -958,19 +967,32 @@ class PostgresDatabase(Database):
                         OR COALESCE(trigram_score, 0.0) >= $3
                         OR COALESCE(avg_token_similarity, 0.0) >= $3
                 ),
+                total_count AS (
+                    SELECT COUNT(*)::int AS total_count
+                    FROM ranked_products
+                ),
                 paged AS (
                     SELECT
+                        product_id,
                         ean,
-                        COUNT(*) OVER() AS total_count,
                         relevance,
                         chain_count
                     FROM ranked_products
                     ORDER BY relevance DESC, chain_count DESC, ean ASC
                     LIMIT $8 OFFSET $9
                 )
-                SELECT ean, total_count
+                SELECT
+                    p.id,
+                    p.ean,
+                    p.brand,
+                    p.name,
+                    p.quantity,
+                    p.unit,
+                    tc.total_count
                 FROM paged
-                ORDER BY relevance DESC, chain_count DESC, ean ASC
+                JOIN products p ON p.id = paged.product_id
+                CROSS JOIN total_count tc
+                ORDER BY paged.relevance DESC, paged.chain_count DESC, p.ean ASC
             """
 
             try:
@@ -988,12 +1010,18 @@ class PostgresDatabase(Database):
         if not rows:
             return [], 0
 
-        eans = [row["ean"] for row in rows]
         total_count = int(rows[0]["total_count"])
-
-        products = await self.get_products_by_ean(eans)
-        ean_order = {ean: idx for idx, ean in enumerate(eans)}
-        products.sort(key=lambda p: ean_order.get(p.ean, float("inf")))
+        products = [
+            ProductWithId(
+                id=row["id"],
+                ean=row["ean"],
+                brand=row["brand"],
+                name=row["name"],
+                quantity=row["quantity"],
+                unit=row["unit"],
+            )
+            for row in rows
+        ]
         return products, total_count
 
     async def get_product_prices(

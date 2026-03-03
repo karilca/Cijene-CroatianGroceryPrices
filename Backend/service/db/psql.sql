@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS chain_products (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chain_products_product_id ON chain_products (product_id);
+CREATE INDEX IF NOT EXISTS idx_chain_products_product_chain ON chain_products (product_id, chain_id);
 CREATE INDEX IF NOT EXISTS idx_chain_products_search_tsv ON chain_products
 USING GIN (to_tsvector('simple', hr_search_normalize(coalesce(name, '') || ' ' || coalesce(brand, ''))));
 CREATE INDEX IF NOT EXISTS idx_chain_products_search_trgm ON chain_products
@@ -124,6 +125,9 @@ CREATE TABLE IF NOT EXISTS prices (
 
 -- Mark regular_price as required if the table already exists
 ALTER TABLE prices ALTER COLUMN regular_price SET NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_prices_store_chain_product ON prices (store_id, chain_product_id);
+CREATE INDEX IF NOT EXISTS idx_prices_chain_product_date_store ON prices (chain_product_id, price_date, store_id);
 
 -- Prices table to store min/max/avg prices per chain
 CREATE TABLE IF NOT EXISTS chain_prices (

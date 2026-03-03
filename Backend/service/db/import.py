@@ -48,6 +48,15 @@ def _normalize_address(value: str | None) -> str:
     return normalized
 
 
+def _normalize_brand(value: str | None) -> str | None:
+    if not value:
+        return None
+    brand = value.strip()
+    if not brand or brand == "#":
+        return None
+    return brand
+
+
 async def process_stores(
     stores_path: Path, chain_id: int, chain_code: str
 ) -> dict[str, int]:
@@ -188,7 +197,7 @@ async def process_products(
                 product_id=global_product_id,
                 code=code,
                 name=product["name"],
-                brand=(product["brand"] or "").strip() or None,
+                brand=_normalize_brand(product.get("brand")),
                 category=(product["category"] or "").strip() or None,
                 unit=(product["unit"] or "").strip() or None,
                 quantity=(product["quantity"] or "").strip() or None,
