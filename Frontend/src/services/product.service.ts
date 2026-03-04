@@ -207,11 +207,13 @@ export class ProductService extends BaseService {
     RequestValidator.validatePositiveNumber(limit, 'limit');
 
     try {
-      const response = await this.searchProducts({
-        query: query.trim(),
-        per_page: Math.min(limit, 20),
-        page: 1
-      }, options);
+      const urlParams = new URLParamsBuilder();
+      urlParams.add('q', query.trim());
+      urlParams.add('limit', String(Math.min(limit, 20)));
+
+      const url = `${ENDPOINTS.PRODUCT_SUGGEST}?${urlParams.toString()}`;
+      const config = this.buildRequestConfig(options);
+      const response = await apiClient.get<{ products: Product[] }>(url, config);
       return response.products;
     } catch (error) {
       throw this.handleServiceError(error, 'getProductSuggestions', 'ProductService');

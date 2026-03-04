@@ -59,7 +59,7 @@ class Settings:
         )
         self.search_trigram_threshold_multiword: float = min(
             1.0,
-            max(0.0, float(os.getenv("SEARCH_TRIGRAM_THRESHOLD_MULTIWORD", "0.15"))),
+            max(0.0, float(os.getenv("SEARCH_TRIGRAM_THRESHOLD_MULTIWORD", "0.22"))),
         )
         self.search_token_avg_weight: float = max(
             0.0,

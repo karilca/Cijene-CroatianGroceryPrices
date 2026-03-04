@@ -312,6 +312,27 @@ class Database(ABC):
         pass
 
     @abstractmethod
+    async def suggest_products(
+        self,
+        query: str,
+        limit: int = 8,
+    ) -> list[ProductWithId]:
+        """
+        Lightweight product suggestions using only FTS + prefix matching.
+
+        Designed for autocomplete — no trigram fuzzy scoring, much faster
+        than ``search_products`` for longer queries.
+
+        Args:
+            query: The search query string.
+            limit: Maximum number of suggestions to return.
+
+        Returns:
+            A list of products ordered by basic relevance.
+        """
+        pass
+
+    @abstractmethod
     async def add_many_prices(self, prices: list[Price]) -> int:
         """
         Add multiple prices in a batch operation.

@@ -22,6 +22,7 @@ export const API_CONFIG = {
 export const ENDPOINTS = {
   ARCHIVES: '/v0/list',
   PRODUCTS: '/v1/products',
+  PRODUCT_SUGGEST: '/v1/products/suggest',
   STORES: '/v1/stores',
   CHAINS: '/v1/chains',
   CHAIN_STATS: '/v1/chain-stats',

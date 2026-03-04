@@ -115,7 +115,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedQuery(query || '');
-    }, 250);
+    }, 350);
 
     return () => {
       window.clearTimeout(timer);

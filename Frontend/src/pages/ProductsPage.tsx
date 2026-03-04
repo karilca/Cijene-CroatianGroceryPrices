@@ -72,6 +72,12 @@ export const ProductsPage: React.FC = () => {
     setViewMode('search');
   };
 
+  const selectedChains = searchParams.chains?.length
+    ? searchParams.chains
+    : searchParams.chain_code
+      ? [searchParams.chain_code]
+      : undefined;
+
   const hasSearched = !!(searchParams.query || searchParams.ean || searchParams.chain_code);
   const totalCount = searchResults?.total_count || 0;
   const currentPage = searchResults?.page || searchParams.page || PAGINATION.DEFAULT_PAGE;
@@ -85,7 +91,7 @@ export const ProductsPage: React.FC = () => {
           product={selectedProduct}
           onBack={handleBackToSearch}
           city={searchParams.city}
-          chains={searchParams.chains}
+          chains={selectedChains}
         />
         <CompareBar />
       </div>

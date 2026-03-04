@@ -1,4 +1,5 @@
 from decimal import Decimal
+import logging
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 import datetime
@@ -9,6 +10,7 @@ from service.routers.auth import RequireAuth
 
 router = APIRouter(tags=["Products, Chains and Stores"], dependencies=[RequireAuth])
 db = settings.get_db()
+logger = logging.getLogger(__name__)
 
 
 def normalize_brand_text(value: str | None) -> str | None:
@@ -487,44 +489,64 @@ async def get_prices(
             detail="Both latitude and longitude must be provided for geolocation search",
         )
 
-    # Get products by EANs
-    products = await db.get_products_by_ean(ean_list)
-    if not products:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No products found for the provided EANs: {eans}",
-        )
-
-    # Parse chain codes for store filtering
-    chain_codes = None
-    if chains:
-        chain_codes = [c.strip().lower() for c in chains.split(",") if c.strip()]
-
-    # Filter stores if any filter criteria are provided
-    if chain_codes or city or address or lat or lon:
-        try:
-            filtered_stores, _ = await db.filter_stores(
-                chain_codes=chain_codes,
-                city=city,
-                address=address,
-                lat=lat,
-                lon=lon,
-                d=d,
-                limit=None,  # No limit - we need all stores for price comparison
+    try:
+        # Get products by EANs
+        products = await db.get_products_by_ean(ean_list)
+        if not products:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No products found for the provided EANs: {eans}",
             )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
 
-        store_ids = [store.id for store in filtered_stores]
-    else:
-        # If no filters are applied, get all stores
-        store_ids = None
+        # Parse chain codes for store filtering
+        chain_codes = None
+        if chains:
+            chain_codes = [c.strip().lower() for c in chains.split(",") if c.strip()]
 
-    store_prices = await db.get_product_store_prices(
-        product_ids=[product.id for product in products],
-        store_ids=store_ids,
-    )
-    return StorePricesResponse(store_prices=store_prices)
+        # Filter stores if any filter criteria are provided
+        if chain_codes or city or address or lat or lon:
+            try:
+                filtered_stores, _ = await db.filter_stores(
+                    chain_codes=chain_codes,
+                    city=city,
+                    address=address,
+                    lat=lat,
+                    lon=lon,
+                    d=d,
+                    limit=None,  # No limit - we need all stores for price comparison
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+            store_ids = [store.id for store in filtered_stores]
+        else:
+            # If no filters are applied, get all stores
+            store_ids = None
+
+        store_prices = await db.get_product_store_prices(
+            product_ids=[product.id for product in products],
+            store_ids=store_ids,
+        )
+        return StorePricesResponse(store_prices=store_prices)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(
+            "Prices lookup failed",
+            extra={
+                "eans": ean_list,
+                "chains": chains,
+                "city": city,
+                "address": address,
+                "lat": lat,
+                "lon": lon,
+                "distance_km": d,
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Price lookup failed. Please retry your query.",
+        )
 
 
 @router.get("/products/", summary="Search for products by name")
@@ -578,15 +600,31 @@ async def search_products(
             per_page=per_page,
         )
 
-    products, total_count = await db.search_products(
-        q,
-        chain_codes=chain_codes,
-        city=city,
-        page=page,
-        per_page=per_page,
-    )
+    try:
+        products, total_count = await db.search_products(
+            q,
+            chain_codes=chain_codes,
+            city=city,
+            page=page,
+            per_page=per_page,
+        )
 
-    product_list = await prepare_product_list_response(products)
+        product_list = await prepare_product_list_response(products)
+    except Exception:
+        logger.exception(
+            "Product search failed",
+            extra={
+                "query": q,
+                "chains": chain_codes,
+                "city": city,
+                "page": page,
+                "per_page": per_page,
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Product search failed. Please retry your query.",
+        )
 
     return ProductSearchResponse(
         products=product_list,
@@ -594,6 +632,36 @@ async def search_products(
         page=page,
         per_page=per_page,
     )
+
+
+class ProductSuggestResponse(BaseModel):
+    products: list[ProductListItemResponse] = Field(
+        ..., description="List of product suggestions."
+    )
+
+
+@router.get("/products/suggest", summary="Lightweight product suggestions for autocomplete")
+async def suggest_products(
+    q: str = Query(..., description="Search query for product names"),
+    limit: int = Query(
+        8,
+        description="Maximum number of suggestions (default: 8, max: 20)",
+    ),
+) -> ProductSuggestResponse:
+    """
+    Fast product suggestions for autocomplete.
+
+    Uses only FTS + prefix matching (no fuzzy trigram scoring) for
+    significantly faster response times compared to the full search endpoint.
+    """
+    limit = max(1, min(limit, 20))
+
+    if not q.strip():
+        return ProductSuggestResponse(products=[])
+
+    products = await db.suggest_products(q, limit=limit)
+    product_list = await prepare_product_list_response(products)
+    return ProductSuggestResponse(products=product_list)
 
 
 class ChainStatsResponse(BaseModel):
