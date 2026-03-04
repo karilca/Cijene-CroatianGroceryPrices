@@ -61,6 +61,7 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
+    "serialize-javascript": ">=7.0.3",
     "eslint": {
       "ajv": "6.14.0"
     },
