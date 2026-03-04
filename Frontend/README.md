@@ -78,6 +78,8 @@ Opcionalne varijable:
 - `VITE_ENABLE_OFFLINE_MODE` - offline način rada (default: false)
 - `VITE_BETA_FEATURES` - prikaz beta funkcionalnosti (default: false)
 - `VITE_ARCHIVES_PER_PAGE` - broj arhiva po stranici (default: 10)
+- `VITE_STORES_PER_PAGE` - broj trgovina po stranici (default: 20, max: 100)
+- `VITE_PRODUCTS_PER_PAGE` - broj proizvoda po stranici (default: 20, max: 100)
 
 ## Deployment
 
@@ -145,9 +147,3 @@ npm run build
 - Vitest + React Testing Library + MSW
 - ESLint + Prettier
 - Lucide React (ikone)
-
-## Dodatna dokumentacija
-
-- [Dokumentacija komponenti](./cijene-frontend/src/components/README.md)
-- [Vodič za testiranje](./cijene-frontend/src/test/README.md)
-- [Vodič za deployment](./DEPLOYMENT.md)

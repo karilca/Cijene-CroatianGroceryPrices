@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 import asyncpg
+import asyncio
+import time
 from typing import (
     AsyncGenerator,
     AsyncIterator,
@@ -7,6 +9,7 @@ from typing import (
     Any,
 )
 import logging
+import re
 import os
 from datetime import date, timedelta
 from .base import Database
@@ -24,6 +27,49 @@ from .models import (
     ChainProductWithId,
     User,
 )
+from service.config import settings
+
+
+class _TTLCache:
+    """Simple TTL cache for async search results.
+
+    Thread-safe through asyncio (single-threaded event loop).
+    Evicts expired entries lazily on access and periodically on set.
+    """
+
+    def __init__(self, maxsize: int = 256, ttl: float = 300.0):
+        self._data: dict[str, tuple[float, Any]] = {}
+        self._maxsize = maxsize
+        self._ttl = ttl
+        self._lock = asyncio.Lock()
+
+    async def get(self, key: str) -> Any | None:
+        async with self._lock:
+            entry = self._data.get(key)
+            if entry is None:
+                return None
+            ts, value = entry
+            if time.monotonic() - ts > self._ttl:
+                del self._data[key]
+                return None
+            return value
+
+    async def set(self, key: str, value: Any) -> None:
+        async with self._lock:
+            now = time.monotonic()
+            # Evict expired entries when cache is near capacity
+            if len(self._data) >= self._maxsize:
+                expired = [
+                    k for k, (ts, _) in self._data.items()
+                    if now - ts > self._ttl
+                ]
+                for k in expired:
+                    del self._data[k]
+            # If still full, evict oldest entry
+            if len(self._data) >= self._maxsize:
+                oldest_key = min(self._data, key=lambda k: self._data[k][0])
+                del self._data[oldest_key]
+            self._data[key] = (now, value)
 
 
 class PostgresDatabase(Database):
@@ -42,6 +88,8 @@ class PostgresDatabase(Database):
         self.max_size = max_size
         self.pool = None
         self.logger = logging.getLogger(__name__)
+        self._search_cache = _TTLCache(maxsize=512, ttl=300.0)
+        self._suggest_cache = _TTLCache(maxsize=256, ttl=300.0)
 
     async def connect(self) -> None:
         self.pool = await asyncpg.create_pool(
@@ -134,6 +182,29 @@ class PostgresDatabase(Database):
         )
         return deleted
 
+    async def analyze_tables(self, tables: list[str]) -> None:
+        if not tables:
+            return
+
+        allowed_tables = {
+            "users",
+            "chains",
+            "chain_stats",
+            "stores",
+            "products",
+            "chain_products",
+            "prices",
+            "chain_prices",
+        }
+
+        invalid_tables = [t for t in tables if t not in allowed_tables]
+        if invalid_tables:
+            raise ValueError(f"Unsupported table names for ANALYZE: {invalid_tables}")
+
+        async with self._get_conn() as conn:
+            for table in tables:
+                await conn.execute(f"ANALYZE {table}")
+
     async def _fetchval(self, query: str, *args: Any) -> Any:
         async with self._get_conn() as conn:
             return await conn.fetchval(query, *args)
@@ -213,6 +284,70 @@ class PostgresDatabase(Database):
             store.city or None,
             store.zipcode or None,
         )
+
+    async def add_many_stores(self, stores: list[Store]) -> dict[str, int]:
+        if not stores:
+            return {}
+
+        chain_id = stores[0].chain_id
+        if any(store.chain_id != chain_id for store in stores):
+            raise ValueError("All stores in add_many_stores must belong to same chain")
+
+        async with self._atomic() as conn:
+            await conn.execute(
+                """
+                CREATE TEMP TABLE temp_stores (
+                    chain_id INTEGER,
+                    code VARCHAR(100),
+                    type VARCHAR(100),
+                    address VARCHAR(255),
+                    city VARCHAR(100),
+                    zipcode VARCHAR(20)
+                )
+                """
+            )
+
+            await conn.copy_records_to_table(
+                "temp_stores",
+                records=(
+                    (
+                        store.chain_id,
+                        store.code,
+                        store.type,
+                        store.address or None,
+                        store.city or None,
+                        store.zipcode or None,
+                    )
+                    for store in stores
+                ),
+            )
+
+            await conn.execute(
+                """
+                INSERT INTO stores (chain_id, code, type, address, city, zipcode)
+                SELECT chain_id, code, type, address, city, zipcode
+                FROM temp_stores
+                ON CONFLICT (chain_id, code) DO UPDATE SET
+                    type = COALESCE(EXCLUDED.type, stores.type),
+                    address = COALESCE(EXCLUDED.address, stores.address),
+                    city = COALESCE(EXCLUDED.city, stores.city),
+                    zipcode = COALESCE(EXCLUDED.zipcode, stores.zipcode)
+                """
+            )
+
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT s.code, s.id
+                FROM stores s
+                JOIN temp_stores t
+                  ON t.chain_id = s.chain_id
+                 AND t.code = s.code
+                """
+            )
+
+            await conn.execute("DROP TABLE temp_stores")
+
+            return {row["code"]: row["id"] for row in rows}
 
     async def update_store(
         self,
@@ -310,22 +445,28 @@ class PostgresDatabase(Database):
             params = []
             param_counter = 1
 
+            def normalized_like_expr(column_expr: str, param_idx: int) -> str:
+                return (
+                    "hr_search_normalize(coalesce(" + column_expr + ", '')) "
+                    "LIKE '%' || hr_search_normalize($" + str(param_idx) + ") || '%'"
+                )
+
             # Chain codes filter
             if chain_codes:
                 where_conditions.append(f"c.code = ANY(${param_counter})")
                 params.append(chain_codes)
                 param_counter += 1
 
-            # City filter (case-insensitive substring match)
+            # City filter (case-insensitive and accent-insensitive substring match)
             if city:
-                where_conditions.append(f"s.city ILIKE ${param_counter}")
-                params.append(f"%{city}%")
+                where_conditions.append(normalized_like_expr("s.city", param_counter))
+                params.append(city)
                 param_counter += 1
 
-            # Address filter (case-insensitive substring match)
+            # Address filter (case-insensitive and accent-insensitive substring match)
             if address:
-                where_conditions.append(f"s.address ILIKE ${param_counter}")
-                params.append(f"%{address}%")
+                where_conditions.append(normalized_like_expr("s.address", param_counter))
+                params.append(address)
                 param_counter += 1
 
             # Geolocation filter using computed earth_point column
@@ -389,6 +530,45 @@ class PostgresDatabase(Database):
             "INSERT INTO products (ean) VALUES ($1) RETURNING id",
             ean,
         )
+
+    async def add_many_eans(self, eans: list[str]) -> dict[str, int]:
+        if not eans:
+            return {}
+
+        async with self._atomic() as conn:
+            await conn.execute(
+                """
+                CREATE TEMP TABLE temp_eans (
+                    ean VARCHAR(50)
+                )
+                """
+            )
+
+            await conn.copy_records_to_table(
+                "temp_eans",
+                records=((ean,) for ean in eans),
+            )
+
+            await conn.execute(
+                """
+                INSERT INTO products (ean)
+                SELECT DISTINCT ean
+                FROM temp_eans
+                ON CONFLICT (ean) DO NOTHING
+                """
+            )
+
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT p.ean, p.id
+                FROM products p
+                JOIN temp_eans t ON t.ean = p.ean
+                """
+            )
+
+            await conn.execute("DROP TABLE temp_eans")
+
+            return {row["ean"]: row["id"] for row in rows}
 
     async def get_products_by_ean(self, ean: list[str]) -> list[ProductWithId]:
         async with self._get_conn() as conn:
@@ -536,69 +716,593 @@ class PostgresDatabase(Database):
                 rows = await conn.fetch(query, product_ids)
             return [ChainProductWithId(**row) for row in rows]  # type: ignore
 
-    async def search_products(self, query: str) -> list[ProductWithId]:
+    # ------------------------------------------------------------------
+    # Branch candidate limits — prevent candidate-set explosion
+    # ------------------------------------------------------------------
+    _BRANCH_LIMIT_FTS = 500
+    _BRANCH_LIMIT_PREFIX = 300
+    _BRANCH_LIMIT_TRIGRAM = 300
+    _BRANCH_LIMIT_FUZZY = 200
+
+    def _build_search_params(
+        self,
+        query: str,
+        chain_codes: list[str] | None,
+        city: str | None,
+        per_page: int,
+        offset: int,
+        query_tokens: list[str],
+        first_token: str,
+        token_count: int,
+        trigram_threshold: float,
+    ) -> tuple[list[Any], int, str, str, str, list[int], int | None]:
+        """Build shared parameter list and SQL fragments for search queries."""
+        where_conditions: list[str] = []
+        params: list[Any] = [
+            query,                                    # $1 — raw query
+            first_token,                              # $2 — first token
+            trigram_threshold,                         # $3 — trigram threshold
+            settings.search_fts_weight,                # $4 — FTS weight
+            settings.search_prefix_weight,             # $5 — prefix weight
+            settings.search_trigram_weight,             # $6 — trigram weight
+            token_count,                               # $7 — token count
+            per_page,                                  # $8 — LIMIT
+            offset,                                    # $9 — OFFSET
+        ]
+        param_counter = len(params) + 1  # starts at 10
+
+        if chain_codes:
+            where_conditions.append(f"c.code = ANY(${param_counter})")
+            params.append(chain_codes)
+            param_counter += 1
+
+        if city:
+            where_conditions.append(
+                "EXISTS ("
+                " SELECT 1"
+                " FROM prices pr_city"
+                " JOIN stores s_city ON s_city.id = pr_city.store_id"
+                " WHERE pr_city.chain_product_id = cp.id"
+                "   AND pr_city.price_date = ("
+                "       SELECT cs.price_date"
+                "       FROM chain_stats cs"
+                "       WHERE cs.chain_id = cp.chain_id"
+                "       ORDER BY cs.price_date DESC"
+                "       LIMIT 1"
+                "   )"
+                f"   AND hr_search_normalize(coalesce(s_city.city, '')) LIKE '%' || hr_search_normalize(${param_counter}) || '%'"
+                ")"
+            )
+            params.append(city)
+            param_counter += 1
+
+        search_doc = (
+            "hr_search_normalize(coalesce(cp.name, '') || ' ' || coalesce(cp.brand, ''))"
+        )
+        candidate_filter = ""
+        if where_conditions:
+            candidate_filter = " AND " + " AND ".join(where_conditions)
+
+        matched_doc = (
+            "hr_search_normalize(coalesce(mr.name, '') || ' ' || coalesce(mr.brand, ''))"
+        )
+
+        token_param_indices: list[int] = []
+        token_avg_weight_idx: int | None = None
+
+        if token_count > 1:
+            for token in query_tokens:
+                params.append(token)
+                token_param_indices.append(param_counter)
+                param_counter += 1
+
+            token_avg_weight_idx = param_counter
+            params.append(settings.search_token_avg_weight)
+            param_counter += 1
+
+        return (
+            params,
+            param_counter,
+            search_doc,
+            candidate_filter,
+            matched_doc,
+            token_param_indices,
+            token_avg_weight_idx,
+        )
+
+    async def search_products(
+        self,
+        query: str,
+        chain_codes: list[str] | None = None,
+        city: str | None = None,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> tuple[list[ProductWithId], int]:
         if not query.strip():
-            return []
+            return [], 0
 
-        words = [word.strip() for word in query.split() if word.strip()]
-        if not words:
-            return []
+        page = max(1, page)
+        per_page = max(1, min(per_page, 100))
+        offset = (page - 1) * per_page
 
-        # Parametri za WHERE uvjete (ILIKE pretraga)
-        where_conditions = []
-        params = []
+        # --- Check cache first ---
+        chains_key = ",".join(sorted(chain_codes)) if chain_codes else ""
+        cache_key = f"search:{query.strip().lower()}:{chains_key}:{city or ''}:{page}:{per_page}"
+        cached = await self._search_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
-        for idx, word in enumerate(words, start=1):
-            word = word.lower().replace("%", "")
-            where_conditions.append(f"LOWER(cp.name) LIKE ${idx}")
-            params.append(f"%{word}%")
+        # Cap tokens to avoid overly complex SQL
+        MAX_QUERY_TOKENS = 6
+        MAX_FUZZY_TOKENS = 3
 
-        where_clause = " AND ".join(where_conditions)
+        normalized_query = query.strip().lower()
+        query_tokens = re.findall(r"\w+", normalized_query)[:MAX_QUERY_TOKENS]
+        first_token = query_tokens[0] if query_tokens else normalized_query
+        token_count = len(query_tokens)
 
-        # Dodaj parametre za rangiranje relevantnosti
-        first_word = words[0].lower().replace("%", "")
-        start_idx = len(params) + 1
-        params.append(first_word + '%')       # Za početak naziva
-        params.append(first_word + ' %')      # Za prvu riječ + razmak
-        params.append(first_word)             # Za regex word boundary
+        trigram_threshold = (
+            settings.search_trigram_threshold_long
+            if len(normalized_query) >= settings.search_trigram_long_query_len
+            else settings.search_trigram_threshold_short
+        )
 
-        # SQL upit s rangiranjem po relevantnosti
-        # Bodovanje:
-        # - 100: Naziv počinje s traženim pojmom (npr. "MLIJEKO SVJEŽE")
-        # - 80: Traženi pojam je prva riječ s razmakom (npr. "MLIJEKO 1L")
-        # - 50: Traženi pojam je zasebna riječ bilo gdje (word boundary)
-        # - 10: Djelomično podudaranje (npr. "MLIJEČNI" za "MLIJEKO")
-        query_sql = f"""
+        trigram_operator_threshold = (
+            min(trigram_threshold, 0.18)
+            if token_count == 1
+            else min(trigram_threshold, settings.search_trigram_threshold_multiword)
+        )
+
+        (
+            params,
+            param_counter,
+            search_doc,
+            candidate_filter,
+            matched_doc,
+            token_param_indices,
+            token_avg_weight_idx,
+        ) = self._build_search_params(
+            normalized_query,
+            chain_codes,
+            city,
+            per_page,
+            offset,
+            query_tokens,
+            first_token,
+            token_count,
+            trigram_threshold,
+        )
+
+        # --- Prefix WHERE fragment ---
+        if token_count > 1 and token_param_indices:
+            prefix_or = " OR ".join(
+                f"hr_search_normalize(coalesce(cp.name, '')) LIKE hr_search_normalize(${i}) || '%'"
+                for i in token_param_indices
+            )
+            prefix_where = f"({prefix_or})"
+        else:
+            prefix_where = (
+                "hr_search_normalize(coalesce(cp.name, '')) LIKE hr_search_normalize($2) || '%'"
+            )
+
+        # --- Prefix bonus SQL ---
+        if token_count > 1 and token_param_indices:
+            pb_or = " OR ".join(
+                f"hr_search_normalize(coalesce(mr.name, '')) LIKE hr_search_normalize(${i}) || '%'"
+                for i in token_param_indices
+            )
+            prefix_bonus_sql = (
+                f"MAX(CASE WHEN {pb_or} THEN 1.0 ELSE 0.0 END) AS prefix_bonus"
+            )
+        else:
+            prefix_bonus_sql = (
+                "MAX(CASE WHEN hr_search_normalize(coalesce(mr.name, '')) "
+                "LIKE hr_search_normalize($2) || '%' THEN 1.0 ELSE 0.0 END) AS prefix_bonus"
+            )
+
+        # --- avg_token_similarity SQL ---
+        if token_count > 1 and token_param_indices:
+            sim_parts = " + ".join(
+                f"word_similarity(hr_search_normalize(${i}), {matched_doc})"
+                for i in token_param_indices
+            )
+            avg_token_sim_sql = (
+                f",MAX(({sim_parts}) / {token_count}::float) AS avg_token_similarity"
+            )
+        else:
+            avg_token_sim_sql = ",0.0 AS avg_token_similarity"
+
+        # --- Ranking ELSE clause ---
+        if token_count > 1 and token_avg_weight_idx is not None:
+            ranking_else_sql = (
+                f"0.20 * COALESCE(phrase_bonus, 0.0)\n"
+                f"                                    + 0.10 * COALESCE(token_similarity, 0.0)\n"
+                f"                                    + ${token_avg_weight_idx} * COALESCE(avg_token_similarity, 0.0)"
+            )
+        else:
+            ranking_else_sql = (
+                "0.20 * COALESCE(phrase_bonus, 0.0)\n"
+                "                                    + 0.10 * COALESCE(token_similarity, 0.0)"
+            )
+
+        # ==============================================================
+        # PHASE 1 — Fast path: FTS + prefix only (no fuzzy branches).
+        # If this returns >= per_page results, skip the expensive fuzzy
+        # branches entirely.
+        # ==============================================================
+        fast_sql = f"""
+            WITH matched_rows AS (
+                (SELECT cp.id, cp.product_id, cp.chain_id, cp.name, cp.brand
+                FROM chain_products cp
+                JOIN chains c ON c.id = cp.chain_id
+                WHERE
+                    to_tsvector('simple', {search_doc}) @@
+                    plainto_tsquery('simple', hr_search_normalize($1))
+                    {candidate_filter}
+                LIMIT {self._BRANCH_LIMIT_FTS})
+
+                UNION ALL
+
+                (SELECT cp.id, cp.product_id, cp.chain_id, cp.name, cp.brand
+                FROM chain_products cp
+                JOIN chains c ON c.id = cp.chain_id
+                WHERE
+                    {prefix_where}
+                    {candidate_filter}
+                LIMIT {self._BRANCH_LIMIT_PREFIX})
+            ),
+            matched_rows_deduped AS (
+                SELECT DISTINCT id, product_id, chain_id, name, brand
+                FROM matched_rows
+            ),
+            candidate_products AS (
+                SELECT
+                    p.ean,
+                    mr.product_id,
+                    COUNT(DISTINCT mr.chain_id) AS chain_count,
+                    MAX(
+                        ts_rank_cd(
+                            to_tsvector('simple', {matched_doc}),
+                            plainto_tsquery('simple', hr_search_normalize($1))
+                        )
+                    ) AS fts_rank,
+                    {prefix_bonus_sql},
+                    MAX(
+                        GREATEST(
+                            similarity({matched_doc}, hr_search_normalize($1)),
+                            word_similarity(hr_search_normalize($1), {matched_doc})
+                        )
+                    ) AS trigram_score
+                    ,MAX(
+                        word_similarity(
+                            hr_search_normalize($2),
+                            hr_search_normalize(coalesce(mr.name, ''))
+                        )
+                    ) AS token_similarity
+                    ,MAX(
+                        CASE
+                            WHEN {matched_doc} LIKE '%' || hr_search_normalize($1) || '%' THEN 1.0
+                            ELSE 0.0
+                        END
+                    ) AS phrase_bonus
+                    {avg_token_sim_sql}
+                FROM matched_rows_deduped mr
+                JOIN products p ON p.id = mr.product_id
+                GROUP BY p.id, p.ean, mr.product_id
+            ),
+            ranked_products AS (
+                SELECT
+                    product_id,
+                    ean,
+                    chain_count,
+                    (
+                        $4 * COALESCE(fts_rank, 0.0)
+                        + $5 * COALESCE(prefix_bonus, 0.0)
+                        + $6 * GREATEST(COALESCE(trigram_score, 0.0), 0.0)
+                        + CASE
+                            WHEN $7 = 1 THEN
+                                0.35 * COALESCE(token_similarity, 0.0)
+                            ELSE
+                                {ranking_else_sql}
+                          END
+                    ) AS relevance
+                FROM candidate_products
+                WHERE
+                    COALESCE(fts_rank, 0.0) > 0
+                    OR COALESCE(prefix_bonus, 0.0) > 0
+                    OR COALESCE(trigram_score, 0.0) >= $3
+                    OR COALESCE(avg_token_similarity, 0.0) >= $3
+            ),
+            paged AS (
+                SELECT
+                    product_id,
+                    ean,
+                    relevance,
+                    chain_count,
+                    COUNT(*) OVER()::int AS total_count
+                FROM ranked_products
+                ORDER BY relevance DESC, chain_count DESC, ean ASC
+                LIMIT $8 OFFSET $9
+            )
             SELECT
+                p.id,
                 p.ean,
-                COUNT(cp) AS product_count,
-                MAX(
-                    CASE
-                        -- Naziv počinje s traženim pojmom (najviši prioritet)
-                        WHEN LOWER(cp.name) LIKE ${start_idx} THEN 100
-                        -- Traženi pojam je prva riječ (s razmakom iza)
-                        WHEN LOWER(cp.name) LIKE ${start_idx + 1} THEN 80
-                        -- Traženi pojam je zasebna riječ (PostgreSQL regex word boundary)
-                        WHEN LOWER(cp.name) ~ ('\\y' || ${start_idx + 2} || '\\y') THEN 50
-                        -- Djelomično podudaranje (najniži prioritet)
-                        ELSE 10
-                    END
-                ) AS relevance
-            FROM chain_products cp
-            JOIN products p ON cp.product_id = p.id
-            WHERE {where_clause}
-            GROUP BY p.ean
-            ORDER BY relevance DESC, product_count DESC
+                p.brand,
+                p.name,
+                p.quantity,
+                p.unit,
+                paged.total_count
+            FROM paged
+            JOIN products p ON p.id = paged.product_id
+            ORDER BY paged.relevance DESC, paged.chain_count DESC, p.ean ASC
         """
 
         async with self._get_conn() as conn:
-            rows = await conn.fetch(query_sql, *params)
-            eans = [row["ean"] for row in rows]
+            rows = await conn.fetch(fast_sql, *params)
 
-        # Dohvati proizvode i sortiraj ih prema originalnom redoslijedu (po relevantnosti)
-        products = await self.get_products_by_ean(eans)
-        ean_order = {ean: idx for idx, ean in enumerate(eans)}
-        products.sort(key=lambda p: ean_order.get(p.ean, float('inf')))
+            # ==============================================================
+            # PHASE 2 — Full query with fuzzy branches (only when Phase 1
+            # returned fewer results than requested).
+            # ==============================================================
+            if len(rows) < per_page:
+                # Build fuzzy union SQL
+                if token_count > 1 and token_param_indices:
+                    sorted_by_len = sorted(
+                        zip(query_tokens, token_param_indices),
+                        key=lambda x: len(x[0]),
+                        reverse=True,
+                    )
+                    fuzzy_indices = [idx for _, idx in sorted_by_len[:MAX_FUZZY_TOKENS]]
+                    fuzzy_or = " OR ".join(
+                        f"{search_doc} % hr_search_normalize(${i})"
+                        for i in fuzzy_indices
+                    )
+                    multi_word_fuzzy_union = f"""
+                        UNION ALL
+                        (SELECT cp.id, cp.product_id, cp.chain_id, cp.name, cp.brand
+                        FROM chain_products cp
+                        JOIN chains c ON c.id = cp.chain_id
+                        WHERE
+                            $7 > 1
+                            AND ({fuzzy_or})
+                            {candidate_filter}
+                        LIMIT {self._BRANCH_LIMIT_FUZZY})
+                    """
+                else:
+                    multi_word_fuzzy_union = ""
+
+                full_sql = f"""
+                    WITH matched_rows AS (
+                        (SELECT cp.id, cp.product_id, cp.chain_id, cp.name, cp.brand
+                        FROM chain_products cp
+                        JOIN chains c ON c.id = cp.chain_id
+                        WHERE
+                            to_tsvector('simple', {search_doc}) @@
+                            plainto_tsquery('simple', hr_search_normalize($1))
+                            {candidate_filter}
+                        LIMIT {self._BRANCH_LIMIT_FTS})
+
+                        UNION ALL
+
+                        (SELECT cp.id, cp.product_id, cp.chain_id, cp.name, cp.brand
+                        FROM chain_products cp
+                        JOIN chains c ON c.id = cp.chain_id
+                        WHERE
+                            {prefix_where}
+                            {candidate_filter}
+                        LIMIT {self._BRANCH_LIMIT_PREFIX})
+
+                        UNION ALL
+
+                        (SELECT cp.id, cp.product_id, cp.chain_id, cp.name, cp.brand
+                        FROM chain_products cp
+                        JOIN chains c ON c.id = cp.chain_id
+                        WHERE
+                            $7 = 1
+                            AND {search_doc} % hr_search_normalize($1)
+                            {candidate_filter}
+                        LIMIT {self._BRANCH_LIMIT_TRIGRAM})
+
+                        {multi_word_fuzzy_union}
+                    ),
+                    matched_rows_deduped AS (
+                        SELECT DISTINCT id, product_id, chain_id, name, brand
+                        FROM matched_rows
+                    ),
+                    candidate_products AS (
+                        SELECT
+                            p.ean,
+                            mr.product_id,
+                            COUNT(DISTINCT mr.chain_id) AS chain_count,
+                            MAX(
+                                ts_rank_cd(
+                                    to_tsvector('simple', {matched_doc}),
+                                    plainto_tsquery('simple', hr_search_normalize($1))
+                                )
+                            ) AS fts_rank,
+                            {prefix_bonus_sql},
+                            MAX(
+                                GREATEST(
+                                    similarity({matched_doc}, hr_search_normalize($1)),
+                                    word_similarity(hr_search_normalize($1), {matched_doc})
+                                )
+                            ) AS trigram_score
+                            ,MAX(
+                                word_similarity(
+                                    hr_search_normalize($2),
+                                    hr_search_normalize(coalesce(mr.name, ''))
+                                )
+                            ) AS token_similarity
+                            ,MAX(
+                                CASE
+                                    WHEN {matched_doc} LIKE '%' || hr_search_normalize($1) || '%' THEN 1.0
+                                    ELSE 0.0
+                                END
+                            ) AS phrase_bonus
+                            {avg_token_sim_sql}
+                        FROM matched_rows_deduped mr
+                        JOIN products p ON p.id = mr.product_id
+                        GROUP BY p.id, p.ean, mr.product_id
+                    ),
+                    ranked_products AS (
+                        SELECT
+                            product_id,
+                            ean,
+                            chain_count,
+                            (
+                                $4 * COALESCE(fts_rank, 0.0)
+                                + $5 * COALESCE(prefix_bonus, 0.0)
+                                + $6 * GREATEST(COALESCE(trigram_score, 0.0), 0.0)
+                                + CASE
+                                    WHEN $7 = 1 THEN
+                                        0.35 * COALESCE(token_similarity, 0.0)
+                                    ELSE
+                                        {ranking_else_sql}
+                                  END
+                            ) AS relevance
+                        FROM candidate_products
+                        WHERE
+                            COALESCE(fts_rank, 0.0) > 0
+                            OR COALESCE(prefix_bonus, 0.0) > 0
+                            OR COALESCE(trigram_score, 0.0) >= $3
+                            OR COALESCE(avg_token_similarity, 0.0) >= $3
+                    ),
+                    paged AS (
+                        SELECT
+                            product_id,
+                            ean,
+                            relevance,
+                            chain_count,
+                            COUNT(*) OVER()::int AS total_count
+                        FROM ranked_products
+                        ORDER BY relevance DESC, chain_count DESC, ean ASC
+                        LIMIT $8 OFFSET $9
+                    )
+                    SELECT
+                        p.id,
+                        p.ean,
+                        p.brand,
+                        p.name,
+                        p.quantity,
+                        p.unit,
+                        paged.total_count
+                    FROM paged
+                    JOIN products p ON p.id = paged.product_id
+                    ORDER BY paged.relevance DESC, paged.chain_count DESC, p.ean ASC
+                """
+
+                try:
+                    await conn.execute(
+                        "SELECT set_config('pg_trgm.similarity_threshold', $1, false)",
+                        str(trigram_operator_threshold),
+                    )
+                    rows = await conn.fetch(full_sql, *params)
+                finally:
+                    await conn.execute(
+                        "SELECT set_config('pg_trgm.similarity_threshold', $1, false)",
+                        "0.3",
+                    )
+
+        if not rows:
+            result: tuple[list[ProductWithId], int] = ([], 0)
+            await self._search_cache.set(cache_key, result)
+            return result
+
+        total_count = int(rows[0]["total_count"])
+        products = [
+            ProductWithId(
+                id=row["id"],
+                ean=row["ean"],
+                brand=row["brand"],
+                name=row["name"],
+                quantity=row["quantity"],
+                unit=row["unit"],
+            )
+            for row in rows
+        ]
+        result = (products, total_count)
+        await self._search_cache.set(cache_key, result)
+        return result
+
+    async def suggest_products(
+        self,
+        query: str,
+        limit: int = 8,
+    ) -> list[ProductWithId]:
+        """Lightweight suggestions: FTS + prefix only, no trigram scoring."""
+        if not query.strip():
+            return []
+
+        limit = max(1, min(limit, 20))
+
+        # --- Check cache first ---
+        suggest_cache_key = f"suggest:{query.strip().lower()}:{limit}"
+        cached = await self._suggest_cache.get(suggest_cache_key)
+        if cached is not None:
+            return cached
+
+        normalized_query = query.strip().lower()
+        query_tokens = re.findall(r"\w+", normalized_query)[:6]
+        first_token = query_tokens[0] if query_tokens else normalized_query
+
+        search_doc = (
+            "hr_search_normalize(coalesce(cp.name, '') || ' ' || coalesce(cp.brand, ''))"
+        )
+
+        prefix_where = (
+            "hr_search_normalize(coalesce(cp.name, '')) "
+            "LIKE hr_search_normalize($3) || '%'"
+        )
+
+        suggest_sql = f"""
+            WITH matched AS (
+                -- FTS match (fast, GIN indexed)
+                (SELECT cp.product_id,
+                        ts_rank_cd(
+                            to_tsvector('simple', {search_doc}),
+                            plainto_tsquery('simple', hr_search_normalize($1))
+                        ) AS rank
+                FROM chain_products cp
+                WHERE to_tsvector('simple', {search_doc}) @@
+                      plainto_tsquery('simple', hr_search_normalize($1))
+                LIMIT 200)
+
+                UNION ALL
+
+                -- Prefix match (fast, GIN trigram indexed)
+                (SELECT cp.product_id, 0.5 AS rank
+                FROM chain_products cp
+                WHERE {prefix_where}
+                LIMIT 200)
+            ),
+            ranked AS (
+                SELECT product_id, MAX(rank) AS best_rank
+                FROM matched
+                GROUP BY product_id
+                ORDER BY best_rank DESC
+                LIMIT $2
+            )
+            SELECT p.id, p.ean, p.brand, p.name, p.quantity, p.unit
+            FROM ranked r
+            JOIN products p ON p.id = r.product_id
+            ORDER BY r.best_rank DESC
+        """
+
+        async with self._get_conn() as conn:
+            rows = await conn.fetch(suggest_sql, normalized_query, limit, first_token)
+
+        products = [
+            ProductWithId(
+                id=row["id"],
+                ean=row["ean"],
+                brand=row["brand"],
+                name=row["name"],
+                quantity=row["quantity"],
+                unit=row["unit"],
+            )
+            for row in rows
+        ]
+        await self._suggest_cache.set(suggest_cache_key, products)
         return products
 
     async def get_product_prices(

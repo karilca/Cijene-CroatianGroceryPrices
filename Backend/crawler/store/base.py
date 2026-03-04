@@ -235,6 +235,9 @@ class BaseCrawler:
             data["barcode"] = f"{self.CHAIN}:{data['product_id']}"
         data["barcode"] = data["barcode"].replace('"', "").replace("'", "").strip()
 
+        brand = (data.get("brand") or "").strip()
+        data["brand"] = "" if brand == "#" else brand
+
         if "special_price" not in data:
             data["special_price"] = None
 

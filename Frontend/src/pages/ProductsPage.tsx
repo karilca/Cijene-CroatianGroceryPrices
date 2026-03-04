@@ -10,6 +10,7 @@ import { ErrorMessage } from '../components/common/ErrorMessage';
 import { useProductSearch } from '../hooks/useApiQueries';
 import type { ProductSearchRequest, Product } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { PAGINATION } from '../constants';
 
 export const ProductsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useState<ProductSearchRequest>({});
@@ -29,7 +30,9 @@ export const ProductsPage: React.FC = () => {
         query: query || undefined,
         ean: ean || undefined,
         chain_code: chainCode || undefined,
-        city: city || undefined
+        city: city || undefined,
+        page: PAGINATION.DEFAULT_PAGE,
+        per_page: PAGINATION.DEFAULT_PRODUCTS_PER_PAGE,
       });
     }
   }, [urlSearchParams]);
@@ -46,9 +49,17 @@ export const ProductsPage: React.FC = () => {
   const { t } = useLanguage();
 
   const handleSearch = (params: ProductSearchRequest) => {
-    setSearchParams(params);
+    setSearchParams({
+      ...params,
+      page: PAGINATION.DEFAULT_PAGE,
+      per_page: params.per_page || PAGINATION.DEFAULT_PRODUCTS_PER_PAGE,
+    });
     setSelectedProduct(null);
     setViewMode('search');
+  };
+
+  const handlePageChange = (page: number) => {
+    setSearchParams(prev => ({ ...prev, page }));
   };
 
   const handleProductSelect = (product: Product) => {
@@ -61,7 +72,17 @@ export const ProductsPage: React.FC = () => {
     setViewMode('search');
   };
 
+  const selectedChains = searchParams.chains?.length
+    ? searchParams.chains
+    : searchParams.chain_code
+      ? [searchParams.chain_code]
+      : undefined;
+
   const hasSearched = !!(searchParams.query || searchParams.ean || searchParams.chain_code);
+  const totalCount = searchResults?.total_count || 0;
+  const currentPage = searchResults?.page || searchParams.page || PAGINATION.DEFAULT_PAGE;
+  const perPage = searchResults?.per_page || searchParams.per_page || PAGINATION.DEFAULT_PRODUCTS_PER_PAGE;
+  const totalPages = Math.ceil(totalCount / perPage);
 
   if (viewMode === 'details' && selectedProduct) {
     return (
@@ -70,7 +91,7 @@ export const ProductsPage: React.FC = () => {
           product={selectedProduct}
           onBack={handleBackToSearch}
           city={searchParams.city}
-          chains={searchParams.chains}
+          chains={selectedChains}
         />
         <CompareBar />
       </div>
@@ -101,8 +122,13 @@ export const ProductsPage: React.FC = () => {
             <h2 className="text-xl font-semibold">
               {t('products.results')}
             </h2>
-
-            {/* KKPDI */}
+            {!searchLoading && searchResults && (
+              <p className="text-sm text-gray-600">
+                {totalCount > 0
+                  ? `${totalCount} ${t('products.results').toLowerCase()}`
+                  : t('products.noResults')}
+              </p>
+            )}
           </div>
 
           {searchLoading && (
@@ -123,16 +149,44 @@ export const ProductsPage: React.FC = () => {
           {searchResults && !searchLoading && (
             <>
               {searchResults.products.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {searchResults.products.map((product, index) => (
-                    <ProductCard
-                      key={product.ean || product.id || index}
-                      product={product}
-                      onViewDetails={handleProductSelect}
-                      showPricing={true}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {searchResults.products.map((product, index) => (
+                      <ProductCard
+                        key={product.ean || product.id || index}
+                        product={product}
+                        onViewDetails={handleProductSelect}
+                        showPricing={true}
+                      />
+                    ))}
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-600">
+                          {t('common.page')} {currentPage} {t('common.of')} {totalPages}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {t('common.previous')}
+                          </button>
+                          <button
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalPages}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {t('common.next')}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="text-center py-12">
                   <p className="text-gray-600 text-lg mb-4">{t('products.noResults')}</p>

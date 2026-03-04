@@ -5,6 +5,7 @@ from typing import List
 import logging
 from pathlib import Path
 from time import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 from crawler.store.konzum import KonzumCrawler
@@ -109,6 +110,7 @@ def crawl(
     root: Path,
     date: datetime.date | None = None,
     chains: list[str] | None = None,
+    workers: int = 4,
 ) -> Path:
     """
     Crawl multiple retail chains for product/pricing data and save it.
@@ -117,6 +119,7 @@ def crawl(
         root: The base directory path where the data will be saved.
         date: The date for which to fetch the product data. If None, uses today's date.
         chains: List of retail chain names to crawl. If None, crawls all available chains.
+        workers: Number of parallel workers for chain crawling.
 
     Returns:
         Path to the created ZIP archive file.
@@ -135,10 +138,39 @@ def crawl(
     results = {}
 
     t0 = time()
-    for chain in chains:
-        logger.info(f"Starting crawl for {chain} on {date:%Y-%m-%d}")
-        r = crawl_chain(chain, date, path / chain)
-        results[chain] = r
+
+    if workers <= 1 or len(chains) <= 1:
+        for chain in chains:
+            logger.info(f"Starting crawl for {chain} on {date:%Y-%m-%d}")
+            r = crawl_chain(chain, date, path / chain)
+            results[chain] = r
+    else:
+        n_workers = min(workers, len(chains))
+        logger.info(
+            "Running crawl with %s parallel workers for %s chains",
+            n_workers,
+            len(chains),
+        )
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            future_to_chain = {
+                executor.submit(crawl_chain, chain, date, path / chain): chain
+                for chain in chains
+            }
+
+            for future in as_completed(future_to_chain):
+                chain = future_to_chain[future]
+                try:
+                    results[chain] = future.result()
+                except Exception as err:
+                    logger.error(
+                        "Error crawling %s for %s: %s",
+                        chain,
+                        f"{date:%Y-%m-%d}",
+                        err,
+                        exc_info=True,
+                    )
+                    results[chain] = CrawlResult()
     t1 = time()
 
     logger.info(f"Crawled {','.join(chains)} for {date:%Y-%m-%d} in {t1 - t0:.2f}s")

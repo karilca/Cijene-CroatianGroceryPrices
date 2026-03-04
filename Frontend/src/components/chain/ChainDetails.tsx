@@ -22,6 +22,7 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
   const chainCode = propChainCode || paramChainCode;
   const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
+  const storeIdParam = searchParams.get('id');
   const { position } = useGeolocation();
 
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
@@ -47,11 +48,14 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
 
   // Handle store selection from URL param
   useEffect(() => {
-    const storeId = searchParams.get('id');
-    if (storeId) {
-      if (stores && !selectedStore) {
-        const found = stores.find(s => (s.id || s.code || `${s.chain_code}-${s.address}`) === storeId);
-        if (found) {
+    if (storeIdParam) {
+      if (stores) {
+        const found = stores.find(s => (s.id || s.code || `${s.chain_code}-${s.address}`) === storeIdParam);
+        const selectedStoreId = selectedStore
+          ? (selectedStore.id || selectedStore.code || `${selectedStore.chain_code}-${selectedStore.address}`)
+          : null;
+
+        if (found && selectedStoreId !== storeIdParam) {
           setSelectedStore(found);
           setShowDetails(true);
         }
@@ -60,7 +64,7 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
       setShowDetails(false);
       setSelectedStore(null);
     }
-  }, [searchParams, stores, selectedStore, showDetails]);
+  }, [storeIdParam, stores, selectedStore, showDetails]);
 
   // Filter and sort stores
   const filteredStores = useMemo(() => {
@@ -111,15 +115,14 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
 
   // Handle store click
   const handleStoreClick = useCallback((store: Store) => {
-    setSelectedStore(store);
-    setShowDetails(true);
-
-    // Update URL with store ID for deep linking
+    // Update URL with store ID for deep linking.
+    // Details view is opened by the URL-driven effect to avoid open/close flicker.
     const storeId = store.id || store.code || `${store.chain_code}-${store.address}`;
     if (storeId) {
       setSearchParams(prev => {
-        prev.set('id', storeId);
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.set('id', storeId);
+        return next;
       });
     }
   }, [setSearchParams]);
@@ -128,8 +131,9 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
   const handleBackFromDetails = useCallback(() => {
     // Remove store ID from URL
     setSearchParams(prev => {
-      prev.delete('id');
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.delete('id');
+      return next;
     });
   }, [setSearchParams]);
 

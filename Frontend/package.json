@@ -1,7 +1,7 @@
 {
   "name": "cijene-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "engines": {
     "node": ">=22.13.0 <23",

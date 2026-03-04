@@ -75,6 +75,13 @@ export abstract class BaseService {
    * Build request config with timeout if provided
    */
   protected buildRequestConfig(options?: ServiceMethodOptions) {
-    return options?.timeout ? { timeout: options.timeout } : undefined;
+    if (!options?.timeout && !options?.abortSignal) {
+      return undefined;
+    }
+
+    return {
+      ...(options?.timeout ? { timeout: options.timeout } : {}),
+      ...(options?.abortSignal ? { signal: options.abortSignal } : {}),
+    };
   }
 }

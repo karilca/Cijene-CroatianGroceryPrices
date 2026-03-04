@@ -1,4 +1,5 @@
 from decimal import Decimal
+import logging
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 import datetime
@@ -9,6 +10,16 @@ from service.routers.auth import RequireAuth
 
 router = APIRouter(tags=["Products, Chains and Stores"], dependencies=[RequireAuth])
 db = settings.get_db()
+logger = logging.getLogger(__name__)
+
+
+def normalize_brand_text(value: str | None) -> str | None:
+    if not value:
+        return None
+    stripped = value.strip()
+    if not stripped or stripped == "#":
+        return None
+    return stripped
 
 
 class ListChainsResponse(BaseModel):
@@ -96,11 +107,11 @@ async def search_stores(
     ),
     city: str = Query(
         None,
-        description="City name for case-insensitive substring match",
+        description="City name for case-insensitive and accent-insensitive substring match (đ≈dj)",
     ),
     address: str = Query(
         None,
-        description="Address for case-insensitive substring match",
+        description="Address for case-insensitive and accent-insensitive substring match (đ≈dj)",
     ),
     lat: float = Query(
         None,
@@ -125,6 +136,9 @@ async def search_stores(
 ) -> ListStoresResponse:
     """
     Search for stores by chain codes, city, address, and/or geolocation.
+
+    City and address filters are case-insensitive and accent-insensitive,
+    including đ/dj normalization.
 
     For geolocation search, both lat and lon must be provided together.
     Note that the geolocation search will only return stores that have
@@ -224,10 +238,23 @@ class ProductResponse(BaseModel):
     )
 
 
+class ProductListItemResponse(BaseModel):
+    """Lightweight product information for search results."""
+
+    ean: str = Field(..., description="EAN barcode of the product.")
+    brand: str | None = Field(..., description="Brand of the product.")
+    name: str | None = Field(..., description="Name of the product.")
+    quantity: str | None = Field(..., description="Quantity of the product.")
+    unit: str | None = Field(..., description="Unit of the product.")
+
+
 class ProductSearchResponse(BaseModel):
-    products: list[ProductResponse] = Field(
+    products: list[ProductListItemResponse] = Field(
         ..., description="List of products matching the search query."
     )
+    total_count: int = Field(..., description="Total number of products matching the query.")
+    page: int = Field(..., description="Current page number.")
+    per_page: int = Field(..., description="Number of items per page.")
 
 
 async def prepare_product_response(
@@ -253,7 +280,7 @@ async def prepare_product_response(
     product_response_map = {
         product.id: ProductResponse(
             ean=product.ean,
-            brand=product.brand or "",
+            brand=normalize_brand_text(product.brand),
             name=product.name or "",
             quantity=str(product.quantity) if product.quantity else None,
             unit=product.unit,
@@ -269,6 +296,7 @@ async def prepare_product_response(
 
         cpr_data = cp.to_dict()
         cpr_data["chain"] = chain
+        cpr_data["brand"] = normalize_brand_text(cpr_data.get("brand"))
         cpr_map[(product_id, chain)] = cpr_data
 
     prices = await db.get_product_prices(product_ids, date)
@@ -301,6 +329,50 @@ async def prepare_product_response(
                 product.name = chain_names[0].capitalize()
 
     return [p for p in product_response_map.values() if p.chains]
+
+
+async def prepare_product_list_response(
+    products: list[ProductWithId],
+) -> list[ProductListItemResponse]:
+    def normalize_fallback_text(value: str | None) -> str | None:
+        if not value:
+            return value
+        stripped = value.strip()
+        if not stripped:
+            return None
+        return stripped.capitalize()
+
+    missing_ids = [p.id for p in products if not p.name or not normalize_brand_text(p.brand)]
+
+    fallback: dict[int, dict[str, str | None]] = {}
+    if missing_ids:
+        chain_products = await db.get_chain_products_for_product(missing_ids)
+        for cp in chain_products:
+            current = fallback.setdefault(cp.product_id, {"name": None, "brand": None})
+
+            if cp.name and (
+                not current["name"] or len(cp.name) > len(current["name"])
+            ):
+                current["name"] = cp.name
+
+            cp_brand = normalize_brand_text(cp.brand)
+            if cp_brand and (
+                not current["brand"] or len(cp_brand) > len(current["brand"])
+            ):
+                current["brand"] = cp_brand
+
+    return [
+        ProductListItemResponse(
+            ean=product.ean,
+            brand=normalize_brand_text(product.brand)
+            or normalize_fallback_text(fallback.get(product.id, {}).get("brand")),
+            name=product.name
+            or normalize_fallback_text(fallback.get(product.id, {}).get("name")),
+            quantity=str(product.quantity) if product.quantity else None,
+            unit=product.unit,
+        )
+        for product in products
+    ]
 
 
 @router.get("/products/{ean}/", summary="Get product data/prices by barcode")
@@ -367,11 +439,11 @@ async def get_prices(
     ),
     city: str = Query(
         None,
-        description="City name for case-insensitive substring match",
+        description="City name for case-insensitive and accent-insensitive substring match (đ≈dj)",
     ),
     address: str = Query(
         None,
-        description="Address for case-insensitive substring match",
+        description="Address for case-insensitive and accent-insensitive substring match (đ≈dj)",
     ),
     lat: float = Query(
         None,
@@ -390,6 +462,8 @@ async def get_prices(
     Get product prices by store with store filtering capabilities.
 
     Returns prices for products in stores matching the filter criteria.
+    City and address filters are case-insensitive and accent-insensitive,
+    including đ/dj normalization.
     For geolocation search, both lat and lon must be provided together.
     The EANs parameter is required and must contain at least one EAN code.
     """
@@ -415,44 +489,64 @@ async def get_prices(
             detail="Both latitude and longitude must be provided for geolocation search",
         )
 
-    # Get products by EANs
-    products = await db.get_products_by_ean(ean_list)
-    if not products:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No products found for the provided EANs: {eans}",
-        )
-
-    # Parse chain codes for store filtering
-    chain_codes = None
-    if chains:
-        chain_codes = [c.strip().lower() for c in chains.split(",") if c.strip()]
-
-    # Filter stores if any filter criteria are provided
-    if chain_codes or city or address or lat or lon:
-        try:
-            filtered_stores, _ = await db.filter_stores(
-                chain_codes=chain_codes,
-                city=city,
-                address=address,
-                lat=lat,
-                lon=lon,
-                d=d,
-                limit=None,  # No limit - we need all stores for price comparison
+    try:
+        # Get products by EANs
+        products = await db.get_products_by_ean(ean_list)
+        if not products:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No products found for the provided EANs: {eans}",
             )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
 
-        store_ids = [store.id for store in filtered_stores]
-    else:
-        # If no filters are applied, get all stores
-        store_ids = None
+        # Parse chain codes for store filtering
+        chain_codes = None
+        if chains:
+            chain_codes = [c.strip().lower() for c in chains.split(",") if c.strip()]
 
-    store_prices = await db.get_product_store_prices(
-        product_ids=[product.id for product in products],
-        store_ids=store_ids,
-    )
-    return StorePricesResponse(store_prices=store_prices)
+        # Filter stores if any filter criteria are provided
+        if chain_codes or city or address or lat or lon:
+            try:
+                filtered_stores, _ = await db.filter_stores(
+                    chain_codes=chain_codes,
+                    city=city,
+                    address=address,
+                    lat=lat,
+                    lon=lon,
+                    d=d,
+                    limit=None,  # No limit - we need all stores for price comparison
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+            store_ids = [store.id for store in filtered_stores]
+        else:
+            # If no filters are applied, get all stores
+            store_ids = None
+
+        store_prices = await db.get_product_store_prices(
+            product_ids=[product.id for product in products],
+            store_ids=store_ids,
+        )
+        return StorePricesResponse(store_prices=store_prices)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(
+            "Prices lookup failed",
+            extra={
+                "eans": ean_list,
+                "chains": chains,
+                "city": city,
+                "address": address,
+                "lat": lat,
+                "lon": lon,
+                "distance_km": d,
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Price lookup failed. Please retry your query.",
+        )
 
 
 @router.get("/products/", summary="Search for products by name")
@@ -466,26 +560,108 @@ async def search_products(
         None,
         description="Comma-separated list of chain codes to include",
     ),
+    city: str = Query(
+        None,
+        description="City name for case-insensitive and accent-insensitive filtering",
+    ),
+    page: int = Query(
+        1,
+        description="Page number (default: 1)",
+    ),
+    per_page: int = Query(
+        20,
+        description="Number of items per page (default: 20, max: 100)",
+    ),
 ) -> ProductSearchResponse:
     """
     Search for products by name.
 
-    Returns a list of products that match the search query.
+    Returns a lightweight list of products that match the search query.
+
+    Price and chain-specific details are intentionally omitted for faster
+    response times. Use /products/{ean}/ for full product details.
     """
+    if page < 1:
+        page = 1
+    if per_page < 1:
+        per_page = 20
+    if per_page > 100:
+        per_page = 100
+
+    chain_codes = None
+    if chains:
+        chain_codes = [c.strip().lower() for c in chains.split(",") if c.strip()]
+
     if not q.strip():
-        return ProductSearchResponse(products=[])
+        return ProductSearchResponse(
+            products=[],
+            total_count=0,
+            page=page,
+            per_page=per_page,
+        )
 
-    products = await db.search_products(q)
+    try:
+        products, total_count = await db.search_products(
+            q,
+            chain_codes=chain_codes,
+            city=city,
+            page=page,
+            per_page=per_page,
+        )
 
-    product_responses = await prepare_product_response(
-        products=products,
-        date=date,
-        filtered_chains=(
-            [c.lower().strip() for c in chains.split(",")] if chains else None
-        ),
+        product_list = await prepare_product_list_response(products)
+    except Exception:
+        logger.exception(
+            "Product search failed",
+            extra={
+                "query": q,
+                "chains": chain_codes,
+                "city": city,
+                "page": page,
+                "per_page": per_page,
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Product search failed. Please retry your query.",
+        )
+
+    return ProductSearchResponse(
+        products=product_list,
+        total_count=total_count,
+        page=page,
+        per_page=per_page,
     )
 
-    return ProductSearchResponse(products=product_responses)
+
+class ProductSuggestResponse(BaseModel):
+    products: list[ProductListItemResponse] = Field(
+        ..., description="List of product suggestions."
+    )
+
+
+@router.get("/products/suggest", summary="Lightweight product suggestions for autocomplete")
+async def suggest_products(
+    q: str = Query(..., description="Search query for product names"),
+    limit: int = Query(
+        8,
+        description="Maximum number of suggestions (default: 8, max: 20)",
+    ),
+) -> ProductSuggestResponse:
+    """
+    Fast product suggestions for autocomplete.
+
+    Uses only FTS + prefix matching (no fuzzy trigram scoring) for
+    significantly faster response times compared to the full search endpoint.
+    """
+    limit = max(1, min(limit, 20))
+
+    if not q.strip():
+        return ProductSuggestResponse(products=[])
+
+    products = await db.suggest_products(q, limit=limit)
+    product_list = await prepare_product_list_response(products)
+    return ProductSuggestResponse(products=product_list)
 
 
 class ChainStatsResponse(BaseModel):

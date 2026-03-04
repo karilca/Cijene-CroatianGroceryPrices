@@ -81,6 +81,13 @@ def main():
         default="warning",
         help="Set verbosity level (default: warning)",
     )
+    parser.add_argument(
+        "-w",
+        "--workers",
+        type=int,
+        default=4,
+        help="Number of parallel workers for chain crawling (default: 4)",
+    )
 
     args = parser.parse_args()
 
@@ -95,6 +102,9 @@ def main():
 
     if args.output_path is None:
         parser.error("output_path is required; use -h/--help for more info")
+
+    if args.workers < 1:
+        parser.error("workers must be at least 1")
 
     if args.output_path.is_file():
         parser.error(f"Output path '{args.output_path}' is a file.")
@@ -124,7 +134,12 @@ def main():
         date_txt = args.date.strftime("%Y-%m-%d") if args.date else "today"
         print(f"Fetching price data from {chains_txt} for {date_txt} ...", flush=True)
 
-        zip_path = crawl(args.output_path, crawl_date, chains_to_crawl)
+        zip_path = crawl(
+            args.output_path,
+            crawl_date,
+            chains_to_crawl,
+            workers=args.workers,
+        )
         print(f"Archive created: {zip_path}")
         return 0
     except Exception as e:

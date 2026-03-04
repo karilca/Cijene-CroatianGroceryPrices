@@ -37,11 +37,13 @@ export function useProductSearch(
 ) {
   return useQuery({
     queryKey: queryKeys.products.list(params),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       // If EAN is provided, use the direct lookup endpoint
       if (params.ean) {
         try {
-          const product = await productService.getProductByEAN(params.ean);
+          const product = await productService.getProductByEAN(params.ean, {
+            abortSignal: signal,
+          });
           return {
             products: [product],
             total_count: 1,
@@ -70,9 +72,11 @@ export function useProductSearch(
       }
 
       // Otherwise use the standard search
-      return productService.searchProducts(params);
+      return productService.searchProducts(params, { abortSignal: signal });
     },
-    enabled: !!(params.query || params.ean || params.chain_code),
+    enabled: !!(params.query || params.ean),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     ...options,
   });
 }
@@ -122,9 +126,15 @@ export function useProductSuggestions(
   const safeQuery = query || '';
   return useQuery({
     queryKey: queryKeys.products.suggestions(safeQuery),
-    queryFn: () => productService.getProductSuggestions(safeQuery, limit),
+    queryFn: ({ signal }) =>
+      productService.getProductSuggestions(safeQuery, limit, {
+        abortSignal: signal,
+      }),
     enabled: !!safeQuery && safeQuery.trim().length >= 2,
-    staleTime: 30 * 1000, // 30 seconds for suggestions
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     ...options,
   });
 }
