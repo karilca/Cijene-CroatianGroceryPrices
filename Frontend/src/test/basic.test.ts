@@ -1,5 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 
+type MockApiError = {
+  response?: {
+    status: number
+    data?: {
+      message?: string
+    }
+  }
+  request?: Record<string, unknown>
+  message?: string
+}
+
 // Simple unit tests for utility functions and basic functionality
 describe('Basic Application Tests', () => {
   describe('Utility Functions', () => {
@@ -35,11 +46,11 @@ describe('Basic Application Tests', () => {
     it('should debounce function calls', async () => {
       const mockFn = vi.fn()
       
-      const debounce = (func: Function, delay: number) => {
+      const debounce = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
         let timeoutId: NodeJS.Timeout
-        return (...args: any[]) => {
+        return (...args: T) => {
           clearTimeout(timeoutId)
-          timeoutId = setTimeout(() => func.apply(null, args), delay)
+          timeoutId = setTimeout(() => func(...args), delay)
         }
       }
 
@@ -131,7 +142,7 @@ describe('Basic Application Tests', () => {
 
   describe('Error Handling', () => {
     it('should handle API errors gracefully', () => {
-      const handleApiError = (error: any) => {
+      const handleApiError = (error: MockApiError) => {
         if (error.response) {
           // Server responded with error status
           return {

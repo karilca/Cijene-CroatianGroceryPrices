@@ -63,7 +63,7 @@ describe('Performance Optimizations', () => {
     })
 
     it('should validate local storage caching', () => {
-      const simulateLocalStorageCache = (key: string, value: any) => {
+      const simulateLocalStorageCache = (key: string, value: unknown) => {
         return { key, value, timestamp: Date.now() }
       }
       

@@ -3,26 +3,40 @@
 import { PAGINATION } from '../constants';
 import type { ServiceMethodOptions } from '../types';
 
+interface ServiceErrorLike {
+  name?: string;
+  message?: string;
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+    };
+  };
+  request?: unknown;
+}
+
 export abstract class BaseService {
   /**
    * Handle service errors consistently across all services
    */
-  protected handleServiceError(error: any, method: string, serviceName: string): Error {
-    if (error.name === 'ApiError') {
-      return error;
+  protected handleServiceError(error: unknown, method: string, serviceName: string): Error {
+    const serviceError = error as ServiceErrorLike;
+
+    if (serviceError.name === 'ApiError') {
+      return serviceError as Error;
     }
     
-    console.error(`${serviceName}.${method} error:`, error);
+    console.error(`${serviceName}.${method} error:`, serviceError);
     
-    if (error.response) {
-      return new Error(`API Error: ${error.response.status} - ${error.response.data?.message || 'Unknown error'}`);
+    if (serviceError.response) {
+      return new Error(`API Error: ${serviceError.response.status} - ${serviceError.response.data?.message || 'Unknown error'}`);
     }
     
-    if (error.request) {
+    if (serviceError.request) {
       return new Error('Network error: Unable to reach the server');
     }
     
-    return new Error(`Service error in ${method}: ${error.message}`);
+    return new Error(`Service error in ${method}: ${serviceError.message || 'Unknown error'}`);
   }
 
   /**
@@ -61,6 +75,13 @@ export abstract class BaseService {
    * Build request config with timeout if provided
    */
   protected buildRequestConfig(options?: ServiceMethodOptions) {
-    return options?.timeout ? { timeout: options.timeout } : undefined;
+    if (!options?.timeout && !options?.abortSignal) {
+      return undefined;
+    }
+
+    return {
+      ...(options?.timeout ? { timeout: options.timeout } : {}),
+      ...(options?.abortSignal ? { signal: options.abortSignal } : {}),
+    };
   }
 }

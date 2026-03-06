@@ -22,6 +22,7 @@ export const API_CONFIG = {
 export const ENDPOINTS = {
   ARCHIVES: '/v0/list',
   PRODUCTS: '/v1/products',
+  PRODUCT_SUGGEST: '/v1/products/suggest',
   STORES: '/v1/stores',
   CHAINS: '/v1/chains',
   CHAIN_STATS: '/v1/chain-stats',
@@ -31,6 +32,8 @@ export const ENDPOINTS = {
 export const PAGINATION = {
   DEFAULT_PAGE: 1,
   DEFAULT_PER_PAGE: Number(import.meta.env.VITE_STORES_PER_PAGE) || 20,
+  DEFAULT_PRODUCTS_PER_PAGE: Number(import.meta.env.VITE_PRODUCTS_PER_PAGE) || 20,
+  DEFAULT_STORES_PER_PAGE: Number(import.meta.env.VITE_STORES_PER_PAGE) || 20,
   MAX_PER_PAGE: 100,
 } as const;
 

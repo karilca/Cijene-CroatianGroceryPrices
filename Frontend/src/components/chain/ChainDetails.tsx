@@ -22,6 +22,7 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
   const chainCode = propChainCode || paramChainCode;
   const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
+  const storeIdParam = searchParams.get('id');
   const { position } = useGeolocation();
 
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
@@ -47,11 +48,14 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
 
   // Handle store selection from URL param
   useEffect(() => {
-    const storeId = searchParams.get('id');
-    if (storeId) {
-      if (stores && !selectedStore) {
-        const found = stores.find(s => (s.id || s.code || `${s.chain_code}-${s.address}`) === storeId);
-        if (found) {
+    if (storeIdParam) {
+      if (stores) {
+        const found = stores.find(s => (s.id || s.code || `${s.chain_code}-${s.address}`) === storeIdParam);
+        const selectedStoreId = selectedStore
+          ? (selectedStore.id || selectedStore.code || `${selectedStore.chain_code}-${selectedStore.address}`)
+          : null;
+
+        if (found && selectedStoreId !== storeIdParam) {
           setSelectedStore(found);
           setShowDetails(true);
         }
@@ -60,13 +64,13 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
       setShowDetails(false);
       setSelectedStore(null);
     }
-  }, [searchParams, stores, selectedStore, showDetails]);
+  }, [storeIdParam, stores, selectedStore, showDetails]);
 
   // Filter and sort stores
   const filteredStores = useMemo(() => {
     if (!stores) return [];
 
-    let filtered = stores.filter((store: Store) => {
+    const filtered = stores.filter((store: Store) => {
       const cityMatch = !storeFilters.city ||
         (store.city && store.city.toLowerCase().includes(storeFilters.city.toLowerCase()));
       const typeMatch = !storeFilters.store_type || store.store_type === storeFilters.store_type;
@@ -111,15 +115,14 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
 
   // Handle store click
   const handleStoreClick = useCallback((store: Store) => {
-    setSelectedStore(store);
-    setShowDetails(true);
-
-    // Update URL with store ID for deep linking
+    // Update URL with store ID for deep linking.
+    // Details view is opened by the URL-driven effect to avoid open/close flicker.
     const storeId = store.id || store.code || `${store.chain_code}-${store.address}`;
     if (storeId) {
       setSearchParams(prev => {
-        prev.set('id', storeId);
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.set('id', storeId);
+        return next;
       });
     }
   }, [setSearchParams]);
@@ -128,8 +131,9 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
   const handleBackFromDetails = useCallback(() => {
     // Remove store ID from URL
     setSearchParams(prev => {
-      prev.delete('id');
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.delete('id');
+      return next;
     });
   }, [setSearchParams]);
 
@@ -285,7 +289,10 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
             </label>
             <select
               value={storeFilters.sortBy}
-              onChange={(e) => setStoreFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
+              onChange={(e) => setStoreFilters(prev => ({
+                ...prev,
+                sortBy: e.target.value as 'city' | 'address' | 'store_type'
+              }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="city">{t('chainDetails.city')}</option>

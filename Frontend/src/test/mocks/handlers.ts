@@ -222,6 +222,25 @@ export const handlers = [
     })
   }),
 
+  http.get('https://cijena.kolaklab.eu/v0/list', () => {
+    return HttpResponse.json({
+      archives: [
+        {
+          date: '2024-01-15',
+          url: 'https://cijene.searxngmate.tk/v0/archive/2024-01-15.zip',
+          size: 1234567,
+          updated: '2024-01-15T10:00:00+00:00'
+        },
+        {
+          date: '2024-01-14',
+          url: 'https://cijene.searxngmate.tk/v0/archive/2024-01-14.zip',
+          size: 1200000,
+          updated: '2024-01-14T10:00:00+00:00'
+        }
+      ]
+    })
+  }),
+
   // Prices endpoint
   http.get(`${API_BASE_URL}/v1/prices/`, () => {
     return HttpResponse.json({

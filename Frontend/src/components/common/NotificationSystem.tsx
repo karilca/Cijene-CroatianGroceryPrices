@@ -1,41 +1,9 @@
 // Global notification system for errors and messages
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { NOTIFICATION_DURATION } from '../../constants';
-
-export interface Notification {
-  id: string;
-  type: 'success' | 'error' | 'warning' | 'info';
-  title?: string;
-  message: string;
-  duration?: number;
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
-  persistent?: boolean;
-}
-
-interface NotificationContextType {
-  notifications: Notification[];
-  addNotification: (notification: Omit<Notification, 'id'>) => string;
-  removeNotification: (id: string) => void;
-  clearAll: () => void;
-  notifySuccess: (message: string, title?: string) => string;
-  notifyError: (message: string, title?: string, action?: Notification['action']) => string;
-  notifyWarning: (message: string, title?: string) => string;
-  notifyInfo: (message: string, title?: string) => string;
-}
-
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
-
-export const useNotifications = () => {
-  const context = useContext(NotificationContext);
-  if (!context) {
-    throw new Error('useNotifications must be used within a NotificationProvider');
-  }
-  return context;
-};
+import { NotificationContext, useNotifications } from './NotificationContext';
+import type { Notification } from './NotificationContext';
 
 interface NotificationProviderProps {
   children: React.ReactNode;
@@ -47,6 +15,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   maxNotifications = 5
 }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  const removeNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  }, []);
 
   const addNotification = useCallback((notification: Omit<Notification, 'id'>) => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -70,11 +42,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     }
 
     return id;
-  }, [maxNotifications]);
-
-  const removeNotification = useCallback((id: string) => {
-    setNotifications(prev => prev.filter(notification => notification.id !== id));
-  }, []);
+  }, [maxNotifications, removeNotification]);
 
   const clearAll = useCallback(() => {
     setNotifications([]);

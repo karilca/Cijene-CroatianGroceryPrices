@@ -60,14 +60,16 @@ export const PriceComparison: React.FC<PriceComparisonProps> = ({
     // Sort
     filtered.sort((a, b) => {
       switch (sortBy) {
-        case 'price-asc':
+        case 'price-asc': {
           const priceA = a.special_price || a.price;
           const priceB = b.special_price || b.price;
           return priceA - priceB;
-        case 'price-desc':
+        }
+        case 'price-desc': {
           const priceA2 = a.special_price || a.price;
           const priceB2 = b.special_price || b.price;
           return priceB2 - priceA2;
+        }
         case 'chain':
           return a.chain.localeCompare(b.chain);
         case 'date':

@@ -50,11 +50,26 @@ ADD COLUMN IF NOT EXISTS lon DOUBLE PRECISION,
 ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
 
 -- Requires "cube" and "earthdistance" extensions for geospatial queries
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS cube;
 CREATE EXTENSION IF NOT EXISTS earthdistance;
+
+CREATE OR REPLACE FUNCTION hr_search_normalize(input_text TEXT)
+RETURNS TEXT
+LANGUAGE SQL
+IMMUTABLE
+RETURNS NULL ON NULL INPUT
+AS $$
+    SELECT translate(replace(lower(input_text), 'đ', 'dj'), 'ščćž', 'sccz');
+$$;
+
 ALTER TABLE stores
 ADD COLUMN IF NOT EXISTS earth_point earth GENERATED ALWAYS AS (ll_to_earth (lat, lon)) STORED;
 CREATE INDEX IF NOT EXISTS idx_stores_earth_point ON stores USING GIST (earth_point);
+CREATE INDEX IF NOT EXISTS idx_stores_city_normalized_trgm ON stores
+USING GIN (hr_search_normalize(coalesce(city, '')) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_stores_address_normalized_trgm ON stores
+USING GIN (hr_search_normalize(coalesce(address, '')) gin_trgm_ops);
 
 -- Products table to store global product information
 CREATE TABLE IF NOT EXISTS products (
@@ -85,6 +100,13 @@ CREATE TABLE IF NOT EXISTS chain_products (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chain_products_product_id ON chain_products (product_id);
+CREATE INDEX IF NOT EXISTS idx_chain_products_product_chain ON chain_products (product_id, chain_id);
+CREATE INDEX IF NOT EXISTS idx_chain_products_search_tsv ON chain_products
+USING GIN (to_tsvector('simple', hr_search_normalize(coalesce(name, '') || ' ' || coalesce(brand, ''))));
+CREATE INDEX IF NOT EXISTS idx_chain_products_search_trgm ON chain_products
+USING GIN (hr_search_normalize(coalesce(name, '') || ' ' || coalesce(brand, '')) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_chain_products_name_trgm ON chain_products
+USING GIN (hr_search_normalize(coalesce(name, '')) gin_trgm_ops);
 
 -- Prices table to store product prices
 CREATE TABLE IF NOT EXISTS prices (
@@ -103,6 +125,9 @@ CREATE TABLE IF NOT EXISTS prices (
 
 -- Mark regular_price as required if the table already exists
 ALTER TABLE prices ALTER COLUMN regular_price SET NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_prices_store_chain_product ON prices (store_id, chain_product_id);
+CREATE INDEX IF NOT EXISTS idx_prices_chain_product_date_store ON prices (chain_product_id, price_date, store_id);
 
 -- Prices table to store min/max/avg prices per chain
 CREATE TABLE IF NOT EXISTS chain_prices (

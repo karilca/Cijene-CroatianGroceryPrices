@@ -9,7 +9,20 @@ export const server = setupServer(...handlers)
 
 // Start server before all tests
 beforeAll(() => {
-  server.listen()
+  server.listen({
+    onUnhandledRequest(req, print) {
+      const isArchiveListRequest =
+        req.method === 'GET' &&
+        req.url.hostname === 'cijena.kolaklab.eu' &&
+        req.url.pathname === '/v0/list'
+
+      if (isArchiveListRequest) {
+        return
+      }
+
+      print.warning()
+    },
+  })
 })
 
 // Reset handlers after each test

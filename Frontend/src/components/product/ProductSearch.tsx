@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Barcode, Camera } from 'lucide-react';
 import { BaseSearchComponent } from '../common/BaseSearchComponent';
 import { useBaseSearch } from '../../hooks/useBaseSearch';
@@ -31,6 +31,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
   const { t } = useLanguage();
   const [ean, setEan] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [filters, setFilters] = useState<SearchFilters>({
     chains: [],
     priceRange: { min: null, max: null },
@@ -48,7 +49,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
   // Normalize chains data to handle both string[] (API docs) and Chain[] (Mock data)
   const availableChains = React.useMemo(() => {
     if (!chainsData?.chains) return [];
-    return (chainsData.chains as any[]).map((c) => {
+    return (chainsData.chains as Array<string | { code: string; name: string }>).map((c) => {
       if (typeof c === 'string') {
         return { code: c, name: c.charAt(0).toUpperCase() + c.slice(1).toLowerCase() };
       }
@@ -111,11 +112,21 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
     }, [ean])
   });
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(query || '');
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [query]);
+
   // Get suggestions for current query
   const { data: suggestions, isLoading: suggestionsLoading } = useProductSuggestions(
-    query || '',
+    debouncedQuery,
     8,
-    { enabled: (query?.length ?? 0) >= 2 && showSuggestions }
+    { enabled: (debouncedQuery?.length ?? 0) >= 2 && showSuggestions }
   );
 
   // Handle EAN input change

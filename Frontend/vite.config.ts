@@ -56,11 +56,16 @@ export default defineConfig({
     // Code splitting optimization
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          query: ['@tanstack/react-query'],
-          ui: ['lucide-react'],
+        // Conditional manualChunks: return chunk name only when matching module is present
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+
+          if (id.includes('react') || id.includes('react-dom')) return 'vendor';
+          if (id.includes('react-router-dom')) return 'router';
+          if (id.includes('@tanstack/react-query')) return 'query';
+          if (id.includes('lucide-react')) return 'ui';
+
+          return undefined;
         },
       },
     },

@@ -72,7 +72,7 @@ export interface SearchSuggestion {
   id: string;
   text: string;
   type: 'product' | 'store' | 'chain';
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export interface NotificationMessage {
@@ -113,7 +113,7 @@ export interface SortOption {
 export interface FilterOption {
   key: string;
   label: string;
-  value: any;
+  value: unknown;
   isActive: boolean;
 }
 
@@ -125,7 +125,7 @@ export type PriceDisplayMode = 'regular' | 'special' | 'both';
 export interface ValidationRule {
   field: string;
   message: string;
-  validator: (value: any) => boolean;
+  validator: (value: unknown) => boolean;
 }
 
 export interface ValidationResult {
@@ -136,7 +136,7 @@ export interface ValidationResult {
 export interface ValidationError {
   field: string;
   message: string;
-  value?: any;
+  value?: unknown;
 }
 
 // Service response wrapper types
@@ -150,7 +150,7 @@ export interface ServiceResponse<T> {
 export interface ServiceError {
   code: string;
   message: string;
-  details?: any;
+  details?: unknown;
   timestamp: string;
 }
 

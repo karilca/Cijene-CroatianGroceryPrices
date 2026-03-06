@@ -22,6 +22,14 @@ import type {
 } from '../types';
 import { queryKeys } from '../config/queryClient';
 
+interface ErrorWithStatus {
+  status?: number;
+  message?: string;
+  response?: {
+    status?: number;
+  };
+}
+
 // Product hooks
 export function useProductSearch(
   params: ProductSearchRequest,
@@ -29,11 +37,13 @@ export function useProductSearch(
 ) {
   return useQuery({
     queryKey: queryKeys.products.list(params),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       // If EAN is provided, use the direct lookup endpoint
       if (params.ean) {
         try {
-          const product = await productService.getProductByEAN(params.ean);
+          const product = await productService.getProductByEAN(params.ean, {
+            abortSignal: signal,
+          });
           return {
             products: [product],
             total_count: 1,
@@ -41,9 +51,14 @@ export function useProductSearch(
             per_page: 1,
             total_pages: 1
           } as ProductSearchResponse;
-        } catch (error: any) {
+        } catch (error: unknown) {
+          const typedError = error as ErrorWithStatus;
           // If product not found (404), return empty result
-          if (error?.response?.status === 404 || error?.status === 404 || error?.message?.includes('404')) {
+          if (
+            typedError?.response?.status === 404 ||
+            typedError?.status === 404 ||
+            typedError?.message?.includes('404')
+          ) {
             return {
               products: [],
               total_count: 0,
@@ -57,9 +72,11 @@ export function useProductSearch(
       }
 
       // Otherwise use the standard search
-      return productService.searchProducts(params);
+      return productService.searchProducts(params, { abortSignal: signal });
     },
-    enabled: !!(params.query || params.ean || params.chain_code),
+    enabled: !!(params.query || params.ean),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     ...options,
   });
 }
@@ -109,9 +126,15 @@ export function useProductSuggestions(
   const safeQuery = query || '';
   return useQuery({
     queryKey: queryKeys.products.suggestions(safeQuery),
-    queryFn: () => productService.getProductSuggestions(safeQuery, limit),
+    queryFn: ({ signal }) =>
+      productService.getProductSuggestions(safeQuery, limit, {
+        abortSignal: signal,
+      }),
     enabled: !!safeQuery && safeQuery.trim().length >= 2,
-    staleTime: 30 * 1000, // 30 seconds for suggestions
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     ...options,
   });
 }

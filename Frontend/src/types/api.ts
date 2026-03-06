@@ -102,7 +102,7 @@ export interface ChainListResponse {
 export interface ApiErrorResponse {
   message: string;
   code: string;
-  details?: any;
+  details?: unknown;
 }
 
 // Request types

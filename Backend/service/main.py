@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 import logging
 
 from fastapi import FastAPI, Request
@@ -18,7 +19,15 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager to handle startup and shutdown events."""
     await db.connect()
     await db.create_tables()
+    # Run prune in background so it doesn't block API startup
+    prune_task = None
+    if settings.db_retention_days > 0:
+        prune_task = asyncio.create_task(
+            db.prune_old_price_data(settings.db_retention_days)
+        )
     yield
+    if prune_task and not prune_task.done():
+        prune_task.cancel()
     await db.close()
 
 

@@ -35,6 +35,13 @@ docker-compose up -d
 - `BASE_URL` - javni API URL
 - `DEBUG` - `false` za produkciju
 - `TIMEZONE` - `Europe/Zagreb`
+- `DB_RETENTION_DAYS` - broj dana price podataka za čuvanje (`0` = bez brisanja)
+- `SEARCH_FTS_WEIGHT` - težina FTS ranka u product pretrazi
+- `SEARCH_PREFIX_WEIGHT` - težina prefix podudaranja u product pretrazi
+- `SEARCH_TRIGRAM_WEIGHT` - težina trigram podudaranja u product pretrazi
+- `SEARCH_TRIGRAM_THRESHOLD_SHORT` - minimalni trigram score za kratke upite
+- `SEARCH_TRIGRAM_THRESHOLD_LONG` - minimalni trigram score za duže upite
+- `SEARCH_TRIGRAM_LONG_QUERY_LEN` - duljina upita od koje se koristi LONG threshold
 
 ## Korištenje
 
@@ -47,7 +54,22 @@ docker-compose run --rm crawler
 Crawler opcije: `-l` listanje lanaca, `-d` datum, `-c` odabir lanaca, `-h` pomoć.
 
 ```bash
-docker-compose run --rm crawler uv run -m crawler.cli.crawl --l
+docker-compose run --rm crawler uv run -m crawler.cli.crawl -l
+```
+
+Paralelizacija crawlera:
+
+- `-w` / `--workers` definira maksimalan broj trgovačkih lanaca koji se crawlaju istovremeno.
+- Efektivni paralelizam je `min(workers, broj_odabranih_lanaca)`.
+
+Primjeri:
+
+```bash
+# Paralelno crawlanje svih lanaca (6 worker-a)
+docker-compose run --rm crawler uv run -m crawler.cli.crawl /app/data -w 6
+
+# Samo odabrani lanci, 3 paralelna workera
+docker-compose run --rm crawler uv run -m crawler.cli.crawl /app/data -c konzum,lidl,spar -w 3
 ```
 
 ### Uvoz i obrada podataka
@@ -94,6 +116,10 @@ crontab -e
 ### API
 
 Servis dostupan na `http://localhost:8000`
+
+Pretraga trgovina po `city` i `address` je case-insensitive i accent-insensitive
+(npr. `Šibenik` = `Sibenik`, te `đ` ≈ `dj`) i ne mijenja originalne vrijednosti
+pohranjene u bazi.
 
 ### Baza podataka
 
