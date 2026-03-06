@@ -137,9 +137,22 @@ class KauflandCrawler(BaseCrawler):
             url = item.get("path")
             if not label or not url:
                 continue
-            if date_str not in label and date_str2 not in label:
+
+            # Kaufland occasionally changes filename formatting and inserts spaces
+            # around the compact date segment (e.g. "_ 06032026 _"). Normalize
+            # whitespace in both label and path before date filtering.
+            normalized_label = re.sub(r"\s+", "", label)
+            normalized_url = re.sub(r"\s+", "", url)
+
+            if (
+                date_str not in normalized_label
+                and date_str2 not in normalized_label
+                and date_str not in normalized_url
+                and date_str2 not in normalized_url
+            ):
                 continue
-            urls[label] = f"{self.BASE_URL}{url}"
+
+            urls[label] = f"{self.BASE_URL}{url.replace(' ', '%20')}"
 
         return urls
 
