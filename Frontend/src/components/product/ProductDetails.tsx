@@ -24,6 +24,7 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
   city,
   chains
 }) => {
+  const [expandedChain, setExpandedChain] = React.useState<string | null>(null);
   const { isFavorite, toggleFavorite } = useProductFavorite(product);
   const { t } = useLanguage();
   const imageBaseUrl = import.meta.env.VITE_IMAGE_BASE_URL;
@@ -61,23 +62,79 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
     }
   };
 
-  const getBestPrice = (prices: Price[]) => {
-    if (!prices.length) return null;
-    return prices.reduce((best, current) => {
+  const bestPriceStoreId = React.useMemo(() => {
+    if (!priceComparison?.prices?.length) return null;
+    return priceComparison.prices.reduce((best, current) => {
       const currentPrice = current.special_price || current.price;
       const bestPrice = best.special_price || best.price;
       return currentPrice < bestPrice ? current : best;
-    });
-  };
+    }).store_id;
+  }, [priceComparison, t]);
 
-  const getWorstPrice = (prices: Price[]) => {
-    if (!prices.length) return null;
-    return prices.reduce((worst, current) => {
+  const worstPriceStoreId = React.useMemo(() => {
+    if (!priceComparison?.prices?.length) return null;
+    return priceComparison.prices.reduce((worst, current) => {
       const currentPrice = current.special_price || current.price;
       const worstPrice = worst.special_price || worst.price;
       return currentPrice > worstPrice ? current : worst;
-    });
+    }).store_id;
+  }, [priceComparison]);
+
+  const chainPriceGroups = React.useMemo(() => {
+    if (!priceComparison?.prices?.length) {
+      return [];
+    }
+
+    const groupedPrices = new Map<string, { chainName: string; prices: Price[] }>();
+
+    for (const price of priceComparison.prices) {
+      const chainName = price.chain || t('productDetails.unknownChain');
+      const existing = groupedPrices.get(chainName);
+
+      if (existing) {
+        existing.prices.push(price);
+      } else {
+        groupedPrices.set(chainName, { chainName, prices: [price] });
+      }
+    }
+
+    return Array.from(groupedPrices.values())
+      .map((group) => {
+        const sortedPrices = [...group.prices].sort((a, b) => {
+          const priceA = a.special_price || a.price;
+          const priceB = b.special_price || b.price;
+          return priceA - priceB;
+        });
+
+        const minPrice = sortedPrices[0] ? (sortedPrices[0].special_price || sortedPrices[0].price) : 0;
+        const maxPrice = sortedPrices[sortedPrices.length - 1]
+          ? (sortedPrices[sortedPrices.length - 1].special_price || sortedPrices[sortedPrices.length - 1].price)
+          : 0;
+
+        return {
+          chainName: group.chainName,
+          prices: sortedPrices,
+          minPrice,
+          maxPrice,
+        };
+      })
+      .sort((a, b) => {
+        if (a.minPrice !== b.minPrice) {
+          return a.minPrice - b.minPrice;
+        }
+        return a.chainName.localeCompare(b.chainName);
+      });
+  }, [priceComparison]);
+
+  const lowestChainPrice = chainPriceGroups[0]?.minPrice;
+
+  const toggleChain = (chainName: string) => {
+    setExpandedChain((current) => (current === chainName ? null : chainName));
   };
+
+  React.useEffect(() => {
+    setExpandedChain(null);
+  }, [product.ean, product.id]);
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -275,86 +332,121 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
             )}
 
             {/* Price List */}
-            {priceComparison.prices.length > 0 ? (
+            {chainPriceGroups.length > 0 ? (
               <div className="space-y-2">
                 <h3 className="font-medium text-gray-900">{t('productDetails.storesAndPrices')}</h3>
                 <div className="space-y-2">
-                  {priceComparison.prices
-                    .sort((a, b) => {
-                      const priceA = a.special_price || a.price;
-                      const priceB = b.special_price || b.price;
-                      return priceA - priceB;
-                    })
-                    .map((price, index) => {
-                      const isCurrentBest = getBestPrice(priceComparison.prices)?.store_id === price.store_id;
-                      const isCurrentWorst = getWorstPrice(priceComparison.prices)?.store_id === price.store_id;
-                      const finalPrice = price.special_price || price.price;
+                  {chainPriceGroups.map((chainGroup) => {
+                    const isExpanded = expandedChain === chainGroup.chainName;
+                    const hasSinglePrice = Math.abs(chainGroup.minPrice - chainGroup.maxPrice) < 0.0001;
+                    const isBestChain = typeof lowestChainPrice === 'number' && Math.abs(chainGroup.minPrice - lowestChainPrice) < 0.0001;
 
-                      return (
-                        <div
-                          key={index}
-                          className={`p-3 border rounded-lg ${isCurrentBest ? 'border-green-200 bg-green-50' :
-                            isCurrentWorst ? 'border-red-200 bg-red-50' :
-                              'border-gray-200 bg-white'
-                            }`}
+                    return (
+                      <div
+                        key={chainGroup.chainName}
+                        className={`border rounded-lg ${isBestChain ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleChain(chainGroup.chainName)}
+                          className="w-full p-3 text-left"
+                          aria-expanded={isExpanded}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center gap-2 mb-1">
-                                <span className="font-semibold text-gray-900 truncate">{price.chain}</span>
-                                {isCurrentBest && (
-                                  <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full font-medium whitespace-nowrap">
-                                    {t('productDetails.bestPrice')}
-                                  </span>
-                                )}
-                                {price.special_price && (
-                                  <span className="px-2 py-0.5 bg-orange-100 text-orange-800 text-xs rounded-full font-medium whitespace-nowrap">
-                                    {t('productDetails.specialOffer')}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
-                                <div className="flex items-center gap-1">
-                                  <MapPin className="w-3 h-3 flex-shrink-0" />
-                                  <span className="break-words whitespace-normal font-medium">
-                                    {price.store_address ? (
-                                      <>
-                                        {price.store_address}
-                                        {price.store_city && `, ${price.store_city}`}
-                                      </>
-                                    ) : (
-                                      t('productDetails.storeId').replace('{id}', price.store_id)
-                                    )}
-                                  </span>
-                                </div>
-                                <span className="hidden xs:inline text-gray-300">•</span>
-                                <span>{formatDate(price.date)}</span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center sm:flex-col sm:items-end justify-between sm:justify-start gap-2 pt-2 sm:pt-0 border-t sm:border-0 border-gray-100">
-                              <div className="flex flex-wrap items-baseline gap-2">
-                                {price.special_price && (
-                                  <span className="text-sm text-gray-400 line-through">
-                                    {formatPrice(price.price)}
-                                  </span>
-                                )}
-                                <span className={`text-lg font-bold ${isCurrentBest ? 'text-green-600' :
-                                  isCurrentWorst ? 'text-red-600' : 'text-gray-900'
-                                  }`}>
-                                  {formatPrice(finalPrice)}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-2 min-w-0">
+                              <span className="font-semibold text-gray-900 truncate">{chainGroup.chainName}</span>
+                              {isBestChain && (
+                                <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full font-medium whitespace-nowrap">
+                                  {t('productDetails.bestPrice')}
                                 </span>
-                              </div>
-                              {price.unit && (
-                                <div className="text-xs text-gray-500 italic">
-                                  {t('productDetails.per').replace('{unit}', price.unit)}
-                                </div>
                               )}
                             </div>
+
+                            <div className="text-right">
+                              <p className={`text-lg font-bold ${isBestChain ? 'text-green-600' : 'text-gray-900'}`}>
+                                {hasSinglePrice
+                                  ? formatPrice(chainGroup.minPrice)
+                                  : `${formatPrice(chainGroup.minPrice)} - ${formatPrice(chainGroup.maxPrice)}`
+                                }
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {t('productDetails.storeCount').replace('{count}', String(chainGroup.prices.length))}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        </button>
+
+                        {isExpanded && (
+                          <div className="px-3 pb-3 space-y-2">
+                            {chainGroup.prices.map((price, index) => {
+                              const isCurrentBest = bestPriceStoreId === price.store_id;
+                              const isCurrentWorst = worstPriceStoreId === price.store_id;
+                              const finalPrice = price.special_price || price.price;
+
+                              return (
+                                <div
+                                  key={`${price.store_id}-${price.date}-${index}`}
+                                  className={`p-3 border rounded-lg ${isCurrentBest ? 'border-green-200 bg-green-50' :
+                                    isCurrentWorst ? 'border-red-200 bg-red-50' :
+                                      'border-gray-200 bg-white'
+                                    }`}
+                                >
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                                        {price.special_price && (
+                                          <span className="px-2 py-0.5 bg-orange-100 text-orange-800 text-xs rounded-full font-medium whitespace-nowrap">
+                                            {t('productDetails.specialOffer')}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
+                                        <div className="flex items-center gap-1">
+                                          <MapPin className="w-3 h-3 flex-shrink-0" />
+                                          <span className="break-words whitespace-normal font-medium">
+                                            {price.store_address ? (
+                                              <>
+                                                {price.store_address}
+                                                {price.store_city && `, ${price.store_city}`}
+                                              </>
+                                            ) : (
+                                              t('productDetails.storeId').replace('{id}', price.store_id)
+                                            )}
+                                          </span>
+                                        </div>
+                                        <span className="hidden xs:inline text-gray-300">•</span>
+                                        <span>{formatDate(price.date)}</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center sm:flex-col sm:items-end justify-between sm:justify-start gap-2 pt-2 sm:pt-0 border-t sm:border-0 border-gray-100">
+                                      <div className="flex flex-wrap items-baseline gap-2">
+                                        {price.special_price && (
+                                          <span className="text-sm text-gray-400 line-through">
+                                            {formatPrice(price.price)}
+                                          </span>
+                                        )}
+                                        <span className={`text-lg font-bold ${isCurrentBest ? 'text-green-600' :
+                                          isCurrentWorst ? 'text-red-600' : 'text-gray-900'
+                                          }`}>
+                                          {formatPrice(finalPrice)}
+                                        </span>
+                                      </div>
+                                      {price.unit && (
+                                        <div className="text-xs text-gray-500 italic">
+                                          {t('productDetails.per').replace('{unit}', price.unit)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : (

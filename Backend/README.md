@@ -88,6 +88,22 @@ docker-compose exec api uv run -m service.db.stats YYYY-MM-DD
 
 **Opcije uvoza:** `-s` preskače statistike (brže), `-d` debug info.
 
+### Provjera trgovina bez koordinata
+
+Skripta izvozi trgovine koje nemaju `lat` ili `lon` u TXT datoteku.
+Sadržaj je CSV-kompatibilan (`id,chain_code,code,type,address,city,zipcode,lat,lon,phone`)
+u istom redoslijedu kao `enrichment/stores.csv`, pa podatke možeš lako dopuniti i koristiti dalje.
+
+```bash
+# Export u timestamped datoteku (lokalno: ./output/...)
+docker compose exec api uv run -m service.db.export_missing_store_coords
+
+# Export u točno određenu datoteku
+docker compose exec api uv run -m service.db.export_missing_store_coords -o /app/data/missing_stores.txt
+```
+
+Napomena: unutar kontejnera izlaz ide u `/app/data`, što je mapirano na lokalni `./output` direktorij.
+
 ### Automatizirano dnevno prikupljanje (Linux)
 
 Skripta `daily-crawl.sh` automatizira dnevno prikupljanje i uvoz podataka. Pokreće crawler, a zatim uvozi podatke za trenutni datum.
