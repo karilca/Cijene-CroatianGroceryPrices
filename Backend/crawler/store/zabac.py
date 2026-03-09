@@ -1,7 +1,9 @@
 import datetime
+import io
 import logging
 import os
 import re
+from csv import reader, writer
 from urllib.parse import unquote
 
 from bs4 import BeautifulSoup
@@ -23,26 +25,68 @@ class ZabacCrawler(BaseCrawler):
     # Example: Cjenik-Zabac-Food-Outlet-PJ-11-Savska-Cesta-206.csv
     STORE_FILENAME_PATTERN = re.compile(r".*PJ-(?P<store_id>\d+)-(?P<address>.+?)(?:_\d+)*\.csv$")
     NEW_FILENAME_PATTERN = re.compile(
-        r"Supermarket(?P<street>.+)-(?P<number>[^-]+)-(?P<city>[^-]+)-(?P<zip>\d+)-.+-((?P<id>[^-]+))\.csv$"
+        r"Supermarket(?P<street>.+)-(?P<number>[^-]+)-(?P<city>[^-]+)-(?P<zip>\d+)-.+-(?P<id>C\d+(?:-\d+)?)\.csv$"
+    )
+    LEGACY_SUPERMARKET_PATTERN = re.compile(
+        r"Zabac-Food-Outlet-(?P<street>.+)-(?P<number>[^-]+)-Cjenik-(?P<day>\d{1,2})\.(?P<month>\d{1,2})\.(?P<year>\d{4})\.csv$"
     )
 
     # Mapping for price fields from CSV columns
     # Mapping for price fields from CSV columns
     PRICE_MAP = {
         # field: (column_name, is_required)
-        "price": ("Mpc", False),
-        "unit_price": ("Mpc", False),  # Use same as price
+        "price": ("MPC", False),
+        "unit_price": ("MPC", False),  # Use same as price
     }
 
     # Mapping for other product fields from CSV columns
     FIELD_MAP = {
         "product_id": ("Artikl", True),
         "barcode": ("Barcode", False),
-        "product": ("Naziv artikla / usluge", True),
+        "product": ("Naziv artikla", True),
         "brand": ("Marka", False),
         "quantity": ("Gramaža", False),
-        "category": ("Naziv grupe artikla", False),
+        "category": ("Naziv grupe artikala", False),
     }
+
+    HEADER_ALIASES = {
+        "sifra": "Artikl",
+        "šifra": "Artikl",
+        "naziv artikla / usluge": "Naziv artikla",
+        "mpc": "MPC",
+        "naziv grupe artikla": "Naziv grupe artikala",
+        "pdv": "PDV",
+        "pdv %": "PDV",
+    }
+
+    def _detect_delimiter(self, content: str) -> str:
+        first_line = content.splitlines()[0] if content else ""
+        semicolons = first_line.count(";")
+        commas = first_line.count(",")
+        if semicolons > commas:
+            return ";"
+        return ","
+
+    def _canonicalize_headers(self, content: str, delimiter: str) -> str:
+        lines = content.splitlines()
+        if not lines:
+            return content
+
+        parsed_header = next(reader([lines[0]], delimiter=delimiter), [])
+        if not parsed_header:
+            return content
+
+        canonical_headers = []
+        for header in parsed_header:
+            key = header.strip()
+            normalized = self.strip_diacritics(key).lower()
+            canonical_headers.append(self.HEADER_ALIASES.get(normalized, key))
+
+        header_buffer = io.StringIO()
+        csv_writer = writer(header_buffer, delimiter=delimiter, lineterminator="")
+        csv_writer.writerow(canonical_headers)
+
+        return "\n".join([header_buffer.getvalue(), *lines[1:]])
 
     def parse_index(self, content: str) -> list[str]:
         """
@@ -130,6 +174,29 @@ class ZabacCrawler(BaseCrawler):
             )
             return store
 
+        match_legacy = self.LEGACY_SUPERMARKET_PATTERN.match(filename)
+        if match_legacy:
+            data = match_legacy.groupdict()
+            street = data["street"]
+            number = data["number"]
+            street_address = f"{street} {number}"
+            canonical_id = re.sub(r"[^A-Za-z0-9]+", "", f"{street}{number}").upper()
+
+            store = Store(
+                chain=self.CHAIN,
+                store_type="supermarket",
+                store_id=f"SM-{canonical_id}",
+                name=f"Žabac {street}",
+                street_address=street_address,
+                zipcode="",
+                city="",
+                items=[],
+            )
+            logger.info(
+                f"Parsed Žabac store (legacy format): {store.name}, Address: {store.street_address}"
+            )
+            return store
+
         raise ValueError(f"Invalid CSV filename format for Zabac: {filename}")
 
     def get_store_prices(self, csv_url: str) -> list[Product]:
@@ -145,7 +212,17 @@ class ZabacCrawler(BaseCrawler):
         """
         try:
             content = self.fetch_text(csv_url, encodings=["windows-1250", "utf-8"])
-            return self.parse_csv(content, delimiter=",")
+
+            content_lc = content[:200].lower()
+            if "<html" in content_lc or "<!doctype" in content_lc:
+                logger.warning(
+                    f"Žabac response does not look like CSV (possibly blocked/challenge): {csv_url}"
+                )
+                return []
+
+            delimiter = self._detect_delimiter(content)
+            normalized_content = self._canonicalize_headers(content, delimiter)
+            return self.parse_csv(normalized_content, delimiter=delimiter)
         except Exception as e:
             logger.error(
                 f"Failed to get Žabac store prices from {csv_url}: {e}",
