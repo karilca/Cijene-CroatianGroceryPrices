@@ -12,6 +12,7 @@ from service.routers import v0, v1
 from service.config import settings
 from .auth import get_current_user  # Tvoj stražar
 
+from service.routers.v1 import prepare_product_list_response
 db = settings.get_db()
 
 # --- MODEL ZA PODATKE KOŠARICE ---
@@ -105,6 +106,67 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+@app.get("/cart", tags=["Cart"])
+async def get_cart(user_id: str = Depends(get_current_user)):
+    try:
+        # 1. Dohvati EAN-ove i količine iz tablice cart_items
+        query = "SELECT product_id, quantity FROM cart_items WHERE user_id = $1"
+        
+        target_db = getattr(db, '_db', getattr(db, 'pool', None))
+        rows = await target_db.fetch(query, str(user_id))
+        
+        if not rows:
+            return {"items": []}
+
+        # 2. Pretvori te podatke u prave informacije o proizvodima
+        ean_to_quantity = {row['product_id']: row['quantity'] for row in rows}
+        eans = list(ean_to_quantity.keys())
+
+        # Koristimo tvoju postojeću funkciju za dohvat detalja
+        products = await db.get_products_by_ean(eans)
+        
+        # Koristimo tvoju funkciju za formatiranje odgovora (onu koju koristi /products/ search)
+        formatted_products = await prepare_product_list_response(products)
+
+        # Spajamo detalje proizvoda s količinom iz košarice
+        final_items = []
+        for p in formatted_products:
+            item_dict = p.dict()
+            item_dict["cart_quantity"] = ean_to_quantity.get(p.ean, 1)
+            final_items.append(item_dict)
+        
+        return {"items": final_items}
+
+    except Exception as e:
+        logging.error(f"Greška pri dohvaćanju košarice: {e}")
+        raise HTTPException(status_code=500, detail="Neuspjelo učitavanje košarice")
+
+@app.delete("/cart/remove/{product_id}", tags=["Cart"])
+async def remove_item(product_id: str, user_data = Depends(get_current_user)):
+    # 1. Dobivanje user_id-a
+    user_id = user_data if isinstance(user_data, str) else user_data.get("sub")
+
+    try:
+        # 2. Dohvaćanje drivera baze (kao u tvojoj add_to_cart funkciji)
+        target_db = getattr(db, '_db', getattr(db, 'pool', None))
+        
+        if not target_db:
+            raise AttributeError("Nije pronađen database driver (target_db)")
+
+        # 3. STVARNO brisanje iz baze pomoću $1 i $2 parametara
+        query = "DELETE FROM cart_items WHERE user_id = $1 AND product_id = $2"
+        
+        # Izvršavamo upit (šaljemo kao stringove jer tako radi i tvoj add_to_cart)
+        await target_db.execute(query, str(user_id), str(product_id))
+        
+        print(f"STVARNO OBRISANO: Korisnik {user_id} -> Proizvod {product_id}")
+        return {"status": "success", "message": "Proizvod uklonjen iz baze"}
+        
+    except Exception as e:
+        logging.error(f"GREŠKA PRI BRISANJU: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
 
 def main():
     log_level = logging.DEBUG if settings.debug else logging.INFO
