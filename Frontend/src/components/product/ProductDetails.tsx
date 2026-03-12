@@ -376,8 +376,11 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
                           </div>
                         </button>
 
-                        {isExpanded && (
-                          <div className="px-3 pb-3 space-y-2">
+                        <div
+                          className={`chain-stores ${isExpanded ? 'is-open' : ''}`}
+                          aria-hidden={!isExpanded}
+                        >
+                          <div className="chain-stores-inner px-3 pb-3 space-y-2">
                             {chainGroup.prices.map((price, index) => {
                               const isCurrentBest = bestPriceStoreId === price.store_id;
                               const isCurrentWorst = worstPriceStoreId === price.store_id;
@@ -443,7 +446,7 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
                               );
                             })}
                           </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })}
