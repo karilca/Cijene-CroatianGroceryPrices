@@ -65,6 +65,8 @@ class Settings:
             0.0,
             float(os.getenv("SEARCH_TOKEN_AVG_WEIGHT", "0.15")),
         )
+        self.supabase_url = os.getenv("SUPABASE_URL", "")
+        self.supabase_jwt_secret = os.getenv("SUPABASE_JWT_SECRET", "")
 
     def get_db(self) -> "Database":
         """
