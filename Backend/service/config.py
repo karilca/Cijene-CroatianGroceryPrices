@@ -66,6 +66,35 @@ class Settings:
             float(os.getenv("SEARCH_TOKEN_AVG_WEIGHT", "0.15")),
         )
 
+        # Google Maps enrichment configuration
+        self.google_maps_api_key: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
+        self.google_maps_timeout_seconds: float = max(
+            1.0,
+            float(os.getenv("GOOGLE_MAPS_TIMEOUT_SECONDS", "20")),
+        )
+        self.google_maps_request_delay_seconds: float = max(
+            0.0,
+            float(os.getenv("GOOGLE_MAPS_REQUEST_DELAY_SECONDS", "0.15")),
+        )
+        self.google_maps_max_retries: int = max(
+            0,
+            int(os.getenv("GOOGLE_MAPS_MAX_RETRIES", "3")),
+        )
+        self.google_maps_retry_backoff_seconds: float = max(
+            0.1,
+            float(os.getenv("GOOGLE_MAPS_RETRY_BACKOFF_SECONDS", "0.8")),
+        )
+        self.google_maps_language: str = os.getenv("GOOGLE_MAPS_LANGUAGE", "hr")
+        self.google_maps_region: str = os.getenv("GOOGLE_MAPS_REGION", "hr")
+        self.google_maps_country_hint: str = os.getenv(
+            "GOOGLE_MAPS_COUNTRY_HINT",
+            "Croatia",
+        )
+        self.google_maps_enable_geocoding_fallback: bool = (
+            os.getenv("GOOGLE_MAPS_ENABLE_GEOCODING_FALLBACK", "true").lower()
+            == "true"
+        )
+
     def get_db(self) -> "Database":
         """
         Get the database instance based on the configured settings.
