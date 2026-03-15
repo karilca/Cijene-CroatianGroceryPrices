@@ -67,6 +67,8 @@ class Settings:
         )
         self.supabase_url = os.getenv("SUPABASE_URL", "")
         self.supabase_jwt_secret = os.getenv("SUPABASE_JWT_SECRET", "")
+        self.supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")  # ← dodaj ovo
+
 
     def get_db(self) -> "Database":
         """

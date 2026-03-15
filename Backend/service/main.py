@@ -1,10 +1,10 @@
-from fastapi import FastAPI, Request, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
-import logging
 from uuid import UUID
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Optional
+import httpx
 
 from service.config import settings
 from service.auth import get_current_user, get_user_payload
@@ -21,10 +21,10 @@ class RoleBase(BaseModel):
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     is_active: bool
-    role_id: int 
+    role_id: int
 
 class CartItemRequest(BaseModel):
-    product_id: str 
+    product_id: str
     quantity: int = 1
 
 # --- JEZGRA LOGIKE (AUTH & SYNC) ---
@@ -32,7 +32,6 @@ class CartItemRequest(BaseModel):
 async def get_user_with_role(u_id: UUID, payload: dict):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
 
-    # Sigurnosna provjera starosti tokena (24h)
     iat = payload.get("iat")
     if iat and (datetime.now(timezone.utc).timestamp() - iat) > 86400:
         raise HTTPException(status_code=401, detail="Sesija istekla.")
@@ -44,7 +43,7 @@ async def get_user_with_role(u_id: UUID, payload: dict):
         WHERE u.supabase_uid = $1
     """
     user = await target_db.fetchrow(query, u_id)
-    
+
     if user is None:
         email = (
             payload.get("email") or
@@ -54,7 +53,9 @@ async def get_user_with_role(u_id: UUID, payload: dict):
         )
         user_role_id = await target_db.fetchval("SELECT id FROM roles WHERE name = 'USER'")
         await target_db.execute(
-            "INSERT INTO users (name, supabase_uid, is_active, role_id, created_at) VALUES ($1, $2, true, $3, NOW())",
+            """INSERT INTO users (name, supabase_uid, is_active, role_id, created_at)
+               VALUES ($1, $2, true, $3, NOW())
+               ON CONFLICT (supabase_uid) DO NOTHING""",
             email, u_id, user_role_id
         )
         user = await target_db.fetchrow(query, u_id)
@@ -86,10 +87,10 @@ app = FastAPI(title="Cijene API - Admin Control Panel", lifespan=lifespan)
 
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
-    CORSMiddleware, 
-    allow_origins=["http://localhost:5173"], 
-    allow_credentials=True, 
-    allow_methods=["*"], 
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
     allow_headers=["*"]
 )
 
@@ -111,9 +112,9 @@ async def get_cart(user = Depends(get_current_active_user)):
 async def add_to_cart(item: CartItemRequest, user = Depends(get_current_active_user)):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
     await target_db.execute("""
-        INSERT INTO cart_items (user_id, product_id, quantity) 
+        INSERT INTO cart_items (user_id, product_id, quantity)
         VALUES ($1, $2, $3)
-        ON CONFLICT (user_id, product_id) 
+        ON CONFLICT (user_id, product_id)
         DO UPDATE SET quantity = cart_items.quantity + $3
     """, user['supabase_uid'], item.product_id, item.quantity)
     return {"status": "success"}
@@ -134,7 +135,7 @@ async def admin_get_users(admin = Depends(require_role("ADMIN"))):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
     users = await target_db.fetch("""
         SELECT u.id, u.name, u.is_active, u.supabase_uid, u.role_id, r.name as role_name, u.created_at
-        FROM users u 
+        FROM users u
         JOIN roles r ON u.role_id = r.id
         ORDER BY u.created_at DESC
     """)
@@ -152,9 +153,24 @@ async def admin_update_user(u_id: UUID, data: UserUpdate, admin = Depends(requir
 @app.delete("/v1/admin/users/{u_id}")
 async def admin_delete_user(u_id: UUID, admin = Depends(require_role("ADMIN"))):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
-    async with target_db.transaction():
-        await target_db.execute("DELETE FROM cart_items WHERE user_id = $1", u_id)
-        await target_db.execute("DELETE FROM users WHERE supabase_uid = $1", u_id)
+
+    # Briši iz lokalne baze
+    async with target_db.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("DELETE FROM cart_items WHERE user_id = $1", u_id)
+            await conn.execute("DELETE FROM users WHERE supabase_uid = $1", u_id)
+
+    # Briši iz Supabasea (samo ako je key konfiguriran)
+    if settings.supabase_service_role_key:
+        async with httpx.AsyncClient() as client:
+            await client.delete(
+                f"{settings.supabase_url}/auth/v1/admin/users/{u_id}",
+                headers={
+                    "apikey": settings.supabase_service_role_key,
+                    "Authorization": f"Bearer {settings.supabase_service_role_key}"
+                }
+            )
+
     return {"message": "Korisnik trajno obrisan."}
 
 @app.get("/v1/admin/roles")
@@ -167,7 +183,10 @@ async def admin_get_roles(admin = Depends(require_role("ADMIN"))):
 async def admin_create_role(role: RoleBase, admin = Depends(require_role("ADMIN"))):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
     try:
-        await target_db.execute("INSERT INTO roles (name, description) VALUES ($1, $2)", role.name, role.description)
+        await target_db.execute(
+            "INSERT INTO roles (name, description) VALUES ($1, $2)",
+            role.name, role.description
+        )
         return {"message": "Uloga kreirana."}
     except Exception:
         raise HTTPException(status_code=400, detail="Uloga već postoji.")
