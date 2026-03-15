@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from service.config import settings
 from service.auth import get_current_user, get_user_payload
+from service.db import set_db
 
 db = settings.get_db()
 
@@ -30,7 +31,7 @@ class CartItemRequest(BaseModel):
 
 async def get_user_with_role(u_id: UUID, payload: dict):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
-    
+
     # Sigurnosna provjera starosti tokena (24h)
     iat = payload.get("iat")
     if iat and (datetime.now(timezone.utc).timestamp() - iat) > 86400:
@@ -45,8 +46,12 @@ async def get_user_with_role(u_id: UUID, payload: dict):
     user = await target_db.fetchrow(query, u_id)
     
     if user is None:
-        email = payload.get("email", "unknown@mail.com")
-        # Automatski tražimo ID uloge 'USER' iz baze
+        email = (
+            payload.get("email") or
+            payload.get("user_metadata", {}).get("email") or
+            payload.get("app_metadata", {}).get("email") or
+            "unknown@mail.com"
+        )
         user_role_id = await target_db.fetchval("SELECT id FROM roles WHERE name = 'USER'")
         await target_db.execute(
             "INSERT INTO users (name, supabase_uid, is_active, role_id, created_at) VALUES ($1, $2, true, $3, NOW())",
@@ -73,6 +78,7 @@ def require_role(role_name: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.connect()
+    set_db(db)
     yield
     await db.close()
 
@@ -81,22 +87,22 @@ app = FastAPI(title="Cijene API - Admin Control Panel", lifespan=lifespan)
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware, 
-    allow_origins=["*"], 
+    allow_origins=["http://localhost:5173"], 
     allow_credentials=True, 
     allow_methods=["*"], 
     allow_headers=["*"]
 )
 
-# --- KOŠARICA (POPRAVLJENE RUTE) ---
+# --- KOŠARICA ---
 
 @app.get("/v1/cart")
 async def get_cart(user = Depends(get_current_active_user)):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
-    # Dohvaćamo artikle koristeći supabase_uid
     rows = await target_db.fetch("""
-        SELECT ci.*, p.name, p.brand 
-        FROM cart_items ci 
-        LEFT JOIN products p ON ci.product_id = p.ean 
+        SELECT ci.product_id, ci.quantity, cp.name, cp.brand
+        FROM cart_items ci
+        LEFT JOIN products p ON p.ean = ci.product_id
+        LEFT JOIN chain_products cp ON cp.product_id = p.id
         WHERE ci.user_id = $1
     """, user['supabase_uid'])
     return {"items": [dict(row) for row in rows]}
@@ -115,7 +121,6 @@ async def add_to_cart(item: CartItemRequest, user = Depends(get_current_active_u
 @app.delete("/v1/cart/remove/{product_id}")
 async def remove_from_cart(product_id: str, user = Depends(get_current_active_user)):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
-    # Popravlja 404 grešku iz konzole
     await target_db.execute(
         "DELETE FROM cart_items WHERE user_id = $1 AND product_id = $2",
         user['supabase_uid'], product_id
@@ -139,7 +144,7 @@ async def admin_get_users(admin = Depends(require_role("ADMIN"))):
 async def admin_update_user(u_id: UUID, data: UserUpdate, admin = Depends(require_role("ADMIN"))):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
     await target_db.execute(
-        "UPDATE users SET name = $1, is_active = $2, role_id = $3 WHERE supabase_uid = $4",
+        "UPDATE users SET name = COALESCE($1, name), is_active = $2, role_id = $3 WHERE supabase_uid = $4",
         data.name, data.is_active, data.role_id, u_id
     )
     return {"message": "Korisnik uspješno ažuriran."}
