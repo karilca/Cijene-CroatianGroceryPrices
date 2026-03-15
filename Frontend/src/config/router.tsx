@@ -1,5 +1,4 @@
-// Router configuration for the application
-
+// src/config/router.tsx
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
 import { HomePage } from '../pages/HomePage';
@@ -15,8 +14,11 @@ import { PrivacyPolicyPage } from '../pages/PrivacyPolicyPage';
 import { TermsOfServicePage } from '../pages/TermsOfServicePage';
 import { ContactPage } from '../pages/ContactPage';
 import { ChainDetails } from '../components/chain/ChainDetails';
+import { CartPage } from '../pages/CartPage'; 
 
-// Create router with all routes
+// UVOZ NOVE ADMIN STRANICE
+import AdminDashboard from '../pages/AdminDashboard'; 
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -56,6 +58,15 @@ const router = createBrowserRouter([
     element: <AppLayout><FavoritesPage /></AppLayout>,
   },
   {
+    path: "/cart",
+    element: <AppLayout><CartPage /></AppLayout>,
+  },
+  // NOVA RUTA ZA ADMIN DASHBOARD
+  {
+    path: "/admin",
+    element: <AppLayout><AdminDashboard /></AppLayout>,
+  },
+  {
     path: "/settings",
     element: <AppLayout><SettingsPage /></AppLayout>,
   },
@@ -77,7 +88,6 @@ const router = createBrowserRouter([
   },
 ]);
 
-// Router provider component
 export function AppRouter() {
-  return <RouterProvider router={router} />
+  return <RouterProvider router={router} />;
 }
