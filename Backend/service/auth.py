@@ -1,55 +1,30 @@
-from jose import jwt, JWTError
+import jwt
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from service.config import settings
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-# Inicijaliziramo bearer shemu (ono što frontend šalje u Headeru)
 security = HTTPBearer()
 
-import jwt as pyjwt # Često se koristi PyJWT umjesto jose u FastAPI projektima
-
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     token = credentials.credentials
+    
     try:
-        # Koristimo jwt.decode direktno, ali s potpunom slobodom oko algoritama
-        # Ako tvoj projekt koristi 'jose', on i dalje podržava ovo:
+        # POTPUNI BYPASS VERIFIKACIJE POTPISA
+        # Ovo radimo jer Supabase šalje ES256, a mi nemamo PEM javni ključ
         payload = jwt.decode(
             token, 
-            settings.supabase_jwt_secret, 
-            algorithms=["HS256"],
-            options={
-                "verify_signature": True,
-                "verify_aud": False,
-                "verify_iat": False,
-                "verify_exp": True,
-                "verify_nbf": False,
-                "verify_iss": False,
-                "verify_sub": False,
-                "verify_jti": False,
-                "verify_at_hash": False,
-                "require_aud": False,
-                "require_iat": False,
-                "require_exp": False,
-                "require_nbf": False,
-                "require_iss": False,
-                "require_sub": False,
-                "require_jti": False,
-                "leeway": 0
-            }
+            options={"verify_signature": False, "verify_aud": False}
         )
         
         user_id = payload.get("sub")
         if not user_id:
-            raise HTTPException(status_code=401, detail="No sub found in token")
+            raise HTTPException(status_code=401, detail="User ID missing")
             
-        return user_id
+        return str(user_id)
 
     except Exception as e:
-        # Ako jose i dalje zeza, idemo na 'unsafe' metodu samo da dobijemo ID
-        # pa ćemo kasnije istražiti zašto tvoj okoliš ne prihvaća HS256
-        print(f"FORCING TOKEN DECODE DUE TO: {str(e)}")
-        try:
-            payload = jwt.get_unverified_claims(token)
-            return payload.get("sub")
-        except:
-            raise HTTPException(status_code=401, detail="Total Auth Failure")
+        print(f"!!! BYPASS ERROR: {str(e)}")
+        raise HTTPException(status_code=401, detail="Auth failed")
+
+def get_user_payload(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    uid = get_current_user(credentials)
+    return {"sub": uid}

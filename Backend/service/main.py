@@ -1,183 +1,178 @@
-from fastapi import FastAPI, Request, Depends, Body, HTTPException
+from fastapi import FastAPI, Request, Depends, HTTPException, status
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
-import asyncio
 import logging
+from uuid import UUID
+from datetime import datetime, timezone
+from typing import List, Optional
 
-from fastapi.responses import RedirectResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-
-from service.routers import v0, v1
 from service.config import settings
-from .auth import get_current_user  # Tvoj stražar
+from service.auth import get_current_user, get_user_payload
 
-from service.routers.v1 import prepare_product_list_response
 db = settings.get_db()
 
-# --- MODEL ZA PODATKE KOŠARICE ---
+# --- MODELI ---
+
+class RoleBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    is_active: bool
+    role_id: int 
+
 class CartItemRequest(BaseModel):
-    product_id: int
+    product_id: str 
     quantity: int = 1
+
+# --- JEZGRA LOGIKE (AUTH & SYNC) ---
+
+async def get_user_with_role(u_id: UUID, payload: dict):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    
+    # Sigurnosna provjera starosti tokena (24h)
+    iat = payload.get("iat")
+    if iat and (datetime.now(timezone.utc).timestamp() - iat) > 86400:
+        raise HTTPException(status_code=401, detail="Sesija istekla.")
+
+    query = """
+        SELECT u.id, u.name, u.is_active, u.supabase_uid, u.role_id, r.name as role_name 
+        FROM users u
+        LEFT JOIN roles r ON u.role_id = r.id
+        WHERE u.supabase_uid = $1
+    """
+    user = await target_db.fetchrow(query, u_id)
+    
+    if user is None:
+        email = payload.get("email", "unknown@mail.com")
+        # Automatski tražimo ID uloge 'USER' iz baze
+        user_role_id = await target_db.fetchval("SELECT id FROM roles WHERE name = 'USER'")
+        await target_db.execute(
+            "INSERT INTO users (name, supabase_uid, is_active, role_id, created_at) VALUES ($1, $2, true, $3, NOW())",
+            email, u_id, user_role_id
+        )
+        user = await target_db.fetchrow(query, u_id)
+    return user
+
+async def get_current_active_user(u_id_str: str = Depends(get_current_user), payload: dict = Depends(get_user_payload)):
+    user = await get_user_with_role(UUID(u_id_str), payload)
+    if not user['is_active']:
+        raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
+    return user
+
+def require_role(role_name: str):
+    async def role_checker(user = Depends(get_current_active_user)):
+        if user['role_name'] != role_name:
+            raise HTTPException(status_code=403, detail="Pristup dopušten samo administratorima.")
+        return user
+    return role_checker
+
+# --- APP SETUP ---
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager to handle startup and shutdown events."""
     await db.connect()
-    await db.create_tables()
-    # Run prune in background so it doesn't block API startup
-    prune_task = None
-    if settings.db_retention_days > 0:
-        prune_task = asyncio.create_task(
-            db.prune_old_price_data(settings.db_retention_days)
-        )
     yield
-    if prune_task and not prune_task.done():
-        prune_task.cancel()
     await db.close()
 
-app = FastAPI(
-    title="Cijene API",
-    description="Service for product pricing data by Croatian grocery chains",
-    version=settings.version,
-    debug=settings.debug,
-    lifespan=lifespan,
-    openapi_components={
-        "securitySchemes": {"HTTPBearer": {"type": "http", "scheme": "bearer"}}
-    },
-)
+app = FastAPI(title="Cijene API - Admin Control Panel", lifespan=lifespan)
 
-# CORS middleware
+from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    CORSMiddleware, 
+    allow_origins=["*"], 
+    allow_credentials=True, 
+    allow_methods=["*"], 
+    allow_headers=["*"]
 )
 
-@app.post("/cart/add", tags=["Cart"])
-async def add_to_cart(
-    item: CartItemRequest,
-    user_id: str = Depends(get_current_user)
-):
-    try:
-        # Čisti INSERT/UPDATE bez provjere vanjskih tablica
-        query = """
-            INSERT INTO cart_items (user_id, product_id, quantity)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (user_id, product_id) 
-            DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity
-        """
-        
-        # Otkrili smo da tvoj objekt treba dohvatiti unutrašnji driver
-        target_db = None
-        if hasattr(db, '_db'): target_db = db._db
-        elif hasattr(db, 'pool'): target_db = db.pool
-            
-        if target_db:
-            # Šaljemo sve kao stringove da izbjegnemo integer greške
-            await target_db.execute(query, str(user_id), str(item.product_id), item.quantity)
-            return {"status": "success", "message": "Proizvod dodan"}
-        else:
-            raise AttributeError("Nije pronađen database driver (target_db)")
+# --- KOŠARICA (POPRAVLJENE RUTE) ---
 
-    except Exception as e:
-        logging.error(f"Greška pri dodavanju u košaricu: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    # PAZI DA OVO BUDE ISPOD TVOJIH /cart RUTA
+@app.get("/v1/cart")
+async def get_cart(user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    # Dohvaćamo artikle koristeći supabase_uid
+    rows = await target_db.fetch("""
+        SELECT ci.*, p.name, p.brand 
+        FROM cart_items ci 
+        LEFT JOIN products p ON ci.product_id = p.ean 
+        WHERE ci.user_id = $1
+    """, user['supabase_uid'])
+    return {"items": [dict(row) for row in rows]}
+
+@app.post("/v1/cart/add")
+async def add_to_cart(item: CartItemRequest, user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    await target_db.execute("""
+        INSERT INTO cart_items (user_id, product_id, quantity) 
+        VALUES ($1, $2, $3)
+        ON CONFLICT (user_id, product_id) 
+        DO UPDATE SET quantity = cart_items.quantity + $3
+    """, user['supabase_uid'], item.product_id, item.quantity)
+    return {"status": "success"}
+
+@app.delete("/v1/cart/remove/{product_id}")
+async def remove_from_cart(product_id: str, user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    # Popravlja 404 grešku iz konzole
+    await target_db.execute(
+        "DELETE FROM cart_items WHERE user_id = $1 AND product_id = $2",
+        user['supabase_uid'], product_id
+    )
+    return {"status": "success"}
+
+# --- ADMIN ENDPOINTI ---
+
+@app.get("/v1/admin/users")
+async def admin_get_users(admin = Depends(require_role("ADMIN"))):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    users = await target_db.fetch("""
+        SELECT u.id, u.name, u.is_active, u.supabase_uid, u.role_id, r.name as role_name, u.created_at
+        FROM users u 
+        JOIN roles r ON u.role_id = r.id
+        ORDER BY u.created_at DESC
+    """)
+    return [dict(u) for u in users]
+
+@app.put("/v1/admin/users/{u_id}")
+async def admin_update_user(u_id: UUID, data: UserUpdate, admin = Depends(require_role("ADMIN"))):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    await target_db.execute(
+        "UPDATE users SET name = $1, is_active = $2, role_id = $3 WHERE supabase_uid = $4",
+        data.name, data.is_active, data.role_id, u_id
+    )
+    return {"message": "Korisnik uspješno ažuriran."}
+
+@app.delete("/v1/admin/users/{u_id}")
+async def admin_delete_user(u_id: UUID, admin = Depends(require_role("ADMIN"))):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    async with target_db.transaction():
+        await target_db.execute("DELETE FROM cart_items WHERE user_id = $1", u_id)
+        await target_db.execute("DELETE FROM users WHERE supabase_uid = $1", u_id)
+    return {"message": "Korisnik trajno obrisan."}
+
+@app.get("/v1/admin/roles")
+async def admin_get_roles(admin = Depends(require_role("ADMIN"))):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    roles = await target_db.fetch("SELECT * FROM roles ORDER BY id ASC")
+    return [dict(r) for r in roles]
+
+@app.post("/v1/admin/roles")
+async def admin_create_role(role: RoleBase, admin = Depends(require_role("ADMIN"))):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    try:
+        await target_db.execute("INSERT INTO roles (name, description) VALUES ($1, $2)", role.name, role.description)
+        return {"message": "Uloga kreirana."}
+    except Exception:
+        raise HTTPException(status_code=400, detail="Uloga već postoji.")
+
+# --- ROUTERI ---
+
+from service.routers import v0, v1
 app.include_router(v0.router, prefix="/v0")
 app.include_router(v1.router, prefix="/v1")
 
-@app.exception_handler(404)
-async def custom_404_handler(request: Request, exc: HTTPException):
-    return JSONResponse(
-        status_code=404,
-        content={"detail": "Resource not found. Check documentation at /docs"},
-    )
-
-@app.get("/", include_in_schema=False)
-async def root():
-    """Root endpoint redirects to main website."""
-    return RedirectResponse(url=settings.redirect_url, status_code=302)
-
-@app.get("/health", tags=["Service status"])
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
-
-@app.get("/cart", tags=["Cart"])
-async def get_cart(user_id: str = Depends(get_current_user)):
-    try:
-        # 1. Dohvati EAN-ove i količine iz tablice cart_items
-        query = "SELECT product_id, quantity FROM cart_items WHERE user_id = $1"
-        
-        target_db = getattr(db, '_db', getattr(db, 'pool', None))
-        rows = await target_db.fetch(query, str(user_id))
-        
-        if not rows:
-            return {"items": []}
-
-        # 2. Pretvori te podatke u prave informacije o proizvodima
-        ean_to_quantity = {row['product_id']: row['quantity'] for row in rows}
-        eans = list(ean_to_quantity.keys())
-
-        # Koristimo tvoju postojeću funkciju za dohvat detalja
-        products = await db.get_products_by_ean(eans)
-        
-        # Koristimo tvoju funkciju za formatiranje odgovora (onu koju koristi /products/ search)
-        formatted_products = await prepare_product_list_response(products)
-
-        # Spajamo detalje proizvoda s količinom iz košarice
-        final_items = []
-        for p in formatted_products:
-            item_dict = p.dict()
-            item_dict["cart_quantity"] = ean_to_quantity.get(p.ean, 1)
-            final_items.append(item_dict)
-        
-        return {"items": final_items}
-
-    except Exception as e:
-        logging.error(f"Greška pri dohvaćanju košarice: {e}")
-        raise HTTPException(status_code=500, detail="Neuspjelo učitavanje košarice")
-
-@app.delete("/cart/remove/{product_id}", tags=["Cart"])
-async def remove_item(product_id: str, user_data = Depends(get_current_user)):
-    # 1. Dobivanje user_id-a
-    user_id = user_data if isinstance(user_data, str) else user_data.get("sub")
-
-    try:
-        # 2. Dohvaćanje drivera baze (kao u tvojoj add_to_cart funkciji)
-        target_db = getattr(db, '_db', getattr(db, 'pool', None))
-        
-        if not target_db:
-            raise AttributeError("Nije pronađen database driver (target_db)")
-
-        # 3. STVARNO brisanje iz baze pomoću $1 i $2 parametara
-        query = "DELETE FROM cart_items WHERE user_id = $1 AND product_id = $2"
-        
-        # Izvršavamo upit (šaljemo kao stringove jer tako radi i tvoj add_to_cart)
-        await target_db.execute(query, str(user_id), str(product_id))
-        
-        print(f"STVARNO OBRISANO: Korisnik {user_id} -> Proizvod {product_id}")
-        return {"status": "success", "message": "Proizvod uklonjen iz baze"}
-        
-    except Exception as e:
-        logging.error(f"GREŠKA PRI BRISANJU: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    
-
-def main():
-    log_level = logging.DEBUG if settings.debug else logging.INFO
-    logging.basicConfig(level=log_level)
-    uvicorn.run(
-        "service.main:app",
-        host=settings.host,
-        port=settings.port,
-        log_level=log_level,
-        reload=settings.debug,
-    )
-
 if __name__ == "__main__":
-    main()
+    import uvicorn
+    uvicorn.run("service.main:app", host=settings.host, port=settings.port, reload=settings.debug)
