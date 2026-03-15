@@ -100,11 +100,12 @@ app.add_middleware(
 async def get_cart(user = Depends(get_current_active_user)):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
     rows = await target_db.fetch("""
-        SELECT ci.product_id, ci.quantity, cp.name, cp.brand
+        SELECT DISTINCT ON (ci.product_id) ci.product_id, ci.quantity, cp.name, cp.brand
         FROM cart_items ci
         LEFT JOIN products p ON p.ean = ci.product_id
         LEFT JOIN chain_products cp ON cp.product_id = p.id
         WHERE ci.user_id = $1
+        ORDER BY ci.product_id, cp.name
     """, user['supabase_uid'])
     return {"items": [dict(row) for row in rows]}
 
@@ -154,13 +155,11 @@ async def admin_update_user(u_id: UUID, data: UserUpdate, admin = Depends(requir
 async def admin_delete_user(u_id: UUID, admin = Depends(require_role("ADMIN"))):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
 
-    # Briši iz lokalne baze
     async with target_db.acquire() as conn:
         async with conn.transaction():
             await conn.execute("DELETE FROM cart_items WHERE user_id = $1", u_id)
             await conn.execute("DELETE FROM users WHERE supabase_uid = $1", u_id)
 
-    # Briši iz Supabasea (samo ako je key konfiguriran)
     if settings.supabase_service_role_key:
         async with httpx.AsyncClient() as client:
             await client.delete(
