@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { User, Trash2, Edit3, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase'; // Putanja do tvog supabase klijenta
+import { apiUrl } from '../config/api';
 
 // --- INTERFACES ---
 interface Role {
@@ -33,8 +34,8 @@ const AdminDashboard: React.FC = () => {
 
       // Port 8080 jer tamo tvoj backend sluša
       const [uRes, rRes] = await Promise.all([
-        fetch('http://localhost:8080/v1/admin/users', { headers }),
-        fetch('http://localhost:8080/v1/admin/roles', { headers })
+        fetch(apiUrl('/v1/admin/users'), { headers }),
+        fetch(apiUrl('/v1/admin/roles'), { headers })
       ]);
 
       if (uRes.ok && rRes.ok) {
@@ -54,7 +55,7 @@ const AdminDashboard: React.FC = () => {
     if (!editingUser) return;
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`http://localhost:8080/v1/admin/users/${editingUser.supabase_uid}`, {
+      const res = await fetch(apiUrl(`/v1/admin/users/${editingUser.supabase_uid}`), {
         method: 'PUT',
         headers: { 
           'Authorization': `Bearer ${session?.access_token}`, 
@@ -70,7 +71,7 @@ const AdminDashboard: React.FC = () => {
         setEditingUser(null);
         fetchData();
       }
-    } catch (err) { 
+    } catch { 
       alert("Neuspjelo ažuriranje"); 
     }
   };
@@ -79,12 +80,12 @@ const AdminDashboard: React.FC = () => {
     if (!window.confirm("Jeste li sigurni da želite obrisati ovog korisnika?")) return;
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`http://localhost:8080/v1/admin/users/${uid}`, {
+      const res = await fetch(apiUrl(`/v1/admin/users/${uid}`), {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
       if (res.ok) fetchData();
-    } catch (err) {
+    } catch {
       alert("Greška pri brisanju");
     }
   };

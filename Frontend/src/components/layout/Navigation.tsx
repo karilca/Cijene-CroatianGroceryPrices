@@ -6,6 +6,7 @@ import { Shield } from 'lucide-react'; // Dodana ikona za Admina
 import { useLanguage } from '../../contexts/LanguageContext';
 import { supabase } from '../../lib/supabase';
 import { getCartCount } from '../../api/cart';
+import { apiUrl } from '../../config/api';
 
 export const Navigation: React.FC = () => {
   const { t } = useLanguage();
@@ -28,7 +29,7 @@ export const Navigation: React.FC = () => {
   if (!session) return;
   
   try {
-    const res = await fetch('http://localhost:8080/v1/admin/users', {
+    const res = await fetch(apiUrl('/v1/admin/users'), {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
     if (res.ok) setIsAdmin(true);
@@ -95,7 +96,7 @@ export const Navigation: React.FC = () => {
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center space-x-8 h-12">
           {navLinks.map((link) => (
-            <NavLink key={typeof link.to === 'string' ? link.to : Math.random()} to={link.to as string} className={navLinkClass}>
+            <NavLink key={link.to} to={link.to as string} className={navLinkClass}>
               {link.label}
             </NavLink>
           ))}
@@ -127,7 +128,7 @@ export const Navigation: React.FC = () => {
             <div className="px-2 pt-2 pb-3 space-y-1 bg-white border-t shadow-lg">
               {navLinks.map((link) => (
                 <NavLink
-                  key={typeof link.to === 'string' ? link.to : Math.random()}
+                  key={link.to}
                   to={link.to as string}
                   className={({ isActive }) =>
                     `block px-3 py-2 rounded-md text-base font-medium transition-colors ${

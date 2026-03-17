@@ -2,12 +2,47 @@
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    api_key VARCHAR(64) UNIQUE NOT NULL,
+    api_key VARCHAR(64) UNIQUE,
+    supabase_uid UUID UNIQUE,
+    role_id INTEGER,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Roles table for auth/authorization
+CREATE TABLE IF NOT EXISTS roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Ensure role_id FK exists when users table was created before roles table
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'fk_users_role_id'
+    ) THEN
+        ALTER TABLE users
+        ADD CONSTRAINT fk_users_role_id
+        FOREIGN KEY (role_id) REFERENCES roles (id)
+        ON DELETE SET NULL;
+    END IF;
+END $$;
+
+-- Default roles used by API
+INSERT INTO roles (name, description)
+VALUES
+    ('USER', 'Regular user'),
+    ('ADMIN', 'Administrator')
+ON CONFLICT (name) DO NOTHING;
+
 CREATE INDEX IF NOT EXISTS idx_users_api_key ON users (api_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_supabase_uid
+ON users (supabase_uid)
+WHERE supabase_uid IS NOT NULL;
 
 -- Chains table to store retailer chains
 CREATE TABLE IF NOT EXISTS chains (
@@ -139,3 +174,15 @@ CREATE TABLE IF NOT EXISTS chain_prices (
     avg_price DECIMAL(10, 2) NOT NULL,
     UNIQUE (chain_product_id, price_date)
 );
+
+-- Cart table used by authenticated API endpoints
+CREATE TABLE IF NOT EXISTS cart_items (
+    user_id UUID NOT NULL,
+    product_id VARCHAR(50) NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, product_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cart_items_user_id ON cart_items (user_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_product_id ON cart_items (product_id);

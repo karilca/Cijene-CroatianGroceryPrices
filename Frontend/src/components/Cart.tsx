@@ -1,14 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { getCartItems } from '../api/cart';
-
-interface CartItem {
-    id: number;
-    product_id: number;
-    name: string;
-    price: number;
-    quantity: number;
-}
+import { getCartItems, type CartItem } from '../api/cart';
 
 const Cart: React.FC = () => {
     const [items, setItems] = useState<CartItem[]>([]);
@@ -17,7 +9,7 @@ const Cart: React.FC = () => {
     const loadCart = async () => {
         try {
             const data = await getCartItems(supabase);
-            setItems(data);
+            setItems(data.items || []);
         } catch (err) {
             console.error(err);
         } finally {
@@ -39,14 +31,14 @@ const Cart: React.FC = () => {
             ) : (
                 <ul>
                     {items.map((item) => (
-                        <li key={item.id} style={{ marginBottom: '10px', borderBottom: '1px solid #eee' }}>
-                            <strong>{item.name}</strong> - {item.quantity} kom - {item.price * item.quantity} €
+                        <li key={item.id || item.ean || item.product_id} style={{ marginBottom: '10px', borderBottom: '1px solid #eee' }}>
+                            <strong>{item.name}</strong> - {item.quantity ?? 1} kom
                         </li>
                     ))}
                 </ul>
             )}
             <div style={{ marginTop: '20px', fontWeight: 'bold' }}>
-                Ukupno: {items.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)} €
+                Ukupno stavki: {items.reduce((sum, item) => sum + (item.quantity ?? 1), 0)}
             </div>
         </div>
     );

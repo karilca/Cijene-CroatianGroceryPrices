@@ -1,4 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { apiUrl } from '../config/api';
+import type { Product } from '../types';
 
 // Tipovi usklađeni s tvojim interfejsima i backendom
 export interface CartItemRequest {
@@ -10,10 +12,17 @@ export interface CartResponse {
     status: string;
     success: boolean;
     message?: string;
-    items?: any[]; 
 }
 
-const API_BASE_URL = "http://localhost:8080/v1";
+export type CartItem = Product & {
+    product_id?: string;
+    quantity?: number;
+    cart_quantity?: number;
+};
+
+export interface CartItemsPayload {
+    items: CartItem[];
+}
 
 /**
  * Dodaje proizvod u košaricu
@@ -32,7 +41,7 @@ export const addToCart = async (
             quantity: quantity
         };
 
-        const response = await fetch(`${API_BASE_URL}/cart/add`, {
+        const response = await fetch(apiUrl('/v1/cart/add'), {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -53,17 +62,17 @@ export const addToCart = async (
 /**
  * Dohvaća sve stavke
  */
-export const getCartItems = async (supabase: SupabaseClient) => {
+export const getCartItems = async (supabase: SupabaseClient): Promise<CartItemsPayload> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return { items: [] };
 
-    const response = await fetch(`${API_BASE_URL}/cart`, {
+    const response = await fetch(apiUrl('/v1/cart'), {
         method: "GET",
         headers: { "Authorization": `Bearer ${session.access_token}` }
     });
 
     if (!response.ok) throw new Error("Greška pri dohvaćanju");
-    return await response.json();
+    return await response.json() as CartItemsPayload;
 };
 
 /**
@@ -77,7 +86,7 @@ export const removeFromCart = async (
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error("Niste prijavljeni");
 
-        const response = await fetch(`${API_BASE_URL}/cart/remove/${productId}`, {
+        const response = await fetch(apiUrl(`/v1/cart/remove/${productId}`), {
             method: "DELETE",
             headers: { "Authorization": `Bearer ${session.access_token}` }
         });
@@ -88,11 +97,11 @@ export const removeFromCart = async (
         
         // Vraćamo oba polja da zadovoljimo sve provjere u kodu
         return { status: "success", success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
         return { 
             status: "error", 
             success: false, 
-            message: error.message || "Neuspješno brisanje" 
+            message: error instanceof Error ? error.message : "Neuspješno brisanje" 
         };
     }
 };

@@ -1,14 +1,17 @@
 from decimal import Decimal
 import logging
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 import datetime
 
 from service.config import settings
 from service.db.models import ChainStats, ProductWithId, StorePrice
-from service.routers.auth import RequireAuth
+from service.auth_utils import get_current_user
 
-router = APIRouter(tags=["Products, Chains and Stores"], dependencies=[RequireAuth])
+router = APIRouter(
+    tags=["Products, Chains and Stores"],
+    dependencies=[Depends(get_current_user)],
+)
 db = settings.get_db()
 logger = logging.getLogger(__name__)
 

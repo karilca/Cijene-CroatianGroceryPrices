@@ -7,7 +7,7 @@ from typing import Optional
 import httpx
 
 from service.config import settings
-from service.auth import get_current_user, get_user_payload
+from service.auth_utils import get_current_user, get_user_payload
 from service.db import set_db
 
 db = settings.get_db()
@@ -93,6 +93,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+
+@app.get("/health")
+async def healthcheck():
+    return {"status": "ok"}
 
 # --- KOŠARICA ---
 

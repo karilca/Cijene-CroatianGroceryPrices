@@ -66,8 +66,9 @@ class Settings:
             float(os.getenv("SEARCH_TOKEN_AVG_WEIGHT", "0.15")),
         )
         self.supabase_url = os.getenv("SUPABASE_URL", "")
+        # Legacy fallback only; primary token verification uses Supabase JWKS.
         self.supabase_jwt_secret = os.getenv("SUPABASE_JWT_SECRET", "")
-        self.supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")  # ← dodaj ovo
+        self.supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
 
     def get_db(self) -> "Database":

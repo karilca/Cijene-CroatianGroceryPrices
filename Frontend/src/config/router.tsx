@@ -15,6 +15,8 @@ import { TermsOfServicePage } from '../pages/TermsOfServicePage';
 import { ContactPage } from '../pages/ContactPage';
 import { ChainDetails } from '../components/chain/ChainDetails';
 import { CartPage } from '../pages/CartPage'; 
+import { AuthPage } from '../pages/AuthPage';
+import { RequireAdmin, RequireAuth } from '../components/auth/RouteGuards';
 
 // UVOZ NOVE ADMIN STRANICE
 import AdminDashboard from '../pages/AdminDashboard'; 
@@ -27,27 +29,27 @@ const router = createBrowserRouter([
   },
   {
     path: "/products",
-    element: <AppLayout><ProductsPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><ProductsPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/products/compare",
-    element: <AppLayout showBreadcrumbs={false}><CompareProductPage /></AppLayout>,
+    element: <RequireAuth><AppLayout showBreadcrumbs={false}><CompareProductPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/stores",
-    element: <AppLayout><StoresPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><StoresPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/chains",
-    element: <AppLayout><ChainsPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><ChainsPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/chains/:chainCode",
-    element: <AppLayout showBreadcrumbs={false}><ChainDetails /></AppLayout>,
+    element: <RequireAuth><AppLayout showBreadcrumbs={false}><ChainDetails /></AppLayout></RequireAuth>,
   },
   {
     path: "/chains/:chainCode/stores",
-    element: <AppLayout showBreadcrumbs={false}><ChainDetails /></AppLayout>,
+    element: <RequireAuth><AppLayout showBreadcrumbs={false}><ChainDetails /></AppLayout></RequireAuth>,
   },
   {
     path: "/archives",
@@ -55,20 +57,20 @@ const router = createBrowserRouter([
   },
   {
     path: "/favorites",
-    element: <AppLayout><FavoritesPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><FavoritesPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/cart",
-    element: <AppLayout><CartPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><CartPage /></AppLayout></RequireAuth>,
   },
   // NOVA RUTA ZA ADMIN DASHBOARD
   {
     path: "/admin",
-    element: <AppLayout><AdminDashboard /></AppLayout>,
+    element: <RequireAdmin><AppLayout><AdminDashboard /></AppLayout></RequireAdmin>,
   },
   {
     path: "/settings",
-    element: <AppLayout><SettingsPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><SettingsPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/privacy",
@@ -83,8 +85,12 @@ const router = createBrowserRouter([
     element: <AppLayout><ContactPage /></AppLayout>,
   },
   {
+    path: "/auth",
+    element: <AuthPage />,
+  },
+  {
     path: "*",
-    element: <AppLayout><NotFoundPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><NotFoundPage /></AppLayout></RequireAuth>,
   },
 ]);
 

@@ -70,9 +70,13 @@ cijene-frontend/
 
 Obavezne varijable:
 - `VITE_API_BASE_URL` - URL backend API-ja
-- `VITE_API_TOKEN` - API token za autorizaciju
+- `VITE_SUPABASE_URL` - Supabase projekt URL
+- `VITE_SUPABASE_PUBLISHABLE_KEY` - Supabase Publishable key (public)
 
 Opcionalne varijable:
+- `VITE_API_TOKEN` - legacy fallback bearer token (nije potreban kad je korisnik prijavljen)
+- `VITE_SUPABASE_ANON_KEY` - legacy alias za stariju konfiguraciju frontenda
+
 - `VITE_API_FALLBACK_URL` - fallback URL ako glavni API nije dostupan
 - `VITE_ENABLE_MOCK_DATA` - korištenje mock podataka (default: false)
 - `VITE_ENABLE_OFFLINE_MODE` - offline način rada (default: false)

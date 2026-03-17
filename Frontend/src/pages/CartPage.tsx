@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { getCartItems, removeFromCart } from '../api/cart';
+import { getCartItems, removeFromCart, type CartItem } from '../api/cart';
 import { ProductCard } from '../components/product/ProductCard';
 import { Trash2 } from 'lucide-react';
 
 export const CartPage = () => {
-    const [cartItems, setCartItems] = useState([]);
+    const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     const loadCart = async () => {
@@ -55,9 +55,10 @@ export const CartPage = () => {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {cartItems.map((item: any) => {
+                    {cartItems.map((item) => {
                         // FIX: Generiramo ključ koji sigurno postoji (ean ili id)
                         const key = item.ean || item.product_id || item.id;
+                        const deleteId = item.ean || item.product_id;
                         
                         return (
                             <div key={key} className="relative group">
@@ -68,7 +69,8 @@ export const CartPage = () => {
 
                                 {/* Gumb za brisanje */}
                                 <button 
-                                    onClick={() => handleDelete(item.ean || item.product_id)}
+                                    onClick={() => deleteId && handleDelete(deleteId)}
+                                    disabled={!deleteId}
                                     className="absolute -top-3 -right-3 bg-white text-red-500 p-2 rounded-full shadow-lg z-30 hover:bg-red-50 transition-all border border-gray-100 hover:scale-110 active:scale-90"
                                     title="Ukloni iz košarice"
                                 >
