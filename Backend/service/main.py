@@ -27,6 +27,16 @@ class CartItemRequest(BaseModel):
     product_id: str
     quantity: int = 1
 
+
+class FavoriteProductRequest(BaseModel):
+    product_id: str
+
+
+class FavoriteStoreRequest(BaseModel):
+    store_id: str
+    chain_code: str
+    store_code: str
+
 # --- JEZGRA LOGIKE (AUTH & SYNC) ---
 
 async def get_user_with_role(u_id: UUID, payload: dict):
@@ -134,6 +144,96 @@ async def remove_from_cart(product_id: str, user = Depends(get_current_active_us
     )
     return {"status": "success"}
 
+
+# --- FAVORITES ---
+
+@app.get("/v1/favorites/products")
+async def get_favorite_products(user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    rows = await target_db.fetch("""
+        SELECT DISTINCT ON (fp.product_id)
+            fp.product_id,
+            fp.created_at,
+            cp.name,
+            cp.brand,
+            p.ean,
+            p.quantity,
+            p.unit
+        FROM favorite_products fp
+        LEFT JOIN products p ON p.ean = fp.product_id
+        LEFT JOIN chain_products cp ON cp.product_id = p.id
+        WHERE fp.user_id = $1
+        ORDER BY fp.product_id, cp.name
+    """, user['supabase_uid'])
+    return {"items": [dict(row) for row in rows]}
+
+
+@app.post("/v1/favorites/products")
+async def add_favorite_product(item: FavoriteProductRequest, user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    await target_db.execute("""
+        INSERT INTO favorite_products (user_id, product_id)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id, product_id) DO NOTHING
+    """, user['supabase_uid'], item.product_id)
+    return {"status": "success"}
+
+
+@app.delete("/v1/favorites/products/{product_id}")
+async def remove_favorite_product(product_id: str, user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    await target_db.execute(
+        "DELETE FROM favorite_products WHERE user_id = $1 AND product_id = $2",
+        user['supabase_uid'], product_id
+    )
+    return {"status": "success"}
+
+
+@app.get("/v1/favorites/stores")
+async def get_favorite_stores(user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    rows = await target_db.fetch("""
+        SELECT
+            fs.store_id,
+            fs.chain_code,
+            fs.store_code,
+            fs.created_at,
+            s.type,
+            s.address,
+            s.city,
+            s.zipcode,
+            s.lat,
+            s.lon,
+            s.phone
+        FROM favorite_stores fs
+        LEFT JOIN chains c ON c.code = fs.chain_code
+        LEFT JOIN stores s ON s.chain_id = c.id AND s.code = fs.store_code
+        WHERE fs.user_id = $1
+        ORDER BY fs.created_at DESC
+    """, user['supabase_uid'])
+    return {"items": [dict(row) for row in rows]}
+
+
+@app.post("/v1/favorites/stores")
+async def add_favorite_store(item: FavoriteStoreRequest, user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    await target_db.execute("""
+        INSERT INTO favorite_stores (user_id, store_id, chain_code, store_code)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id, store_id) DO NOTHING
+    """, user['supabase_uid'], item.store_id, item.chain_code, item.store_code)
+    return {"status": "success"}
+
+
+@app.delete("/v1/favorites/stores/{store_id}")
+async def remove_favorite_store(store_id: str, user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    await target_db.execute(
+        "DELETE FROM favorite_stores WHERE user_id = $1 AND store_id = $2",
+        user['supabase_uid'], store_id
+    )
+    return {"status": "success"}
+
 # --- ADMIN ENDPOINTI ---
 
 @app.get("/v1/admin/users")
@@ -163,6 +263,8 @@ async def admin_delete_user(u_id: UUID, admin = Depends(require_role("ADMIN"))):
     async with target_db.acquire() as conn:
         async with conn.transaction():
             await conn.execute("DELETE FROM cart_items WHERE user_id = $1", u_id)
+            await conn.execute("DELETE FROM favorite_products WHERE user_id = $1", u_id)
+            await conn.execute("DELETE FROM favorite_stores WHERE user_id = $1", u_id)
             await conn.execute("DELETE FROM users WHERE supabase_uid = $1", u_id)
 
     if settings.supabase_service_role_key:

@@ -10,7 +10,6 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { useStoreSearch } from '../hooks/useApiQueries';
 import { useGeolocation } from '../hooks/useGeolocation';
-import { useAppStore } from '../stores/appStore';
 import type { StoreSearchRequest, Store } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { PAGINATION } from '../constants';
@@ -38,9 +37,6 @@ export const StoresPage: React.FC = () => {
     }
   }, [urlSearchParams]);
 
-  // Get favorites to check if we can find the store locally
-  const favoriteStores = useAppStore(state => state.favoriteStores);
-
   // Store search query
   const {
     data: searchResponse,
@@ -58,19 +54,14 @@ export const StoresPage: React.FC = () => {
   React.useEffect(() => {
     if (storeIdParam) {
       if (!selectedStore || (selectedStore.id || selectedStore.code || `${selectedStore.chain_code}-${selectedStore.address}`) !== storeIdParam) {
-        // 1. Try to find in local favorites first
-        const favorite = favoriteStores.find(s => (s.id || s.code || `${s.chain_code}-${s.address}`) === storeIdParam);
-        if (favorite) {
-          setSelectedStore(favorite);
-          setShowDetails(true);
-        } else if (searchResponse?.stores) {
-          // 2. Try to find in search results
+        if (searchResponse?.stores) {
+          // Try to find in search results
           const found = searchResponse.stores.find(s => (s.id || s.code || `${s.chain_code}-${s.address}`) === storeIdParam);
           if (found) {
             setSelectedStore(found);
             setShowDetails(true);
           } else if (!isSearchLoading && !searchParams.query) {
-            // 3. Fallback: trigger search if not found and not loading
+            // Fallback: trigger search if not found and not loading
             setSearchParams(prev => ({ ...prev, query: storeIdParam }));
           }
         } else if (!isSearchLoading && !searchParams.query) {
@@ -83,7 +74,7 @@ export const StoresPage: React.FC = () => {
       setShowDetails(false);
       setSelectedStore(null);
     }
-  }, [storeIdParam, favoriteStores, searchResponse, isSearchLoading, searchParams.query, selectedStore, showDetails]);
+  }, [storeIdParam, searchResponse, isSearchLoading, searchParams.query, selectedStore, showDetails]);
 
   const isLoading = isSearchLoading;
   const error = searchError;

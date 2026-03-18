@@ -186,3 +186,25 @@ CREATE TABLE IF NOT EXISTS cart_items (
 
 CREATE INDEX IF NOT EXISTS idx_cart_items_user_id ON cart_items (user_id);
 CREATE INDEX IF NOT EXISTS idx_cart_items_product_id ON cart_items (product_id);
+
+-- Favorites tables used by authenticated API endpoints
+CREATE TABLE IF NOT EXISTS favorite_products (
+    user_id UUID NOT NULL,
+    product_id VARCHAR(50) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, product_id)
+);
+
+CREATE TABLE IF NOT EXISTS favorite_stores (
+    user_id UUID NOT NULL,
+    store_id VARCHAR(150) NOT NULL,
+    chain_code VARCHAR(50) NOT NULL,
+    store_code VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, store_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_favorite_products_user_id ON favorite_products (user_id);
+CREATE INDEX IF NOT EXISTS idx_favorite_products_product_id ON favorite_products (product_id);
+CREATE INDEX IF NOT EXISTS idx_favorite_stores_user_id ON favorite_stores (user_id);
+CREATE INDEX IF NOT EXISTS idx_favorite_stores_chain_store ON favorite_stores (chain_code, store_code);

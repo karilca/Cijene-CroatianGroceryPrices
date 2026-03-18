@@ -153,7 +153,10 @@ const FavoriteItem: React.FC<FavoriteItemProps> = ({ item, type, onRemove }) => 
             </button>
 
             <Link
-              to={`/stores?id=${encodeURIComponent(store.id || store.code || '')}`}
+              to={store.chain_code
+                ? `/chains/${encodeURIComponent(store.chain_code)}/stores?id=${encodeURIComponent(store.code || store.id || '')}`
+                : `/stores?id=${encodeURIComponent(store.code || store.id || '')}`
+              }
               className="text-primary-500 hover:text-primary-600 h-8 w-8 flex items-center justify-center rounded-md hover:bg-primary-50 transition-colors"
               title={t('favoritesList.viewStoreDetails')}
             >
