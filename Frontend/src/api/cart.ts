@@ -2,7 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { apiUrl } from '../config/api';
 import type { Product } from '../types';
 
-// Tipovi usklađeni s tvojim interfejsima i backendom
+// Types aligned with frontend interfaces and backend responses
 export interface CartItemRequest {
     product_id: string;
     quantity: number;
@@ -25,7 +25,7 @@ export interface CartItemsPayload {
 }
 
 /**
- * Dodaje proizvod u košaricu
+ * Add a product to the cart.
  */
 export const addToCart = async (
     supabase: SupabaseClient, 
@@ -34,7 +34,7 @@ export const addToCart = async (
 ): Promise<{ success: boolean; message?: string }> => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return { success: false, message: "Korisnik nije prijavljen." };
+        if (!session) return { success: false, message: 'User is not authenticated.' };
 
         const payload: CartItemRequest = {
             product_id: productId,
@@ -50,17 +50,16 @@ export const addToCart = async (
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) throw new Error("Greška pri dodavanju");
-        
-        window.dispatchEvent(new Event('cart-updated'));
+        if (!response.ok) throw new Error('Failed to add cart item');
+
         return { success: true };
     } catch (error) {
-        return { success: false, message: error instanceof Error ? error.message : "Greška" };
+        return { success: false, message: error instanceof Error ? error.message : 'Unknown cart error' };
     }
 };
 
 /**
- * Dohvaća sve stavke
+ * Fetch all cart items.
  */
 export const getCartItems = async (supabase: SupabaseClient): Promise<CartItemsPayload> => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -71,12 +70,12 @@ export const getCartItems = async (supabase: SupabaseClient): Promise<CartItemsP
         headers: { "Authorization": `Bearer ${session.access_token}` }
     });
 
-    if (!response.ok) throw new Error("Greška pri dohvaćanju");
+    if (!response.ok) throw new Error('Failed to load cart');
     return await response.json() as CartItemsPayload;
 };
 
 /**
- * Briše proizvod i rješava TS error 'status is missing'
+ * Remove a product from the cart.
  */
 export const removeFromCart = async (
     supabase: SupabaseClient, 
@@ -84,30 +83,27 @@ export const removeFromCart = async (
 ): Promise<CartResponse> => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error("Niste prijavljeni");
+        if (!session) throw new Error('User is not authenticated');
 
         const response = await fetch(apiUrl(`/v1/cart/remove/${productId}`), {
             method: "DELETE",
             headers: { "Authorization": `Bearer ${session.access_token}` }
         });
 
-        if (!response.ok) throw new Error("Greška pri brisanju");
+        if (!response.ok) throw new Error('Failed to remove cart item');
 
-        window.dispatchEvent(new Event('cart-updated'));
-        
-        // Vraćamo oba polja da zadovoljimo sve provjere u kodu
-        return { status: "success", success: true };
+        return { status: 'success', success: true };
     } catch (error: unknown) {
         return { 
-            status: "error", 
+            status: 'error', 
             success: false, 
-            message: error instanceof Error ? error.message : "Neuspješno brisanje" 
+            message: error instanceof Error ? error.message : 'Failed to remove cart item' 
         };
     }
 };
 
 /**
- * Broji stavke za Navigation.tsx
+ * Count cart entries.
  */
 export const getCartCount = async (supabase: SupabaseClient): Promise<number> => {
     try {

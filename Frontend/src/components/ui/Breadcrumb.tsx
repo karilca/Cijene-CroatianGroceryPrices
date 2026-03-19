@@ -81,6 +81,8 @@ const generateBreadcrumbsFromPath = (pathname: string, t: (key: string) => strin
     'chains': 'nav.chains',
     'archives': 'nav.archives',
     'favorites': 'nav.favorites',
+    'cart': 'nav.cart',
+    'admin': 'nav.admin',
     'settings': 'auth.settings',
     'privacy': 'footer.legal.privacy',
     'terms': 'footer.legal.terms',

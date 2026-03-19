@@ -7,11 +7,9 @@ import { ErrorMessage } from '../common/ErrorMessage';
 import { useProductFavorite } from '../../hooks/useFavorite';
 import { useProductPrices } from '../../hooks/useApiQueries';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useCartStore } from '../../stores/cartStore';
 import type { Product, Price } from '../../types';
-
-// DODANO: Importi za košaricu
-import { supabase } from '../../lib/supabase';
-import { addToCart } from '../../api/cart';
+import { useNotifications } from '../common/NotificationContext';
 
 interface ProductDetailsProps {
   product: Product;
@@ -29,6 +27,8 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
   chains
 }) => {
   const { isFavorite, toggleFavorite } = useProductFavorite(product);
+  const addItem = useCartStore((state) => state.addItem);
+  const { notifyError, notifySuccess } = useNotifications();
   const { t } = useLanguage();
   const imageBaseUrl = import.meta.env.VITE_IMAGE_BASE_URL;
   const imageUrl = product.ean ? `${imageBaseUrl}${product.ean}.png` : null;
@@ -51,10 +51,16 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
     toggleFavorite();
   };
 
-  // DODANO: Funkcija za dodavanje
   const handleAddToCart = async () => {
     const targetId = product.id || product.ean || '';
-    await addToCart(supabase, String(targetId), 1);
+    if (!targetId) return;
+
+    try {
+      await addItem(String(targetId), 1);
+      notifySuccess(t('cart.itemAdded'));
+    } catch {
+      notifyError(t('cart.addFailed'), t('common.error'));
+    }
   };
 
   const formatPrice = (price: number | string) => {
@@ -133,14 +139,13 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
         <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">{t('productDetails.productInfo')}</h2>
             
-            {/* DODANO: Gumb za košaricu u zaglavlju info kartice */}
             <Button 
                 onClick={handleAddToCart}
                 variant="primary"
                 className="flex items-center gap-2"
             >
                 <ShoppingCart className="w-4 h-4" />
-                Dodaj u košaricu
+              {t('cart.addToCart')}
             </Button>
         </div>
         
@@ -247,7 +252,7 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
         {pricesError && (
           <ErrorMessage
             title={t('productDetails.priceLoadingError')}
-            message={pricesError instanceof Error ? pricesError.message : 'Failed to load price comparison data'}
+            message={pricesError instanceof Error ? pricesError.message : t('priceComparison.loadFailed')}
             onRetry={() => window.location.reload()}
           />
         )}

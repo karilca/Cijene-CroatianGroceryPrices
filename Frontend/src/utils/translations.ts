@@ -13,6 +13,8 @@ export const translations = {
         'nav.chains': 'Chains',
         'nav.archives': 'Archives',
         'nav.favorites': 'Favorites',
+        'nav.cart': 'Cart',
+        'nav.admin': 'Admin',
 
         // Search
         'search.placeholder': 'Search products, stores, or chains...',
@@ -48,6 +50,8 @@ export const translations = {
         'common.chains': 'Chains:',
         'common.loading': 'Loading...',
         'common.error': 'Error',
+        'common.confirm': 'Confirm',
+        'common.cancel': 'Cancel',
         'common.page': 'Page',
         'common.of': 'of',
 
@@ -283,6 +287,46 @@ export const translations = {
         'settings.manage': 'Manage your application preferences',
         'settings.noAuth': 'Settings functionality available. No authentication required.',
 
+        // Admin Dashboard
+        'admin.breadcrumb': 'Admin Panel',
+        'admin.title': 'User Management',
+        'admin.subtitle': 'Review and edit member permissions',
+        'admin.userCount': '{count} users',
+        'admin.role': 'Role',
+        'admin.uid': 'UID',
+        'admin.loading': 'Loading settings...',
+        'admin.edit.title': 'Edit permissions',
+        'admin.accountStatus': 'Account status',
+        'admin.status.active': 'Active',
+        'admin.status.blocked': 'Blocked',
+        'admin.assignedRole': 'Assigned role',
+        'admin.cancel': 'Cancel',
+        'admin.save': 'Save',
+        'admin.updateFailed': 'Update failed',
+        'admin.updateSuccess': 'User updated successfully',
+        'admin.deleteConfirm': 'Are you sure you want to delete this user?',
+        'admin.confirmDeleteTitle': 'Delete user',
+        'admin.deleteFailed': 'Failed to delete user',
+        'admin.deleteSuccess': 'User deleted successfully',
+        'admin.usersLoadFailed': 'Failed to load users and roles',
+
+        // Cart Page
+        'cart.title': 'My Cart',
+        'cart.loading': 'Loading cart...',
+        'cart.loadFailed': 'Failed to load cart',
+        'cart.empty': 'Your cart is empty. Time to shop!',
+        'cart.browseProducts': 'Browse products',
+        'cart.quantity': '{count}x',
+        'cart.remove': 'Remove from cart',
+        'cart.confirmRemove': 'Do you want to remove this product from the cart?',
+        'cart.confirmTitle': 'Remove item',
+        'cart.removeFailed': 'Failed to remove item from cart',
+        'cart.itemRemoved': 'Item removed from cart',
+        'cart.addButton': 'Add',
+        'cart.addToCart': 'Add to cart',
+        'cart.itemAdded': 'Item added to cart',
+        'cart.addFailed': 'Failed to add item to cart',
+
 
 
         // Chain Details
@@ -456,6 +500,8 @@ export const translations = {
         'nav.chains': 'Lanci',
         'nav.archives': 'Arhiva',
         'nav.favorites': 'Omiljeno',
+        'nav.cart': 'Košarica',
+        'nav.admin': 'Admin',
 
         // Search
         'search.placeholder': 'Pretraži proizvode po imenu...',
@@ -491,6 +537,8 @@ export const translations = {
         'common.chains': 'Lanci:',
         'common.loading': 'Učitavanje...',
         'common.error': 'Greška',
+        'common.confirm': 'Potvrdi',
+        'common.cancel': 'Odustani',
         'common.page': 'Stranica',
         'common.of': 'od',
 
@@ -726,6 +774,46 @@ export const translations = {
         'settings.saved': 'Postavke uspješno spremljene!',
         'settings.manage': 'Upravljajte postavkama aplikacije',
         'settings.noAuth': 'Funkcionalnost postavki dostupna. Autentifikacija nije potrebna.',
+
+        // Admin Dashboard
+        'admin.breadcrumb': 'Admin Panel',
+        'admin.title': 'Upravljanje korisnicima',
+        'admin.subtitle': 'Pregled i uređivanje ovlasti članova',
+        'admin.userCount': '{count} korisnika',
+        'admin.role': 'Uloga',
+        'admin.uid': 'UID',
+        'admin.loading': 'Učitavanje postavki...',
+        'admin.edit.title': 'Uredi ovlasti',
+        'admin.accountStatus': 'Status računa',
+        'admin.status.active': 'Aktivan',
+        'admin.status.blocked': 'Blokiran',
+        'admin.assignedRole': 'Dodijeljena uloga',
+        'admin.cancel': 'Odustani',
+        'admin.save': 'Spremi',
+        'admin.updateFailed': 'Neuspjelo ažuriranje',
+        'admin.updateSuccess': 'Korisnik je uspješno ažuriran',
+        'admin.deleteConfirm': 'Jeste li sigurni da želite obrisati ovog korisnika?',
+        'admin.confirmDeleteTitle': 'Brisanje korisnika',
+        'admin.deleteFailed': 'Greška pri brisanju',
+        'admin.deleteSuccess': 'Korisnik je uspješno obrisan',
+        'admin.usersLoadFailed': 'Neuspjelo učitavanje korisnika i uloga',
+
+        // Cart Page
+        'cart.title': 'Moja košarica',
+        'cart.loading': 'Učitavam košaricu...',
+        'cart.loadFailed': 'Neuspjelo učitavanje košarice',
+        'cart.empty': 'Košarica je prazna. Vrijeme je za shopping!',
+        'cart.browseProducts': 'Pregledaj proizvode',
+        'cart.quantity': '{count}x',
+        'cart.remove': 'Ukloni iz košarice',
+        'cart.confirmRemove': 'Želiš li ukloniti ovaj proizvod iz košarice?',
+        'cart.confirmTitle': 'Ukloni stavku',
+        'cart.removeFailed': 'Greška pri brisanju iz košarice',
+        'cart.itemRemoved': 'Stavka je uklonjena iz košarice',
+        'cart.addButton': 'Dodaj',
+        'cart.addToCart': 'Dodaj u košaricu',
+        'cart.itemAdded': 'Stavka je dodana u košaricu',
+        'cart.addFailed': 'Greška pri dodavanju u košaricu',
 
 
 

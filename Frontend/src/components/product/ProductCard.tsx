@@ -4,12 +4,10 @@ import { BaseCard } from '../common/BaseCard';
 import { Button } from '../ui/Button';
 import { useProductFavorite } from '../../hooks/useFavorite';
 import { useCompareActions } from '../../stores/appStore';
+import { useCartStore } from '../../stores/cartStore';
 import type { Product } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
-
-// DODANO: Importi za košaricu
-import { supabase } from '../../lib/supabase';
-import { addToCart } from '../../api/cart';
+import { useNotifications } from '../common/NotificationContext';
 
 interface ProductCardProps {
   product: Product;
@@ -26,6 +24,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const { isFavorite, toggleFavorite } = useProductFavorite(product);
   const { products: compareProducts, addProduct: addToCompare, removeProduct: removeFromCompare, isInCompare } = useCompareActions();
+  const addItem = useCartStore((state) => state.addItem);
+  const { notifyError, notifySuccess } = useNotifications();
   const { t } = useLanguage();
 
   const productId = product.ean || product.id || '';
@@ -45,14 +45,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     }
   };
 
- const handleAddToCart = async (e: React.MouseEvent) => {
+  const handleAddToCart = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Forsiramo pretvorbu u string koristeći String()
-    const targetId = String(product.ean || product.id || ''); 
-    
+    const targetId = String(product.ean || product.id || '');
+
     if (!targetId) return;
 
-    await addToCart(supabase, targetId, 1);
+    try {
+      await addItem(targetId, 1);
+      notifySuccess(t('cart.itemAdded'));
+    } catch {
+      notifyError(t('cart.addFailed'), t('common.error'));
+    }
   };
 
   const getPricingInfo = () => {
@@ -87,22 +91,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           size="sm"
           onClick={handleCompareToggle}
           disabled={!isInCompareList && !canAddToCompare}
-          className={`flex-1 ${isInCompareList ? 'bg-primary-600 text-white' : ''}`}
+          className="flex-1"
         >
           <Scale className="h-4 w-4 mr-2" />
-          {isInCompareList ? 'Remove' : 'Add to Compare'}
+          {isInCompareList ? t('compare.removeFromCompare') : t('compare.addToCompare')}
         </Button>
       </div>
 
-      {/* Gumb za dodavanje ide u novi red ispod, tako ne kvari dizajn */}
       <Button
         variant="primary"
         size="sm"
         onClick={handleAddToCart}
-        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold"
+        className="w-full"
       >
         <ShoppingCart className="h-4 w-4 mr-2" />
-        Dodaj
+        {t('cart.addButton')}
       </Button>
     </div>
   );

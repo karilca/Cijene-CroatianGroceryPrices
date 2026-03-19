@@ -1,52 +1,24 @@
 // src/components/layout/Navigation.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Shield } from 'lucide-react'; // Dodana ikona za Admina
 import { useLanguage } from '../../contexts/LanguageContext';
-import { supabase } from '../../lib/supabase';
-import { getCartCount } from '../../api/cart';
-import { apiUrl } from '../../config/api';
+import { useAuth } from '../../hooks/useAuth';
+import { useCartStore } from '../../stores/cartStore';
 
 export const Navigation: React.FC = () => {
   const { t } = useLanguage();
+  const { isAdmin } = useAuth();
+  const loadCart = useCartStore((state) => state.loadCart);
+  const isInitialized = useCartStore((state) => state.isInitialized);
+  const itemCount = useCartStore((state) => state.itemCount);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [cartCount, setCartCount] = useState(0);
-  const [isAdmin, setIsAdmin] = useState(false); // Stanje za provjeru admin ovlasti
 
-  // Funkcija za osvježavanje broja stavki u košarici
-  const refreshCount = async () => {
-    const count = await getCartCount(supabase);
-    setCartCount(count);
-  };
-
-  useEffect(() => {
-    refreshCount();
-
-    // Funkcija za provjeru admin statusa preko Supabase-a
-    const checkAdminStatus = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return;
-  
-  try {
-    const res = await fetch(apiUrl('/v1/admin/users'), {
-      headers: { 'Authorization': `Bearer ${session.access_token}` }
-    });
-    if (res.ok) setIsAdmin(true);
-  } catch {
-    setIsAdmin(false);
-  }
-};
-
-    checkAdminStatus();
-
-    // Slušaj promjene u košarici
-    window.addEventListener('cart-updated', refreshCount);
-
-    return () => {
-      window.removeEventListener('cart-updated', refreshCount);
-    };
-  }, []);
+  React.useEffect(() => {
+    if (!isInitialized) {
+      void loadCart();
+    }
+  }, [isInitialized, loadCart]);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -60,29 +32,8 @@ export const Navigation: React.FC = () => {
     { to: '/chains', label: t('nav.chains') },
     { to: '/archives', label: t('nav.archives') },
     { to: '/favorites', label: t('nav.favorites') },
-    // Ako je korisnik admin, umetni Admin link u polje
-    ...(isAdmin ? [{ 
-      to: '/admin', 
-      label: (
-        <span className="flex items-center gap-1">
-          <Shield size={14} className="text-red-600" />
-          Admin
-        </span>
-      ) 
-    }] : []),
-    { 
-      to: '/cart', 
-      label: (
-        <span className="flex items-center gap-1">
-          Košarica 
-          {cartCount > 0 && (
-            <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-              {cartCount}
-            </span>
-          )}
-        </span>
-      )
-    },
+    { to: '/cart', label: t('nav.cart') },
+    ...(isAdmin ? [{ to: '/admin', label: t('nav.admin') }] : []),
   ];
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -98,6 +49,11 @@ export const Navigation: React.FC = () => {
           {navLinks.map((link) => (
             <NavLink key={link.to} to={link.to as string} className={navLinkClass}>
               {link.label}
+              {link.to === '/cart' && itemCount > 0 && (
+                <span className="ml-2 inline-flex min-w-[1.35rem] items-center justify-center rounded-full bg-primary-600 px-1.5 py-0.5 text-xs font-bold text-white">
+                  {itemCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </div>
@@ -137,7 +93,12 @@ export const Navigation: React.FC = () => {
                   }
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  {link.label}
+                  <span>{link.label}</span>
+                  {link.to === '/cart' && itemCount > 0 && (
+                    <span className="ml-2 inline-flex min-w-[1.35rem] items-center justify-center rounded-full bg-primary-600 px-1.5 py-0.5 text-xs font-bold text-white">
+                      {itemCount}
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </div>

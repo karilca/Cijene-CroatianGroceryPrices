@@ -3,6 +3,36 @@ import { http, HttpResponse } from 'msw'
 const API_BASE_URL = 'http://127.0.0.1:8000'
 
 export const handlers = [
+  http.options('*/v0/list', () => {
+    return new HttpResponse(null, {
+      status: 204,
+      headers: {
+        'access-control-allow-origin': '*',
+        'access-control-allow-methods': 'GET,OPTIONS',
+        'access-control-allow-headers': '*',
+      },
+    })
+  }),
+
+  http.get('*/v0/list', () => {
+    return HttpResponse.json({
+      archives: [
+        {
+          date: '2024-01-15',
+          url: 'https://cijene.searxngmate.tk/v0/archive/2024-01-15.zip',
+          size: 1234567,
+          updated: '2024-01-15T10:00:00+00:00'
+        },
+        {
+          date: '2024-01-14',
+          url: 'https://cijene.searxngmate.tk/v0/archive/2024-01-14.zip',
+          size: 1200000,
+          updated: '2024-01-14T10:00:00+00:00'
+        }
+      ]
+    })
+  }),
+
   // Auth endpoints
   http.post(`${API_BASE_URL}/auth/login`, () => {
     return HttpResponse.json({
