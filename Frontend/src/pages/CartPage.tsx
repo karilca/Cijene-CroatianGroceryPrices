@@ -19,7 +19,6 @@ export const CartPage = () => {
     const loadCart = useCartStore((state) => state.loadCart);
     const removeItem = useCartStore((state) => state.removeItem);
     const clearError = useCartStore((state) => state.clearError);
-    const isInitialized = useCartStore((state) => state.isInitialized);
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
     const [isRemoving, setIsRemoving] = useState(false);
 
@@ -48,10 +47,8 @@ export const CartPage = () => {
     };
 
     useEffect(() => {
-        if (!isInitialized) {
-            void loadCart();
-        }
-    }, [isInitialized, loadCart]);
+        void loadCart();
+    }, [loadCart]);
 
     useEffect(() => {
         if (error) {

@@ -21,7 +21,7 @@ export const RequireAuth: React.FC<GuardProps> = ({ children }) => {
 
   if (!user) {
     const redirectTo = `${location.pathname}${location.search}`;
-    return <Navigate to={`/auth?redirect=${encodeURIComponent(redirectTo)}`} replace />;
+    return <Navigate to={`/?auth=signin&redirect=${encodeURIComponent(redirectTo)}`} replace />;
   }
 
   return <>{children}</>;
@@ -29,9 +29,11 @@ export const RequireAuth: React.FC<GuardProps> = ({ children }) => {
 
 export const RequireAdmin: React.FC<GuardProps> = ({ children }) => {
   const { user, loading, isAdmin, adminLoading } = useAuth();
+  const location = useLocation();
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    const redirectTo = `${location.pathname}${location.search}`;
+    return <Navigate to={`/?auth=signin&redirect=${encodeURIComponent(redirectTo)}`} replace />;
   }
 
   if (loading || (adminLoading && !isAdmin)) {

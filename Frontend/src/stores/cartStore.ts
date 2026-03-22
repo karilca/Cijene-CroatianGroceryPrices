@@ -11,6 +11,7 @@ interface CartStoreState {
   loadCart: () => Promise<void>;
   addItem: (productId: string, quantity?: number) => Promise<void>;
   removeItem: (productId: string) => Promise<void>;
+  resetCart: () => void;
   clearError: () => void;
 }
 
@@ -29,6 +30,14 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
   itemCount: 0,
 
   clearError: () => set({ error: null }),
+
+  resetCart: () => set({
+    items: [],
+    itemCount: 0,
+    error: null,
+    isInitialized: false,
+    isLoading: false,
+  }),
 
   loadCart: async () => {
     set({ isLoading: true, error: null });

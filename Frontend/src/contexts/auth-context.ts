@@ -7,6 +7,8 @@ export interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   adminLoading: boolean;
+  signingOut: boolean;
+  signOut: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

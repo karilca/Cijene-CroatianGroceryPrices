@@ -4,6 +4,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { AuthContext } from './auth-context';
 import { getFavoriteProducts, getFavoriteStores } from '../api/favorites';
 import { useAppStore } from '../stores/appStore';
+import { useCartStore } from '../stores/cartStore';
 import { apiUrl } from '../config/api';
 
 const adminCacheKey = (uid: string) => `admin-status:${uid}`;
@@ -27,14 +28,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminLoading, setAdminLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
   const setFavoriteProducts = useAppStore((state) => state.setFavoriteProducts);
   const setFavoriteStores = useAppStore((state) => state.setFavoriteStores);
   const clearFavorites = useAppStore((state) => state.clearFavorites);
+  const clearSearchHistory = useAppStore((state) => state.clearSearchHistory);
+  const clearRecentlyViewed = useAppStore((state) => state.clearRecentlyViewed);
+  const clearCompareProducts = useAppStore((state) => state.clearCompareProducts);
+  const resetCart = useCartStore((state) => state.resetCart);
+
+  const signOut = async () => {
+    if (signingOut) return;
+
+    setSigningOut(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   useEffect(() => {
     const syncFavorites = async (currentSession: Session | null) => {
       if (!currentSession) {
         clearFavorites();
+        clearSearchHistory();
+        clearRecentlyViewed();
+        clearCompareProducts();
+        resetCart();
         return;
       }
 
@@ -111,10 +133,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [clearFavorites, setFavoriteProducts, setFavoriteStores]);
+  }, [
+    clearCompareProducts,
+    clearFavorites,
+    clearRecentlyViewed,
+    clearSearchHistory,
+    resetCart,
+    setFavoriteProducts,
+    setFavoriteStores,
+  ]);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAdmin, adminLoading }}>
+    <AuthContext.Provider value={{ user, session, loading, isAdmin, adminLoading, signingOut, signOut }}>
       {!loading && children}
     </AuthContext.Provider>
   );

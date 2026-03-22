@@ -1,6 +1,6 @@
 // Favorites page component
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Package, Store, Trash2 } from 'lucide-react';
 import { useFavoriteProducts, useFavoriteStores, useFavoriteActions } from '../stores/appStore';
 import { Button } from '../components/ui/Button';
@@ -9,12 +9,15 @@ import { FavoritesList } from '../components/favorites';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../lib/supabase';
 import {
+  getFavoriteProducts,
+  getFavoriteStores,
   getNormalizedStoreId,
   removeFavoriteProduct as removeFavoriteProductApi,
   removeFavoriteStore as removeFavoriteStoreApi,
 } from '../api/favorites';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { useNotifications } from '../components/common/NotificationContext';
 
 type TabType = 'products' | 'stores';
 
@@ -22,14 +25,37 @@ export const FavoritesPage: React.FC = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const { session } = useAuth();
+  const { notifyError } = useNotifications();
   const [activeTab, setActiveTab] = useState<TabType>('products');
   const products = useFavoriteProducts();
   const stores = useFavoriteStores();
   const { removeProduct, removeStore, setProducts, setStores } = useFavoriteActions();
 
+  const refreshFavorites = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+
+    try {
+      const [latestProducts, latestStores] = await Promise.all([
+        getFavoriteProducts(supabase),
+        getFavoriteStores(supabase),
+      ]);
+
+      setProducts(latestProducts);
+      setStores(latestStores);
+    } catch {
+      notifyError(t('favorites.loadFailed'), t('common.error'));
+    }
+  }, [notifyError, session, setProducts, setStores, t]);
+
+  useEffect(() => {
+    void refreshFavorites();
+  }, [refreshFavorites]);
+
   const ensureAuthenticated = () => {
     if (!session) {
-      navigate('/auth');
+      navigate(`/?auth=signin&redirect=${encodeURIComponent('/favorites')}`);
       return false;
     }
     return true;
