@@ -36,6 +36,7 @@ docker-compose up -d
 - `DEBUG` - `false` za produkciju
 - `TIMEZONE` - `Europe/Zagreb`
 - `DB_RETENTION_DAYS` - broj dana price podataka za čuvanje (`0` = bez brisanja)
+- `AUDIT_LOG_RETENTION_DAYS` - broj dana čuvanja admin audit log zapisa (default `90`)
 - `SEARCH_FTS_WEIGHT` - težina FTS ranka u product pretrazi
 - `SEARCH_PREFIX_WEIGHT` - težina prefix podudaranja u product pretrazi
 - `SEARCH_TRIGRAM_WEIGHT` - težina trigram podudaranja u product pretrazi

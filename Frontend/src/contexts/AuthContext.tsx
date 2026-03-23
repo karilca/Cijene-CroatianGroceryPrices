@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       setAdminLoading(true);
       try {
-        const response = await fetch(apiUrl('/v1/admin/users'), {
+        const response = await fetch(apiUrl('/v1/admin/check'), {
           headers: {
             Authorization: `Bearer ${currentSession.access_token}`,
           },

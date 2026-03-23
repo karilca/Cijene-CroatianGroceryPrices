@@ -4,21 +4,11 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../hooks/useAuth';
-import { useCartStore } from '../../stores/cartStore';
 
 export const Navigation: React.FC = () => {
   const { t } = useLanguage();
   const { isAdmin } = useAuth();
-  const loadCart = useCartStore((state) => state.loadCart);
-  const isInitialized = useCartStore((state) => state.isInitialized);
-  const itemCount = useCartStore((state) => state.itemCount);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  React.useEffect(() => {
-    if (!isInitialized) {
-      void loadCart();
-    }
-  }, [isInitialized, loadCart]);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -37,7 +27,7 @@ export const Navigation: React.FC = () => {
   ];
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `text-gray-700 hover:text-primary-600 font-medium transition-colors flex items-center h-full ${
+    `text-gray-700 hover:text-primary-600 font-medium transition-colors ${
       isActive ? 'text-primary-600 border-b-2 border-primary-600' : ''
     }`;
 
@@ -49,11 +39,6 @@ export const Navigation: React.FC = () => {
           {navLinks.map((link) => (
             <NavLink key={link.to} to={link.to as string} className={navLinkClass}>
               {link.label}
-              {link.to === '/cart' && itemCount > 0 && (
-                <span className="ml-2 inline-flex min-w-[1.35rem] items-center justify-center rounded-full bg-primary-600 px-1.5 py-0.5 text-xs font-bold text-white">
-                  {itemCount}
-                </span>
-              )}
             </NavLink>
           ))}
         </div>
@@ -94,11 +79,6 @@ export const Navigation: React.FC = () => {
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   <span>{link.label}</span>
-                  {link.to === '/cart' && itemCount > 0 && (
-                    <span className="ml-2 inline-flex min-w-[1.35rem] items-center justify-center rounded-full bg-primary-600 px-1.5 py-0.5 text-xs font-bold text-white">
-                      {itemCount}
-                    </span>
-                  )}
                 </NavLink>
               ))}
             </div>

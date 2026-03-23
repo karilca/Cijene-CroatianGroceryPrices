@@ -32,6 +32,10 @@ class Settings:
         self.db_min_connections: int = int(os.getenv("DB_MIN_CONNECTIONS", "5"))
         self.db_max_connections: int = int(os.getenv("DB_MAX_CONNECTIONS", "20"))
         self.db_retention_days: int = max(0, int(os.getenv("DB_RETENTION_DAYS", "0")))
+        self.audit_log_retention_days: int = max(
+            1,
+            int(os.getenv("AUDIT_LOG_RETENTION_DAYS", "90")),
+        )
 
         self.search_fts_weight: float = max(
             0.0,

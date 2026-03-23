@@ -35,6 +35,7 @@ export const AuthModal = ({
 }: AuthModalProps) => {
   const { t } = useLanguage();
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,6 +48,9 @@ export const AuthModal = ({
   useEffect(() => {
     if (!isOpen) return;
     setMode(initialMode);
+    setFullName('');
+    setEmail('');
+    setPassword('');
     setError('');
     setInfo('');
   }, [isOpen, initialMode]);
@@ -85,7 +89,20 @@ export const AuthModal = ({
 
     try {
       if (mode === 'signup') {
-        const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+        const cleanedFullName = fullName.trim();
+        if (cleanedFullName.length < 2) {
+          throw new Error(t('auth.nameTooShort'));
+        }
+
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: cleanedFullName,
+            },
+          },
+        });
         if (signUpError) throw signUpError;
 
         if (data.user) {
@@ -202,12 +219,31 @@ export const AuthModal = ({
           </p>
 
           <form onSubmit={handleAuth} className="space-y-4 mt-5">
+            {mode === 'signup' && (
+              <div>
+                <label className="text-xs font-semibold text-gray-500 block mb-1.5 uppercase tracking-wide">
+                  {t('auth.fullName')}
+                </label>
+                <input
+                  ref={firstInputRef}
+                  type="text"
+                  placeholder={t('auth.fullNamePlaceholder')}
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  required
+                  minLength={2}
+                  maxLength={80}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-colors"
+                />
+              </div>
+            )}
+
             <div>
               <label className="text-xs font-semibold text-gray-500 block mb-1.5 uppercase tracking-wide">
                 {t('auth.email')}
               </label>
               <input
-                ref={firstInputRef}
+                ref={mode === 'signup' ? undefined : firstInputRef}
                 type="email"
                 placeholder={t('auth.emailPlaceholder')}
                 value={email}
