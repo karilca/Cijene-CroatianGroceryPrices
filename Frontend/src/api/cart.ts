@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { apiUrl } from '../config/api';
 import type { Product } from '../types';
+import { createLocalizedApiErrorFromPayload, LocalizedApiError } from '../utils/apiErrors';
 
 // Types aligned with frontend interfaces and backend responses
 export interface CartItemRequest {
@@ -34,7 +35,9 @@ export const addToCart = async (
 ): Promise<{ success: boolean; message?: string }> => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return { success: false, message: 'User is not authenticated.' };
+        if (!session) {
+            throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
+        }
 
         const payload: CartItemRequest = {
             product_id: productId,
@@ -50,11 +53,14 @@ export const addToCart = async (
             body: JSON.stringify(payload)
         });
 
-        if (!response.ok) throw new Error('Failed to add cart item');
+        if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            throw createLocalizedApiErrorFromPayload(payload, 'Failed to add item to cart.');
+        }
 
         return { success: true };
     } catch (error) {
-        return { success: false, message: error instanceof Error ? error.message : 'Unknown cart error' };
+        return { success: false, message: error instanceof Error ? error.message : 'Failed to add item to cart.' };
     }
 };
 
@@ -63,14 +69,19 @@ export const addToCart = async (
  */
 export const getCartItems = async (supabase: SupabaseClient): Promise<CartItemsPayload> => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return { items: [] };
+    if (!session) {
+        throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
+    }
 
     const response = await fetch(apiUrl('/v1/cart'), {
         method: "GET",
         headers: { "Authorization": `Bearer ${session.access_token}` }
     });
 
-    if (!response.ok) throw new Error('Failed to load cart');
+    if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw createLocalizedApiErrorFromPayload(payload, 'Failed to load cart.');
+    }
     return await response.json() as CartItemsPayload;
 };
 
@@ -83,21 +94,26 @@ export const removeFromCart = async (
 ): Promise<CartResponse> => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error('User is not authenticated');
+        if (!session) {
+            throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
+        }
 
         const response = await fetch(apiUrl(`/v1/cart/remove/${productId}`), {
             method: "DELETE",
             headers: { "Authorization": `Bearer ${session.access_token}` }
         });
 
-        if (!response.ok) throw new Error('Failed to remove cart item');
+        if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            throw createLocalizedApiErrorFromPayload(payload, 'Failed to remove item from cart.');
+        }
 
         return { status: 'success', success: true };
     } catch (error: unknown) {
         return { 
             status: 'error', 
             success: false, 
-            message: error instanceof Error ? error.message : 'Failed to remove cart item' 
+            message: error instanceof Error ? error.message : 'Failed to remove item from cart.' 
         };
     }
 };

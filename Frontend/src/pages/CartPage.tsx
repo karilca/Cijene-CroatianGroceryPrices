@@ -9,6 +9,7 @@ import { ErrorMessage } from '../components/common/ErrorMessage';
 import { useNotifications } from '../components/common/NotificationContext';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Button } from '../components/ui/Button';
+import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 export const CartPage = () => {
     const { t } = useLanguage();
@@ -52,7 +53,7 @@ export const CartPage = () => {
 
     useEffect(() => {
         if (error) {
-            notifyError(t('cart.loadFailed'), t('common.error'));
+            notifyError(resolveApiErrorMessage(error, t, 'cart.loadFailed'), t('common.error'));
         }
     }, [error, notifyError, t]);
 
@@ -69,10 +70,10 @@ export const CartPage = () => {
         <div className="max-w-6xl mx-auto space-y-8">
             <h1 className="text-3xl font-bold mb-8">{t('cart.title')}</h1>
 
-            {error && (
+            {!!error && (
                 <ErrorMessage
                     title={t('common.error')}
-                    message={error || t('cart.loadFailed')}
+                    message={resolveApiErrorMessage(error, t, 'cart.loadFailed')}
                     onRetry={() => void reloadCart()}
                 />
             )}

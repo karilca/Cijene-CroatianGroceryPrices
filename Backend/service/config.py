@@ -23,6 +23,12 @@ class Settings:
         self.debug: bool = os.getenv("DEBUG", "false").lower() == "true"
         self.timezone: str = os.getenv("TIMEZONE", "Europe/Zagreb")
         self.redirect_url: str = os.getenv("REDIRECT_URL", "https://cijene.netlify.app/")
+        cors_origins_raw = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:5173")
+        self.cors_allow_origins: list[str] = [
+            origin.strip()
+            for origin in cors_origins_raw.split(",")
+            if origin.strip()
+        ]
 
         # Database configuration
         self.db_dsn: str = os.getenv(

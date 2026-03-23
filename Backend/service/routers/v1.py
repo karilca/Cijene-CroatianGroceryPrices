@@ -3,14 +3,89 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 import datetime
+from uuid import UUID
 
 from service.config import settings
 from service.db.models import ChainStats, ProductWithId, StorePrice
-from service.auth_utils import get_current_user
+from service.auth_utils import get_current_user, get_user_payload
+
+
+def _extract_email(payload: dict) -> str:
+    return (
+        payload.get("email")
+        or payload.get("user_metadata", {}).get("email")
+        or payload.get("app_metadata", {}).get("email")
+        or "unknown@mail.com"
+    )
+
+
+def _extract_name(payload: dict, fallback_email: str) -> str:
+    user_metadata = payload.get("user_metadata", {}) or {}
+    app_metadata = payload.get("app_metadata", {}) or {}
+
+    name = (
+        user_metadata.get("full_name")
+        or user_metadata.get("name")
+        or app_metadata.get("full_name")
+        or app_metadata.get("name")
+    )
+
+    normalized = (name or "").strip()
+    if normalized:
+        return normalized[:255]
+
+    return fallback_email
+
+
+async def get_current_active_user_for_v1(
+    u_id_str: str = Depends(get_current_user),
+    payload: dict = Depends(get_user_payload),
+) -> str:
+    target_db = getattr(db, "_db", getattr(db, "pool", None))
+
+    iat = payload.get("iat")
+    if iat and (datetime.datetime.now(datetime.timezone.utc).timestamp() - iat) > 86400:
+        raise HTTPException(status_code=401, detail="Sesija istekla.")
+
+    u_id = UUID(u_id_str)
+    is_hard_deleted = await target_db.fetchval(
+        "SELECT 1 FROM hard_deleted_users WHERE supabase_uid = $1",
+        u_id,
+    )
+    if is_hard_deleted:
+        raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
+
+    user = await target_db.fetchrow(
+        "SELECT is_active FROM users WHERE supabase_uid = $1",
+        u_id,
+    )
+
+    if user is None:
+        email = _extract_email(payload)
+        extracted_name = _extract_name(payload, email)
+        user_role_id = await target_db.fetchval("SELECT id FROM roles WHERE name = 'USER'")
+        await target_db.execute(
+            """INSERT INTO users (name, email, supabase_uid, is_active, role_id, created_at)
+               VALUES ($1, $2, $3, true, $4, NOW())
+               ON CONFLICT (supabase_uid) DO NOTHING""",
+            extracted_name,
+            email,
+            u_id,
+            user_role_id,
+        )
+        user = await target_db.fetchrow(
+            "SELECT is_active FROM users WHERE supabase_uid = $1",
+            u_id,
+        )
+
+    if user is None or not user["is_active"]:
+        raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
+
+    return u_id_str
 
 router = APIRouter(
     tags=["Products, Chains and Stores"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_active_user_for_v1)],
 )
 db = settings.get_db()
 logger = logging.getLogger(__name__)

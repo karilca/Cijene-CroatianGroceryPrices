@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { apiUrl } from '../config/api';
 import type { Product, Store } from '../types';
+import { createLocalizedApiErrorFromPayload, LocalizedApiError } from '../utils/apiErrors';
 
 interface FavoriteProductsPayload {
   items: Array<{
@@ -29,7 +30,7 @@ interface FavoriteStoresPayload {
 const getAccessToken = async (supabase: SupabaseClient): Promise<string> => {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
-    throw new Error('Korisnik nije prijavljen.');
+    throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
   }
   return session.access_token;
 };
@@ -44,7 +45,8 @@ export const getFavoriteProducts = async (supabase: SupabaseClient): Promise<Pro
   });
 
   if (!response.ok) {
-    throw new Error('Greška pri dohvaćanju omiljenih proizvoda.');
+    const payload = await response.json().catch(() => null);
+    throw createLocalizedApiErrorFromPayload(payload, 'Failed to load favorites.');
   }
 
   const payload = await response.json() as FavoriteProductsPayload;
@@ -70,7 +72,8 @@ export const addFavoriteProduct = async (supabase: SupabaseClient, productId: st
   });
 
   if (!response.ok) {
-    throw new Error('Greška pri dodavanju omiljenog proizvoda.');
+    const payload = await response.json().catch(() => null);
+    throw createLocalizedApiErrorFromPayload(payload, 'Failed to update favorites.');
   }
 };
 
@@ -82,7 +85,8 @@ export const removeFavoriteProduct = async (supabase: SupabaseClient, productId:
   });
 
   if (!response.ok) {
-    throw new Error('Greška pri uklanjanju omiljenog proizvoda.');
+    const payload = await response.json().catch(() => null);
+    throw createLocalizedApiErrorFromPayload(payload, 'Failed to update favorites.');
   }
 };
 
@@ -94,7 +98,8 @@ export const getFavoriteStores = async (supabase: SupabaseClient): Promise<Store
   });
 
   if (!response.ok) {
-    throw new Error('Greška pri dohvaćanju omiljenih trgovina.');
+    const payload = await response.json().catch(() => null);
+    throw createLocalizedApiErrorFromPayload(payload, 'Failed to load favorites.');
   }
 
   const payload = await response.json() as FavoriteStoresPayload;
@@ -133,7 +138,8 @@ export const addFavoriteStore = async (
   });
 
   if (!response.ok) {
-    throw new Error('Greška pri dodavanju omiljene trgovine.');
+    const payload = await response.json().catch(() => null);
+    throw createLocalizedApiErrorFromPayload(payload, 'Failed to update favorites.');
   }
 };
 
@@ -145,7 +151,8 @@ export const removeFavoriteStore = async (supabase: SupabaseClient, storeId: str
   });
 
   if (!response.ok) {
-    throw new Error('Greška pri uklanjanju omiljene trgovine.');
+    const payload = await response.json().catch(() => null);
+    throw createLocalizedApiErrorFromPayload(payload, 'Failed to update favorites.');
   }
 };
 

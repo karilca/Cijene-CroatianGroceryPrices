@@ -104,6 +104,16 @@ def _extract_name(payload: dict, fallback_email: str) -> str:
     return fallback_email
 
 
+def _raise_api_error(status_code: int, detail_code: str, detail: str) -> None:
+    raise HTTPException(
+        status_code=status_code,
+        detail={
+            "detail_code": detail_code,
+            "detail": detail,
+        },
+    )
+
+
 async def _prune_audit_logs(target_db):
     await target_db.execute(
         """
@@ -176,6 +186,61 @@ async def get_user_with_role(u_id: UUID, payload: dict):
     extracted_name = _extract_name(payload, email)
 
     if user is None:
+        hard_deleted_user = await target_db.fetchrow(
+            """
+            SELECT supabase_uid, email, deleted_at
+            FROM hard_deleted_users
+            WHERE supabase_uid = $1
+            """,
+            u_id,
+        )
+        if hard_deleted_user is not None:
+            try:
+                await _log_admin_action(
+                    target_db,
+                    admin={"supabase_uid": u_id, "email": email},
+                    action="user.access_after_hard_delete_denied",
+                    target_user={
+                        "supabase_uid": hard_deleted_user["supabase_uid"],
+                        "email": hard_deleted_user.get("email"),
+                    },
+                    before={"deleted_at": str(hard_deleted_user["deleted_at"])},
+                    after={"allowed": False},
+                )
+            except Exception:
+                # Reject access even if audit persistence fails.
+                pass
+            raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
+
+        deleted_user = await target_db.fetchrow(
+            """
+            SELECT supabase_uid, email, deleted_at
+            FROM users
+            WHERE supabase_uid = $1
+              AND deleted_at IS NOT NULL
+            ORDER BY deleted_at DESC
+            LIMIT 1
+            """,
+            u_id,
+        )
+        if deleted_user is not None:
+            try:
+                await _log_admin_action(
+                    target_db,
+                    admin={"supabase_uid": u_id, "email": email},
+                    action="user.access_after_delete_denied",
+                    target_user={
+                        "supabase_uid": deleted_user["supabase_uid"],
+                        "email": deleted_user.get("email"),
+                    },
+                    before={"deleted_at": str(deleted_user["deleted_at"])},
+                    after={"allowed": False},
+                )
+            except Exception:
+                # Reject access even if audit persistence fails.
+                pass
+            raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
+
         user_role_id = await target_db.fetchval("SELECT id FROM roles WHERE name = 'USER'")
         await target_db.execute(
             """INSERT INTO users (name, email, supabase_uid, is_active, role_id, created_at)
@@ -231,7 +296,7 @@ app = FastAPI(title="Cijene API - Admin Control Panel", lifespan=lifespan)
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.cors_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -444,9 +509,10 @@ async def delete_own_account(payload: SelfDeleteAccountRequest, user = Depends(g
     if user["role_name"] == "ADMIN":
         active_admin_count = await _get_active_admin_count(target_db)
         if active_admin_count <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Nije dopušteno deaktivirati zadnjeg aktivnog administratora.",
+            _raise_api_error(
+                status.HTTP_400_BAD_REQUEST,
+                "ADMIN_LAST_ACTIVE_DEACTIVATION_FORBIDDEN",
+                "Cannot deactivate the last active administrator.",
             )
 
     await target_db.execute(
@@ -898,9 +964,10 @@ async def admin_update_user(u_id: UUID, data: UserUpdate, admin = Depends(requir
             """
         )
         if active_admin_count <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Nije dopušteno ukloniti zadnjeg aktivnog administratora.",
+            _raise_api_error(
+                status.HTTP_400_BAD_REQUEST,
+                "ADMIN_LAST_ACTIVE_DEACTIVATION_FORBIDDEN",
+                "Cannot deactivate the last active administrator.",
             )
 
     before = {
@@ -982,9 +1049,10 @@ async def admin_soft_delete_user(
             """
         )
         if active_admin_count <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Nije dopušteno deaktivirati zadnjeg aktivnog administratora.",
+            _raise_api_error(
+                status.HTTP_400_BAD_REQUEST,
+                "ADMIN_LAST_ACTIVE_DEACTIVATION_FORBIDDEN",
+                "Cannot deactivate the last active administrator.",
             )
 
     before = {
@@ -1087,6 +1155,28 @@ async def admin_hard_delete_user(
 
     async with target_db.acquire() as conn:
         async with conn.transaction():
+            await conn.execute(
+                """
+                INSERT INTO hard_deleted_users (
+                    supabase_uid,
+                    email,
+                    deleted_reason,
+                    deleted_by_supabase_uid,
+                    deleted_at
+                )
+                VALUES ($1, $2, COALESCE($3, 'Hard delete via admin panel'), $4, NOW())
+                ON CONFLICT (supabase_uid)
+                DO UPDATE SET
+                    email = EXCLUDED.email,
+                    deleted_reason = EXCLUDED.deleted_reason,
+                    deleted_by_supabase_uid = EXCLUDED.deleted_by_supabase_uid,
+                    deleted_at = EXCLUDED.deleted_at
+                """,
+                u_id,
+                target_user.get("email"),
+                payload.reason,
+                admin["supabase_uid"],
+            )
             await conn.execute("DELETE FROM cart_items WHERE user_id = $1", u_id)
             await conn.execute("DELETE FROM favorite_products WHERE user_id = $1", u_id)
             await conn.execute("DELETE FROM favorite_stores WHERE user_id = $1", u_id)

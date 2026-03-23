@@ -33,6 +33,7 @@ docker-compose up -d
 
 - `POSTGRES_PASSWORD` - lozinka baze podataka
 - `BASE_URL` - javni API URL
+- `CORS_ALLOW_ORIGINS` - dozvoljeni frontend origini za CORS (zarezom odvojeni)
 - `DEBUG` - `false` za produkciju
 - `TIMEZONE` - `Europe/Zagreb`
 - `DB_RETENTION_DAYS` - broj dana price podataka za čuvanje (`0` = bez brisanja)

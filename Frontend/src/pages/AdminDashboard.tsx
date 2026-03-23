@@ -9,6 +9,7 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { createLocalizedApiErrorFromPayload, resolveApiErrorMessage } from '../utils/apiErrors';
 
 // --- INTERFACES ---
 interface Role {
@@ -258,10 +259,10 @@ const AdminDashboard: React.FC = () => {
         await Promise.all([fetchData(), fetchAuditLogs()]);
       } else {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.detail || t('admin.updateFailed'));
+        throw createLocalizedApiErrorFromPayload(data, t('admin.updateFailed'));
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('admin.updateFailed');
+      const message = resolveApiErrorMessage(err, t, 'admin.updateFailed');
       notifyError(message, t('common.error'));
     } finally {
       setIsUpdating(false);
@@ -307,7 +308,7 @@ const AdminDashboard: React.FC = () => {
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.detail || t('admin.bulk.failedDeactivate'));
+        throw createLocalizedApiErrorFromPayload(data, t('admin.bulk.failedDeactivate'));
       }
 
       const data = await res.json() as BulkOperationResponse;
@@ -325,7 +326,7 @@ const AdminDashboard: React.FC = () => {
       setSelectedUserIds(new Set());
       await Promise.all([fetchData(), fetchAuditLogs()]);
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('admin.bulk.failedDeactivate');
+      const message = resolveApiErrorMessage(err, t, 'admin.bulk.failedDeactivate');
       notifyError(message, t('common.error'));
     } finally {
       setIsBulkDeactivating(false);
@@ -362,7 +363,7 @@ const AdminDashboard: React.FC = () => {
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.detail || t('admin.bulk.failedRoleUpdate'));
+        throw createLocalizedApiErrorFromPayload(data, t('admin.bulk.failedRoleUpdate'));
       }
 
       const data = await res.json() as BulkOperationResponse;
@@ -381,7 +382,7 @@ const AdminDashboard: React.FC = () => {
       setBulkRoleId('');
       await Promise.all([fetchData(), fetchAuditLogs()]);
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('admin.bulk.failedRoleUpdate');
+      const message = resolveApiErrorMessage(err, t, 'admin.bulk.failedRoleUpdate');
       notifyError(message, t('common.error'));
     } finally {
       setIsBulkUpdatingRole(false);
@@ -410,10 +411,10 @@ const AdminDashboard: React.FC = () => {
         await Promise.all([fetchData(), fetchAuditLogs()]);
       } else {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.detail || t('admin.deleteFailed'));
+        throw createLocalizedApiErrorFromPayload(data, t('admin.deleteFailed'));
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('admin.deleteFailed');
+      const message = resolveApiErrorMessage(err, t, 'admin.deleteFailed');
       notifyError(message, t('common.error'));
     } finally {
       setIsDeleting(false);

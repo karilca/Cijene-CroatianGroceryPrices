@@ -1,6 +1,8 @@
 // Error message component
 
 import React from 'react';
+import { useContext } from 'react';
+import { LanguageContext } from '../../contexts/LanguageContext';
 
 interface ErrorMessageProps {
   message: string;
@@ -11,10 +13,14 @@ interface ErrorMessageProps {
 
 export const ErrorMessage: React.FC<ErrorMessageProps> = ({
   message,
-  title = 'Error',
+  title,
   onRetry,
   className = ''
 }) => {
+  const languageContext = useContext(LanguageContext);
+  const resolvedTitle = title ?? (languageContext ? languageContext.t('common.error') : 'Error');
+  const retryLabel = languageContext ? languageContext.t('common.tryAgain') : 'Try again';
+
   return (
     <div className={`bg-red-50 border border-red-200 rounded-lg p-4 ${className}`}>
       <div className="flex items-center">
@@ -31,7 +37,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
             d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" 
           />
         </svg>
-        <h3 className="text-sm font-medium text-red-800">{title}</h3>
+        <h3 className="text-sm font-medium text-red-800">{resolvedTitle}</h3>
       </div>
       <p className="mt-2 text-sm text-red-700">{message}</p>
       {onRetry && (
@@ -39,7 +45,7 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
           onClick={onRetry}
           className="mt-3 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
         >
-          Try again
+          {retryLabel}
         </button>
       )}
     </div>

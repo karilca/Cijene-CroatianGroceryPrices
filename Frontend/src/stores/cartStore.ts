@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { addToCart, getCartItems, removeFromCart, type CartItem } from '../api/cart';
+import { LocalizedApiError } from '../utils/apiErrors';
 
 interface CartStoreState {
   items: CartItem[];
   isLoading: boolean;
   isInitialized: boolean;
-  error: string | null;
+  error: unknown | null;
   itemCount: number;
   loadCart: () => Promise<void>;
   addItem: (productId: string, quantity?: number) => Promise<void>;
@@ -52,7 +53,7 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
       });
     } catch (error) {
       set({
-        error: error instanceof Error ? error.message : 'Failed to load cart',
+        error,
         isInitialized: true,
         isLoading: false,
       });
@@ -62,7 +63,7 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
   addItem: async (productId: string, quantity = 1) => {
     const result = await addToCart(supabase, productId, quantity);
     if (!result.success) {
-      throw new Error(result.message || 'Failed to add item to cart');
+      throw new LocalizedApiError('CART_ADD_FAILED', result.message || 'Failed to add item to cart.');
     }
     await get().loadCart();
   },
@@ -70,7 +71,7 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
   removeItem: async (productId: string) => {
     const result = await removeFromCart(supabase, productId);
     if (!result.success) {
-      throw new Error(result.message || 'Failed to remove item from cart');
+      throw new LocalizedApiError('CART_REMOVE_FAILED', result.message || 'Failed to remove item from cart.');
     }
     await get().loadCart();
   },

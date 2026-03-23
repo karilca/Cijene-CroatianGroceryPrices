@@ -13,6 +13,7 @@ import { useGeolocation } from '../hooks/useGeolocation';
 import type { StoreSearchRequest, Store } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { PAGINATION } from '../constants';
+import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 export const StoresPage: React.FC = () => {
   const { t } = useLanguage();
@@ -202,7 +203,7 @@ export const StoresPage: React.FC = () => {
           {error && (
             <div className="p-6">
               <ErrorMessage
-                message={error instanceof Error ? error.message : t('stores.error')}
+                message={resolveApiErrorMessage(error, t, 'stores.error')}
                 onRetry={refetch}
               />
             </div>

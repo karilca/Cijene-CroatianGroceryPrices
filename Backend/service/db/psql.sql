@@ -62,6 +62,16 @@ CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
 CREATE INDEX IF NOT EXISTS idx_users_name_lower ON users (LOWER(name));
 CREATE INDEX IF NOT EXISTS idx_users_role_active ON users (role_id, is_active);
 
+CREATE TABLE IF NOT EXISTS hard_deleted_users (
+    supabase_uid UUID PRIMARY KEY,
+    email VARCHAR(255),
+    deleted_reason TEXT,
+    deleted_by_supabase_uid UUID,
+    deleted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_hard_deleted_users_deleted_at ON hard_deleted_users (deleted_at DESC);
+
 CREATE TABLE IF NOT EXISTS admin_audit_logs (
     id BIGSERIAL PRIMARY KEY,
     actor_supabase_uid UUID NOT NULL,

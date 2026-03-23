@@ -4,6 +4,7 @@ import { apiClient, RequestValidator } from './api-client';
 import { BaseService } from './base.service';
 import { ENDPOINTS } from '../constants';
 import type { ChainListResponse, Chain, ServiceMethodOptions, ChainStatsResponse } from '../types';
+import { LocalizedApiError } from '../utils/apiErrors';
 
 export class ChainService extends BaseService {
   /**
@@ -57,7 +58,7 @@ export class ChainService extends BaseService {
       const chain = response.chains.find(c => c.code.toLowerCase() === code.toLowerCase());
 
       if (!chain) {
-        throw new Error(`Chain not found: ${code}`);
+        throw new LocalizedApiError('CHAIN_NOT_FOUND', `Chain not found: ${code}.`);
       }
 
       return chain;
@@ -120,7 +121,7 @@ export class ChainService extends BaseService {
     RequestValidator.validateRequired(query, 'query');
 
     if (query.trim().length === 0) {
-      throw new Error('Search query cannot be empty');
+      throw new LocalizedApiError('VALIDATION_SEARCH_QUERY_EMPTY', 'Search query cannot be empty.');
     }
 
     try {
@@ -189,13 +190,16 @@ export class ChainService extends BaseService {
   private validateChainCode(code: string): void {
     // Chain codes are typically short strings (2-10 characters)
     if (code.length < 2 || code.length > 10) {
-      throw new Error('Chain code must be between 2 and 10 characters');
+      throw new LocalizedApiError('VALIDATION_CHAIN_CODE_LENGTH_INVALID', 'Chain code must be between 2 and 10 characters.');
     }
 
     // Allow alphanumeric characters, hyphens, and underscores
     const codeRegex = /^[A-Za-z0-9_-]+$/;
     if (!codeRegex.test(code)) {
-      throw new Error('Chain code can only contain letters, numbers, hyphens, and underscores');
+      throw new LocalizedApiError(
+        'VALIDATION_CHAIN_CODE_FORMAT_INVALID',
+        'Chain code can only contain letters, numbers, hyphens, and underscores.',
+      );
     }
   }
 }

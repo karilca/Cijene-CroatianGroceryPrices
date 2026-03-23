@@ -8,16 +8,16 @@ import './App.css';
 
 function App() {
 return (
+<LanguageProvider>
 <ErrorBoundary>
 <NotificationProvider>
 <GlobalErrorHandlerProvider>
-<LanguageProvider>
 <LanguageSelectionPopup />
 <AppRouter />
-</LanguageProvider>
 </GlobalErrorHandlerProvider>
 </NotificationProvider>
 </ErrorBoundary>
+</LanguageProvider>
 );
 }
 

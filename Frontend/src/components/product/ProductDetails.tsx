@@ -4,6 +4,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
+import { resolveApiErrorMessage } from '../../utils/apiErrors';
 import { useProductFavorite } from '../../hooks/useFavorite';
 import { useProductPrices } from '../../hooks/useApiQueries';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -252,7 +253,7 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
         {pricesError && (
           <ErrorMessage
             title={t('productDetails.priceLoadingError')}
-            message={pricesError instanceof Error ? pricesError.message : t('priceComparison.loadFailed')}
+            message={resolveApiErrorMessage(pricesError, t, 'priceComparison.loadFailed')}
             onRetry={() => window.location.reload()}
           />
         )}

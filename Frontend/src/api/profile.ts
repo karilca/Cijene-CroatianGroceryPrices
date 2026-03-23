@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { apiUrl } from '../config/api';
+import { createLocalizedApiErrorFromPayload, LocalizedApiError } from '../utils/apiErrors';
 
 export interface UserProfile {
   id: number;
@@ -29,7 +30,7 @@ interface UserProfileUpdateResponse {
 const getAccessToken = async (supabase: SupabaseClient): Promise<string> => {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
-    throw new Error('Korisnik nije prijavljen.');
+    throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
   }
 
   return session.access_token;
@@ -45,7 +46,8 @@ export const getUserProfile = async (supabase: SupabaseClient): Promise<UserProf
   });
 
   if (!response.ok) {
-    throw new Error('Greška pri dohvaćanju profila.');
+    const payload = await response.json().catch(() => null);
+    throw createLocalizedApiErrorFromPayload(payload, 'Failed to load profile data.');
   }
 
   const payload = await response.json() as UserProfileResponse;
@@ -75,16 +77,8 @@ export const updateUserProfileName = async (
   });
 
   if (!response.ok) {
-    let detailMessage = 'Greška pri spremanju imena.';
-    try {
-      const payload = await response.json() as { detail?: string };
-      if (payload?.detail) {
-        detailMessage = payload.detail;
-      }
-    } catch {
-      // keep fallback message
-    }
-    throw new Error(detailMessage);
+    const payload = await response.json().catch(() => null);
+    throw createLocalizedApiErrorFromPayload(payload, 'Failed to update profile name.');
   }
 
   const payload = await response.json() as UserProfileUpdateResponse;
@@ -110,15 +104,7 @@ export const deleteOwnAccount = async (
   });
 
   if (!response.ok) {
-    let detailMessage = 'Greška pri deaktivaciji računa.';
-    try {
-      const payload = await response.json() as { detail?: string };
-      if (payload?.detail) {
-        detailMessage = payload.detail;
-      }
-    } catch {
-      // keep fallback message
-    }
-    throw new Error(detailMessage);
+    const payload = await response.json().catch(() => null);
+    throw createLocalizedApiErrorFromPayload(payload, 'Failed to deactivate account.');
   }
 }

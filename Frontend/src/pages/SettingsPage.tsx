@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../components/common/NotificationContext';
 import { supabase } from '../lib/supabase';
 import { deleteOwnAccount, getUserProfile, updateUserProfileName } from '../api/profile';
+import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 export const SettingsPage = () => {
   const navigate = useNavigate();
@@ -73,7 +74,7 @@ export const SettingsPage = () => {
       });
       notifySuccess(t('settings.nameSaved'));
     } catch (error: unknown) {
-      notifyError(error instanceof Error ? error.message : t('settings.nameSaveFailed'), t('common.error'));
+      notifyError(resolveApiErrorMessage(error, t, 'settings.nameSaveFailed'), t('common.error'));
     } finally {
       setIsSavingName(false);
     }
@@ -103,7 +104,7 @@ export const SettingsPage = () => {
       setConfirmPassword('');
       notifySuccess(t('settings.passwordSaved'));
     } catch (error: unknown) {
-      notifyError(error instanceof Error ? error.message : t('settings.passwordSaveFailed'), t('common.error'));
+      notifyError(resolveApiErrorMessage(error, t, 'settings.passwordSaveFailed'), t('common.error'));
     } finally {
       setIsChangingPassword(false);
     }
@@ -127,7 +128,7 @@ export const SettingsPage = () => {
       notifySuccess(t('settings.deleteSuccess'));
       navigate('/', { replace: true });
     } catch (error: unknown) {
-      notifyError(error instanceof Error ? error.message : t('settings.deleteFailed'), t('common.error'));
+      notifyError(resolveApiErrorMessage(error, t, 'settings.deleteFailed'), t('common.error'));
     } finally {
       setIsDeleting(false);
     }

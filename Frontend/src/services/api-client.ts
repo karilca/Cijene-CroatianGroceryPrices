@@ -6,6 +6,24 @@ import { API_CONFIG, ERROR_MESSAGES } from '../constants';
 import { GlobalErrorHandler } from '../utils/errorHandling';
 import { supabase } from '../lib/supabase';
 
+const DEACTIVATED_ACCOUNT_MESSAGES = [
+  'Račun je deaktiviran.',
+  'Account is deactivated.',
+];
+
+const isDeactivatedAccountError = (payload: unknown): boolean => {
+  if (!payload || typeof payload !== 'object') return false;
+
+  const data = payload as { detail?: unknown; message?: unknown };
+  const detail = typeof data.detail === 'string' ? data.detail : '';
+  const message = typeof data.message === 'string' ? data.message : '';
+  const combined = `${detail} ${message}`.toLowerCase();
+
+  return DEACTIVATED_ACCOUNT_MESSAGES.some((candidate) =>
+    combined.includes(candidate.toLowerCase())
+  );
+};
+
 export class ApiClient {
   private client: AxiosInstance;
   private retryCount = 0;
@@ -112,6 +130,9 @@ export class ApiClient {
 
         if (status === 403) {
           const errorMessage = data?.detail || data?.message || ERROR_MESSAGES.FORBIDDEN;
+          if (isDeactivatedAccountError(data)) {
+            void supabase.auth.signOut();
+          }
           console.warn('Access forbidden:', errorMessage);
           const apiError = new ApiError(
             errorMessage,

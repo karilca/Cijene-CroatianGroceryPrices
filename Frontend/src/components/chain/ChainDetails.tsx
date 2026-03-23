@@ -139,7 +139,7 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
 
   if (!chainCode) {
     return (
-      <ErrorMessage message="Chain code is required" />
+      <ErrorMessage message={t('chainDetails.missingCode')} />
     );
   }
 
