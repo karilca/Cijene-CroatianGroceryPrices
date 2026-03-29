@@ -78,7 +78,8 @@ class ZabacCrawler(BaseCrawler):
 
         canonical_headers = []
         for header in parsed_header:
-            key = header.strip()
+            # Strip any UTF-8 BOM that may be present (commonly on the first header cell)
+            key = header.lstrip("\ufeff").strip()
             normalized = self.strip_diacritics(key).lower()
             canonical_headers.append(self.HEADER_ALIASES.get(normalized, key))
 
