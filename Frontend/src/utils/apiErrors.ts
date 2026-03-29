@@ -60,15 +60,15 @@ export const parseApiErrorPayload = (payload: unknown): ParsedApiError => {
     return {};
   }
 
-  const topLevelCode = asString(root.detail_code);
-  const topLevelMessage = asString(root.message);
+  const topLevelCode = asString(root['detail_code']);
+  const topLevelMessage = asString(root['message']);
 
-  const detailValue = root.detail;
+  const detailValue = root['detail'];
   const detailAsText = asString(detailValue);
   const detailAsObject = asRecord(detailValue);
 
-  const nestedCode = detailAsObject ? asString(detailAsObject.detail_code) : undefined;
-  const nestedMessage = detailAsObject ? asString(detailAsObject.detail) : undefined;
+  const nestedCode = detailAsObject ? asString(detailAsObject['detail_code']) : undefined;
+  const nestedMessage = detailAsObject ? asString(detailAsObject['detail']) : undefined;
 
   return {
     detailCode: topLevelCode ?? nestedCode,

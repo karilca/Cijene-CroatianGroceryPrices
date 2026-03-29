@@ -15,9 +15,25 @@ CREATE TABLE IF NOT EXISTS users (
 
 ALTER TABLE users
 ADD COLUMN IF NOT EXISTS email VARCHAR(255),
+ADD COLUMN IF NOT EXISTS supabase_uid UUID,
+ADD COLUMN IF NOT EXISTS role_id INTEGER,
 ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS deleted_reason TEXT,
-ADD COLUMN IF NOT EXISTS deleted_by_supabase_uid UUID;
+ADD COLUMN IF NOT EXISTS deleted_by_supabase_uid UUID,
+ALTER COLUMN api_key DROP NOT NULL;
+
+-- Ensure uniqueness on supabase_uid for existing installations
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND indexname = 'users_supabase_uid_key'
+    ) THEN
+        CREATE UNIQUE INDEX users_supabase_uid_key ON users (supabase_uid);
+    END IF;
+END $$;
 
 UPDATE users
 SET email = name

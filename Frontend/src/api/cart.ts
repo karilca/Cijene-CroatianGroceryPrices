@@ -98,7 +98,7 @@ export const removeFromCart = async (
             throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
         }
 
-        const response = await fetch(apiUrl(`/v1/cart/remove/${productId}`), {
+        const response = await fetch(apiUrl(`/v1/cart/remove/${encodeURIComponent(productId)}`), {
             method: "DELETE",
             headers: { "Authorization": `Bearer ${session.access_token}` }
         });

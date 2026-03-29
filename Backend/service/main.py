@@ -291,7 +291,16 @@ async def lifespan(app: FastAPI):
     yield
     await db.close()
 
-app = FastAPI(title="Cijene API - Admin Control Panel", lifespan=lifespan)
+app = FastAPI(
+    title="Cijene API",
+    description="Service for product pricing data by Croatian grocery chains",
+    version=settings.version,
+    debug=settings.debug,
+    lifespan=lifespan,
+    openapi_components={
+        "securitySchemes": {"HTTPBearer": {"type": "http", "scheme": "bearer"}}
+    },
+)
 
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(

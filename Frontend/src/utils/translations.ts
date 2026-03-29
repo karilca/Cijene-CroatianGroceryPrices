@@ -47,6 +47,8 @@ export const translations = {
         'auth.close': 'Close',
         'auth.accountMenu': 'Account menu',
         'auth.loggedInAs': 'Signed in as',
+        'auth.checkLogin': 'Checking login...',
+        'auth.checkAdmin': 'Checking admin privileges...',
 
         // Footer
         'footer.about.title': 'About Cijene',
@@ -660,6 +662,8 @@ export const translations = {
         'auth.close': 'Zatvori',
         'auth.accountMenu': 'Izbornik računa',
         'auth.loggedInAs': 'Prijavljeni kao',
+        'auth.checkLogin': 'Provjera prijave...',
+        'auth.checkAdmin': 'Provjera administratorskih ovlasti...',
 
         // Footer
         'footer.about.title': 'O Cijenama',
