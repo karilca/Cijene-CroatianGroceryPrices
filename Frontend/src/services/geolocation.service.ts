@@ -85,7 +85,10 @@ export class GeolocationService {
    */
   async getCurrentPosition(options?: GeolocationOptions): Promise<GeolocationPosition> {
     if (!this.isSupported()) {
-      throw new Error('Geolocation is not supported by this browser');
+      throw {
+        code: 0,
+        message: this.getErrorMessage(0),
+      } as GeolocationError;
     }
 
     // ── Phase 1: instant browser-cached position ────────────────────────
@@ -139,7 +142,7 @@ export class GeolocationService {
     if (!this.isSupported()) {
       onError({
         code: 0,
-        message: 'Geolocation is not supported by this browser',
+        message: this.getErrorMessage(0),
       });
       return 0;
     }
@@ -270,12 +273,16 @@ export class GeolocationService {
    */
   private getErrorMessage(code: number): string {
     switch (code) {
+      case 0:
+        return 'Geolocation is not supported by this browser.';
       case 1:
         return 'Location access denied. Please enable location services.';
       case 2:
         return 'Location unavailable. Please check your GPS or network connection.';
       case 3:
         return 'Location request timed out. Please try again.';
+      case 4:
+        return 'Permissions API is not supported in this browser.';
       default:
         return 'An unknown geolocation error occurred.';
     }
@@ -286,7 +293,10 @@ export class GeolocationService {
    */
   async getPermissionState(): Promise<PermissionState> {
     if (!('permissions' in navigator)) {
-      throw new Error('Permissions API not supported');
+      throw {
+        code: 4,
+        message: this.getErrorMessage(4),
+      } as GeolocationError;
     }
 
     const permission = await navigator.permissions.query({ name: 'geolocation' });

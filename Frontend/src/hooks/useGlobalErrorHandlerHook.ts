@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { useNotifications } from '../components/common/NotificationContext';
 import { GlobalErrorHandler, ErrorType } from '../utils/errorHandling';
-import { ERROR_MESSAGES } from '../constants';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export const useGlobalErrorHandler = () => {
   const { notifyError, notifyWarning } = useNotifications();
+  const { t } = useLanguage();
 
   useEffect(() => {
     const globalHandler = GlobalErrorHandler.getInstance();
@@ -17,10 +18,10 @@ export const useGlobalErrorHandler = () => {
       switch (error.type) {
         case ErrorType.NETWORK:
           notifyError(
-            ERROR_MESSAGES.NETWORK_ERROR,
-            'Connection Error',
+            t('errors.network.message'),
+            t('errors.connection.title'),
             {
-              label: 'Retry',
+              label: t('common.retry'),
               onClick: () => window.location.reload()
             }
           );
@@ -28,27 +29,27 @@ export const useGlobalErrorHandler = () => {
 
         case ErrorType.SERVER:
           notifyError(
-            ERROR_MESSAGES.API_ERROR,
-            'Server Error',
+            t('errors.server.message'),
+            t('errors.server.title'),
             error.isRetryable ? {
-              label: 'Retry',
+              label: t('common.retry'),
               onClick: () => window.location.reload()
             } : undefined
           );
           break;
 
         case ErrorType.VALIDATION:
-          notifyWarning(error.message, 'Validation Error');
+          notifyWarning(error.message || t('errors.validation.message'), t('errors.validation.title'));
           break;
 
         case ErrorType.NOT_FOUND:
-          notifyWarning('The requested resource was not found.', 'Not Found');
+          notifyWarning(t('errors.notFound.message'), t('errors.notFound.title'));
           break;
 
         default:
           notifyError(
-            error.message || 'An unexpected error occurred.',
-            'Error'
+            error.message || t('errors.unexpected'),
+            t('common.error')
           );
           break;
       }
@@ -72,5 +73,5 @@ export const useGlobalErrorHandler = () => {
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       window.removeEventListener('error', handleGlobalError);
     };
-  }, [notifyError, notifyWarning]);
+  }, [notifyError, notifyWarning, t]);
 };

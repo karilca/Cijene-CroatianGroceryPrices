@@ -4,6 +4,7 @@ import { apiClient, RequestValidator } from './api-client';
 import { BaseService } from './base.service';
 import { ENDPOINTS } from '../constants';
 import type { ArchiveListResponse, ServiceMethodOptions } from '../types';
+import { LocalizedApiError } from '../utils/apiErrors';
 
 export class ArchiveService extends BaseService {
   /**
@@ -65,7 +66,7 @@ export class ArchiveService extends BaseService {
       const archive = archives.archives.find(a => a.date === date);
       
       if (!archive) {
-        throw new Error(`Archive for date ${date} not found`);
+        throw new LocalizedApiError('ARCHIVE_NOT_FOUND', `Archive for date ${date} not found.`);
       }
       
       return archive;
@@ -99,7 +100,7 @@ export class ArchiveService extends BaseService {
       const archives = await this.getArchives(options);
       
       if (archives.archives.length === 0) {
-        throw new Error('No archives available');
+        throw new LocalizedApiError('ARCHIVE_NONE_AVAILABLE', 'No archives available.');
       }
       
       // Sort by date descending and return the latest

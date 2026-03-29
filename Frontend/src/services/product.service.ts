@@ -4,6 +4,7 @@ import { apiClient, RequestValidator } from './api-client';
 import { BaseService } from './base.service';
 import { URLParamsBuilder } from '../utils/urlParams';
 import { ENDPOINTS, PAGINATION } from '../constants';
+import { LocalizedApiError } from '../utils/apiErrors';
 import type {
   ProductSearchResponse,
   ProductSearchRequest,
@@ -244,7 +245,7 @@ export class ProductService extends BaseService {
     this.validateBaseSearchParams(params);
 
     if (params.ean && params.ean.trim().length === 0) {
-      throw new Error('EAN cannot be empty');
+      throw new LocalizedApiError('VALIDATION_EAN_REQUIRED', 'EAN cannot be empty.');
     }
   }
 

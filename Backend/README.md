@@ -33,15 +33,20 @@ docker-compose up -d
 
 - `POSTGRES_PASSWORD` - lozinka baze podataka
 - `BASE_URL` - javni API URL
+- `CORS_ALLOW_ORIGINS` - dozvoljeni frontend origini za CORS (zarezom odvojeni)
 - `DEBUG` - `false` za produkciju
 - `TIMEZONE` - `Europe/Zagreb`
 - `DB_RETENTION_DAYS` - broj dana price podataka za čuvanje (`0` = bez brisanja)
+- `AUDIT_LOG_RETENTION_DAYS` - broj dana čuvanja admin audit log zapisa (default `90`)
 - `SEARCH_FTS_WEIGHT` - težina FTS ranka u product pretrazi
 - `SEARCH_PREFIX_WEIGHT` - težina prefix podudaranja u product pretrazi
 - `SEARCH_TRIGRAM_WEIGHT` - težina trigram podudaranja u product pretrazi
 - `SEARCH_TRIGRAM_THRESHOLD_SHORT` - minimalni trigram score za kratke upite
 - `SEARCH_TRIGRAM_THRESHOLD_LONG` - minimalni trigram score za duže upite
 - `SEARCH_TRIGRAM_LONG_QUERY_LEN` - duljina upita od koje se koristi LONG threshold
+- `SUPABASE_URL` - URL vašeg Supabase projekta (obavezno za `/v1/*`, koristi se za JWKS provjeru tokena)
+- `SUPABASE_JWT_SECRET` - opcionalni legacy fallback (stari shared-secret JWT model)
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase Secret key (`sb_secret_...`, opcionalno; za admin sync operacije)
 
 ## Korištenje
 
@@ -117,6 +122,10 @@ crontab -e
 
 Servis dostupan na `http://localhost:8000`
 
+Read endpointi pod `/v1/*` koriste Supabase JWT autentikaciju.
+Nakon registracije i prijave u Frontendu nije potreban ručni unos `api_key` u bazu.
+Admin sync prema Supabase Auth koristi `SUPABASE_SERVICE_ROLE_KEY` (Secret key).
+
 Pretraga trgovina po `city` i `address` je case-insensitive i accent-insensitive
 (npr. `Šibenik` = `Sibenik`, te `đ` ≈ `dj`) i ne mijenja originalne vrijednosti
 pohranjene u bazi.
@@ -127,12 +136,22 @@ pohranjene u bazi.
 # Pristup bazi
 docker-compose exec db psql -U cijene_user -d cijene
 
-# Kreiranje korisnika (za autentificirane endpointe)
-INSERT INTO users (name, api_key, is_active) VALUES ('Ime', 'secret-key', TRUE);
+# Postavi korisnika na admin rolu (role_id=2)
+UPDATE users
+SET role_id = 2
+WHERE id = <USER_ID>;
+
+# Provjera
+SELECT id, name, role_id
+FROM users
+WHERE id = <USER_ID>;
 
 # Backup
 docker-compose exec db pg_dump -U cijene_user cijene > backup.sql
 ```
+
+Napomena: ručno kreiranje `api_key` korisnika više nije potrebno za standardni rad
+pretrage proizvoda, lanaca i trgovina kroz `/v1/*`.
 
 ## Održavanje
 

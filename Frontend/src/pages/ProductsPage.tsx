@@ -6,6 +6,7 @@ import { ProductSearch, ProductCard, ProductDetails } from '../components/produc
 import { CompareBar } from '../components/product/CompareBar';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorMessage } from '../components/common/ErrorMessage';
+import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 import { useProductSearch } from '../hooks/useApiQueries';
 import type { ProductSearchRequest, Product } from '../types';
@@ -141,7 +142,7 @@ export const ProductsPage: React.FC = () => {
           {searchError && (
             <ErrorMessage
               title={t('products.error.title')}
-              message={searchError instanceof Error ? searchError.message : t('products.error.message')}
+              message={resolveApiErrorMessage(searchError, t, 'products.error.message')}
               onRetry={() => handleSearch(searchParams)}
             />
           )}

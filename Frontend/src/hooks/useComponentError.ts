@@ -2,8 +2,8 @@
 
 import { useCallback } from 'react';
 import { useNotifications } from '../components/common/NotificationContext';
-import { useErrorState, classifyError, getUserFriendlyMessage } from '../utils/errorHandling';
-import { ERROR_MESSAGES } from '../constants';
+import { useErrorState, classifyError } from '../utils/errorHandling';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export interface UseComponentErrorOptions {
   showNotifications?: boolean;
@@ -26,6 +26,7 @@ export const useComponentError = (options: UseComponentErrorOptions = {}) => {
   } = options;
 
   const { notifyError } = useNotifications();
+  const { t } = useLanguage();
   const errorState = useErrorState({ 
     maxRetries, 
     retryDelay,
@@ -38,16 +39,33 @@ export const useComponentError = (options: UseComponentErrorOptions = {}) => {
 
     // Show notification if enabled
     if (showNotifications) {
-      const message = getUserFriendlyMessage(enhancedError);
-      notifyError(message, 'Error', enhancedError.isRetryable ? {
-        label: 'Retry',
+      let message = enhancedError.message || t('errors.unexpected');
+      switch (enhancedError.type) {
+        case 'NETWORK':
+          message = t('errors.network.message');
+          break;
+        case 'SERVER':
+          message = t('errors.server.message');
+          break;
+        case 'NOT_FOUND':
+          message = t('errors.notFound.message');
+          break;
+        case 'VALIDATION':
+          message = enhancedError.message || t('errors.validation.message');
+          break;
+        default:
+          break;
+      }
+
+      notifyError(message, t('common.error'), enhancedError.isRetryable ? {
+        label: t('common.retry'),
         onClick: () => errorState.retry()
       } : undefined);
     }
 
     // Call custom error handler
     onError?.(enhancedError);
-  }, [errorState, showNotifications, notifyError, onError]);
+  }, [errorState, showNotifications, notifyError, onError, t]);
 
   const handleRetry = useCallback(() => {
     if (onRetry) {
@@ -72,6 +90,7 @@ export const useComponentError = (options: UseComponentErrorOptions = {}) => {
  */
 export const useApiError = () => {
   const { notifyError, notifyWarning } = useNotifications();
+  const { t } = useLanguage();
 
   const handleApiError = useCallback((error: unknown) => {
     const enhancedError = classifyError(error);
@@ -79,10 +98,10 @@ export const useApiError = () => {
     switch (enhancedError.type) {
       case 'NETWORK':
         notifyError(
-          ERROR_MESSAGES.NETWORK_ERROR, 
-          'Connection Error',
+          t('errors.network.message'),
+          t('errors.connection.title'),
           {
-            label: 'Retry',
+            label: t('common.retry'),
             onClick: () => window.location.reload()
           }
         );
@@ -93,21 +112,21 @@ export const useApiError = () => {
         break;
 
       case 'VALIDATION':
-        notifyWarning(enhancedError.message, 'Validation Error');
+        notifyWarning(enhancedError.message, t('errors.validation.title'));
         break;
 
       case 'NOT_FOUND':
-        notifyWarning('The requested resource was not found.', 'Not Found');
+        notifyWarning(t('errors.notFound.message'), t('errors.notFound.title'));
         break;
 
       default:
         notifyError(
-          enhancedError.message || ERROR_MESSAGES.API_ERROR,
-          'Error'
+          enhancedError.message || t('errors.server.message'),
+          t('common.error')
         );
         break;
     }
-  }, [notifyError, notifyWarning]);
+  }, [notifyError, notifyWarning, t]);
 
   return { handleApiError };
 };
@@ -117,6 +136,7 @@ export const useApiError = () => {
  */
 export const useFormError = () => {
   const { notifyWarning } = useNotifications();
+  const { t } = useLanguage();
 
   const handleValidationError = useCallback((errors: Record<string, string>) => {
     const errorMessages = Object.values(errors);
@@ -124,24 +144,24 @@ export const useFormError = () => {
       notifyWarning(
         errorMessages.length === 1 
           ? errorMessages[0] 
-          : `Please fix ${errorMessages.length} validation errors`,
-        'Validation Error'
+          : t('errors.form.validationMultiple').replace('{count}', String(errorMessages.length)),
+        t('errors.validation.title')
       );
     }
-  }, [notifyWarning]);
+  }, [notifyWarning, t]);
 
   const handleFormSubmitError = useCallback((error: unknown) => {
     const enhancedError = classifyError(error);
     
     if (enhancedError.type === 'VALIDATION') {
-      notifyWarning(enhancedError.message, 'Form Error');
+      notifyWarning(enhancedError.message, t('errors.form.title'));
     } else {
       notifyWarning(
-        enhancedError.message || 'Failed to submit form. Please try again.',
-        'Submission Error'
+        enhancedError.message || t('errors.form.submitFailed'),
+        t('errors.form.submissionTitle')
       );
     }
-  }, [notifyWarning]);
+  }, [notifyWarning, t]);
 
   return {
     handleValidationError,

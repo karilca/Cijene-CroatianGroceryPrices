@@ -1,42 +1,126 @@
 // Favorites page component
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Package, Store, Trash2 } from 'lucide-react';
 import { useFavoriteProducts, useFavoriteStores, useFavoriteActions } from '../stores/appStore';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { FavoritesList } from '../components/favorites';
 import { useLanguage } from '../contexts/LanguageContext';
+import { supabase } from '../lib/supabase';
+import {
+  getFavoriteProducts,
+  getFavoriteStores,
+  getNormalizedStoreId,
+  removeFavoriteProduct as removeFavoriteProductApi,
+  removeFavoriteStore as removeFavoriteStoreApi,
+} from '../api/favorites';
+import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import { useNotifications } from '../components/common/NotificationContext';
 
 type TabType = 'products' | 'stores';
 
 export const FavoritesPage: React.FC = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
+  const { session } = useAuth();
+  const { notifyError } = useNotifications();
   const [activeTab, setActiveTab] = useState<TabType>('products');
   const products = useFavoriteProducts();
   const stores = useFavoriteStores();
-  const { removeProduct, removeStore } = useFavoriteActions();
+  const { removeProduct, removeStore, setProducts, setStores } = useFavoriteActions();
 
-  const handleClearAll = () => {
+  const refreshFavorites = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+
+    try {
+      const [latestProducts, latestStores] = await Promise.all([
+        getFavoriteProducts(supabase),
+        getFavoriteStores(supabase),
+      ]);
+
+      setProducts(latestProducts);
+      setStores(latestStores);
+    } catch {
+      notifyError(t('favorites.loadFailed'), t('common.error'));
+    }
+  }, [notifyError, session, setProducts, setStores, t]);
+
+  useEffect(() => {
+    void refreshFavorites();
+  }, [refreshFavorites]);
+
+  const ensureAuthenticated = () => {
+    if (!session) {
+      navigate(`/?auth=signin&redirect=${encodeURIComponent('/favorites')}`);
+      return false;
+    }
+    return true;
+  };
+
+  const handleClearAll = async () => {
     const confirmMessage = activeTab === 'products'
       ? t('favorites.confirmClear.products')
       : t('favorites.confirmClear.stores');
 
-    if (window.confirm(confirmMessage)) {
-      if (activeTab === 'products') {
-        products.forEach(product => removeProduct(product.ean || product.id || ''));
-      } else {
-        stores.forEach(store => removeStore(store.id));
+    if (!window.confirm(confirmMessage) || !ensureAuthenticated()) {
+      return;
+    }
+
+    if (activeTab === 'products') {
+      setProducts([]); // optimističan prikaz prazne liste
+      try {
+        await Promise.allSettled(products.map(async (product) => {
+          const productId = product.ean || product.id || '';
+          if (productId) {
+            await removeFavoriteProductApi(supabase, productId);
+          }
+        }));
+      } finally {
+        await refreshFavorites();
+      }
+    } else {
+      setStores([]); // optimističan prikaz prazne liste
+      try {
+        await Promise.allSettled(stores.map(async (store) => {
+          const storeId = getNormalizedStoreId(store);
+          if (storeId) {
+            await removeFavoriteStoreApi(supabase, storeId);
+          }
+        }));
+      } finally {
+        await refreshFavorites();
       }
     }
   };
 
-  const handleRemoveProduct = (productId: string) => {
+  const handleRemoveProduct = async (productId: string) => {
+    if (!ensureAuthenticated()) {
+      return;
+    }
+    const previous = [...products];
     removeProduct(productId);
+    try {
+      await removeFavoriteProductApi(supabase, productId);
+    } catch {
+      setProducts(previous);
+    }
   };
 
-  const handleRemoveStore = (storeId: string) => {
+  const handleRemoveStore = async (storeId: string) => {
+    if (!ensureAuthenticated()) {
+      return;
+    }
+    const previous = [...stores];
     removeStore(storeId);
+    try {
+      await removeFavoriteStoreApi(supabase, storeId);
+    } catch {
+      setStores(previous);
+    }
   };
 
   const currentItems = activeTab === 'products' ? products : stores;
@@ -117,7 +201,13 @@ export const FavoritesPage: React.FC = () => {
           <FavoritesList
             type={activeTab}
             items={currentItems}
-            onRemoveItem={activeTab === 'products' ? handleRemoveProduct : handleRemoveStore}
+            onRemoveItem={(id) => {
+              if (activeTab === 'products') {
+                void handleRemoveProduct(id);
+                return;
+              }
+              void handleRemoveStore(id);
+            }}
           />
         </div>
       </div>

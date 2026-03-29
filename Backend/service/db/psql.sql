@@ -2,12 +2,108 @@
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    api_key VARCHAR(64) UNIQUE NOT NULL,
+    email VARCHAR(255),
+    api_key VARCHAR(64) UNIQUE,
+    supabase_uid UUID UNIQUE,
+    role_id INTEGER,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    deleted_at TIMESTAMPTZ,
+    deleted_reason TEXT,
+    deleted_by_supabase_uid UUID,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS email VARCHAR(255),
+ADD COLUMN IF NOT EXISTS supabase_uid UUID,
+ADD COLUMN IF NOT EXISTS role_id INTEGER,
+ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS deleted_reason TEXT,
+ADD COLUMN IF NOT EXISTS deleted_by_supabase_uid UUID,
+ALTER COLUMN api_key DROP NOT NULL;
+
+-- Ensure uniqueness on supabase_uid for existing installations
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND indexname = 'users_supabase_uid_key'
+    ) THEN
+        CREATE UNIQUE INDEX users_supabase_uid_key ON users (supabase_uid);
+    END IF;
+END $$;
+
+UPDATE users
+SET email = name
+WHERE email IS NULL AND name LIKE '%@%';
+
+-- Roles table for auth/authorization
+CREATE TABLE IF NOT EXISTS roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Ensure role_id FK exists when users table was created before roles table
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'fk_users_role_id'
+    ) THEN
+        ALTER TABLE users
+        ADD CONSTRAINT fk_users_role_id
+        FOREIGN KEY (role_id) REFERENCES roles (id)
+        ON DELETE SET NULL;
+    END IF;
+END $$;
+
+-- Default roles used by API
+INSERT INTO roles (name, description)
+VALUES
+    ('USER', 'Regular user'),
+    ('ADMIN', 'Administrator')
+ON CONFLICT (name) DO NOTHING;
+
 CREATE INDEX IF NOT EXISTS idx_users_api_key ON users (api_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_supabase_uid
+ON users (supabase_uid)
+WHERE supabase_uid IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
+CREATE INDEX IF NOT EXISTS idx_users_name_lower ON users (LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_users_role_active ON users (role_id, is_active);
+
+CREATE TABLE IF NOT EXISTS hard_deleted_users (
+    supabase_uid UUID PRIMARY KEY,
+    email VARCHAR(255),
+    deleted_reason TEXT,
+    deleted_by_supabase_uid UUID,
+    deleted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_hard_deleted_users_deleted_at ON hard_deleted_users (deleted_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    actor_supabase_uid UUID NOT NULL,
+    actor_email VARCHAR(255),
+    target_supabase_uid UUID,
+    target_email VARCHAR(255),
+    action VARCHAR(100) NOT NULL,
+    before_data JSONB,
+    after_data JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_action ON admin_audit_logs (action);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_actor ON admin_audit_logs (actor_supabase_uid);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_target ON admin_audit_logs (target_supabase_uid);
 
 -- Chains table to store retailer chains
 CREATE TABLE IF NOT EXISTS chains (
@@ -139,3 +235,37 @@ CREATE TABLE IF NOT EXISTS chain_prices (
     avg_price DECIMAL(10, 2) NOT NULL,
     UNIQUE (chain_product_id, price_date)
 );
+
+-- Cart table used by authenticated API endpoints
+CREATE TABLE IF NOT EXISTS cart_items (
+    user_id UUID NOT NULL,
+    product_id VARCHAR(50) NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, product_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cart_items_user_id ON cart_items (user_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_product_id ON cart_items (product_id);
+
+-- Favorites tables used by authenticated API endpoints
+CREATE TABLE IF NOT EXISTS favorite_products (
+    user_id UUID NOT NULL,
+    product_id VARCHAR(50) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, product_id)
+);
+
+CREATE TABLE IF NOT EXISTS favorite_stores (
+    user_id UUID NOT NULL,
+    store_id VARCHAR(150) NOT NULL,
+    chain_code VARCHAR(50) NOT NULL,
+    store_code VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, store_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_favorite_products_user_id ON favorite_products (user_id);
+CREATE INDEX IF NOT EXISTS idx_favorite_products_product_id ON favorite_products (product_id);
+CREATE INDEX IF NOT EXISTS idx_favorite_stores_user_id ON favorite_stores (user_id);
+CREATE INDEX IF NOT EXISTS idx_favorite_stores_chain_store ON favorite_stores (chain_code, store_code);

@@ -4,10 +4,12 @@ import React from 'react';
 import { useNetworkStatus } from '../../utils/errorHandling';
 import { useNotifications } from './NotificationContext';
 import { useEffect, useRef } from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export const OfflineIndicator: React.FC = () => {
   const isOnline = useNetworkStatus();
   const { notifyWarning, notifySuccess } = useNotifications();
+  const { t } = useLanguage();
   const wasOffline = useRef(false);
 
   useEffect(() => {
@@ -15,18 +17,18 @@ export const OfflineIndicator: React.FC = () => {
       // Just went offline
       wasOffline.current = true;
       notifyWarning(
-        'You are currently offline. Some features may not be available.',
-        'No Internet Connection',
+        t('errors.offline.toastMessage'),
+        t('errors.offline.toastTitle'),
       );
     } else if (isOnline && wasOffline.current) {
       // Just came back online
       wasOffline.current = false;
       notifySuccess(
-        'Connection restored. All features are now available.',
-        'Back Online'
+        t('errors.online.toastMessage'),
+        t('errors.online.toastTitle')
       );
     }
-  }, [isOnline, notifyWarning, notifySuccess]);
+  }, [isOnline, notifyWarning, notifySuccess, t]);
 
   if (isOnline) {
     return null;
@@ -38,8 +40,8 @@ export const OfflineIndicator: React.FC = () => {
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
-        <span className="font-medium">You are offline</span>
-        <span className="text-yellow-100">• Some features may be limited</span>
+        <span className="font-medium">{t('errors.offline.bannerTitle')}</span>
+        <span className="text-yellow-100">{t('errors.offline.bannerHint')}</span>
       </div>
     </div>
   );

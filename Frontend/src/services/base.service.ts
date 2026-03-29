@@ -2,6 +2,7 @@
 
 import { PAGINATION } from '../constants';
 import type { ServiceMethodOptions } from '../types';
+import { LocalizedApiError } from '../utils/apiErrors';
 
 interface ServiceErrorLike {
   name?: string;
@@ -29,14 +30,14 @@ export abstract class BaseService {
     console.error(`${serviceName}.${method} error:`, serviceError);
     
     if (serviceError.response) {
-      return new Error(`API Error: ${serviceError.response.status} - ${serviceError.response.data?.message || 'Unknown error'}`);
+      return new LocalizedApiError('API_GENERIC', serviceError.response.data?.message || 'Service request failed.');
     }
     
     if (serviceError.request) {
-      return new Error('Network error: Unable to reach the server');
+      return new LocalizedApiError('NETWORK_UNAVAILABLE', 'Network error: Unable to reach the server.');
     }
     
-    return new Error(`Service error in ${method}: ${serviceError.message || 'Unknown error'}`);
+    return new LocalizedApiError('SERVICE_GENERIC', serviceError.message || `Service error in ${serviceName}.${method}.`);
   }
 
   /**
@@ -44,15 +45,18 @@ export abstract class BaseService {
    */
   protected validateBaseSearchParams(params: { query?: string; page?: number; per_page?: number }): void {
     if (params.query && params.query.trim().length === 0) {
-      throw new Error('Search query cannot be empty');
+      throw new LocalizedApiError('VALIDATION_SEARCH_QUERY_EMPTY', 'Search query cannot be empty.');
     }
     
     if (params.page && params.page < 1) {
-      throw new Error('Page number must be greater than 0');
+      throw new LocalizedApiError('VALIDATION_PAGE_NUMBER_INVALID', 'Page number must be greater than 0.');
     }
     
     if (params.per_page && (params.per_page < 1 || params.per_page > PAGINATION.MAX_PER_PAGE)) {
-      throw new Error(`Per page must be between 1 and ${PAGINATION.MAX_PER_PAGE}`);
+      throw new LocalizedApiError(
+        'VALIDATION_PER_PAGE_RANGE',
+        `Per page must be between 1 and ${PAGINATION.MAX_PER_PAGE}.`,
+      );
     }
   }
 
@@ -62,12 +66,12 @@ export abstract class BaseService {
   protected validateDateFormat(date: string): void {
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(date)) {
-      throw new Error('Date must be in YYYY-MM-DD format');
+      throw new LocalizedApiError('VALIDATION_DATE_FORMAT_INVALID', 'Date must be in YYYY-MM-DD format.');
     }
     
     const parsedDate = new Date(date);
     if (isNaN(parsedDate.getTime())) {
-      throw new Error('Invalid date provided');
+      throw new LocalizedApiError('VALIDATION_DATE_INVALID', 'Invalid date provided.');
     }
   }
 

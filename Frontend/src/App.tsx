@@ -5,19 +5,20 @@ import { GlobalErrorHandlerProvider } from './hooks/useGlobalErrorHandler';
 import { AppRouter } from './config/router';
 import './App.css';
 
+
 function App() {
-  return (
-    <ErrorBoundary>
-      <NotificationProvider>
-        <GlobalErrorHandlerProvider>
-          <LanguageProvider>
-            <LanguageSelectionPopup />
-            <AppRouter />
-          </LanguageProvider>
-        </GlobalErrorHandlerProvider>
-      </NotificationProvider>
-    </ErrorBoundary>
-  );
+return (
+<LanguageProvider>
+<ErrorBoundary>
+<NotificationProvider>
+<GlobalErrorHandlerProvider>
+<LanguageSelectionPopup />
+<AppRouter />
+</GlobalErrorHandlerProvider>
+</NotificationProvider>
+</ErrorBoundary>
+</LanguageProvider>
+);
 }
 
 export default App;

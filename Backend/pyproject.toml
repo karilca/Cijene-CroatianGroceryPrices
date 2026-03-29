@@ -12,7 +12,10 @@ dependencies = [
     "lxml>=5.4.0",
     "openpyxl>=3.1.5",
     "pydantic>=2.11.4",
+    "pyjwt[crypto]>=2.11.0",
     "python-dotenv>=1.1.0",
+    "setuptools>=82.0.1",
+    "sqlalchemy>=2.0.48",
     "uvicorn>=0.34.2",
 ]
 

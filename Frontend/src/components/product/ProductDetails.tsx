@@ -1,13 +1,16 @@
 import React from 'react';
-import { Heart, Package, Barcode, MapPin, TrendingDown, TrendingUp, Star, ChevronLeft } from 'lucide-react';
+import { Heart, Package, Barcode, MapPin, TrendingDown, TrendingUp, Star, ChevronLeft, ShoppingCart } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
+import { resolveApiErrorMessage } from '../../utils/apiErrors';
 import { useProductFavorite } from '../../hooks/useFavorite';
 import { useProductPrices } from '../../hooks/useApiQueries';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useCartStore } from '../../stores/cartStore';
 import type { Product, Price } from '../../types';
+import { useNotifications } from '../common/NotificationContext';
 
 interface ProductDetailsProps {
   product: Product;
@@ -25,11 +28,12 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
   chains
 }) => {
   const { isFavorite, toggleFavorite } = useProductFavorite(product);
+  const addItem = useCartStore((state) => state.addItem);
+  const { notifyError, notifySuccess } = useNotifications();
   const { t } = useLanguage();
   const imageBaseUrl = import.meta.env.VITE_IMAGE_BASE_URL;
   const imageUrl = product.ean ? `${imageBaseUrl}${product.ean}.png` : null;
 
-  // Fetch pricing data
   const {
     data: priceComparison,
     isLoading: pricesLoading,
@@ -46,6 +50,18 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
 
   const handleFavoriteToggle = () => {
     toggleFavorite();
+  };
+
+  const handleAddToCart = async () => {
+    const targetId = product.id || product.ean || '';
+    if (!targetId) return;
+
+    try {
+      await addItem(String(targetId), 1);
+      notifySuccess(t('cart.itemAdded'));
+    } catch {
+      notifyError(t('cart.addFailed'), t('common.error'));
+    }
   };
 
   const formatPrice = (price: number | string) => {
@@ -81,7 +97,6 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
 
   return (
     <div className={`space-y-6 ${className}`}>
-      {/* Header */}
       <div className="flex items-start gap-4">
         {onBack && (
           <Button
@@ -121,9 +136,19 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
         </div>
       </div>
 
-      {/* Product Information */}
       <Card className="p-4 sm:p-6">
-        <h2 className="text-lg font-semibold mb-4">{t('productDetails.productInfo')}</h2>
+        <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold">{t('productDetails.productInfo')}</h2>
+            
+            <Button 
+                onClick={handleAddToCart}
+                variant="primary"
+                className="flex items-center gap-2"
+            >
+                <ShoppingCart className="w-4 h-4" />
+              {t('cart.addToCart')}
+            </Button>
+        </div>
         
         <div className="flex flex-col md:flex-row gap-6">
           {imageUrl && (
@@ -140,7 +165,6 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
           )}
           
           <div className={`grid grid-cols-1 ${imageUrl ? 'md:grid-cols-1 lg:grid-cols-2' : 'md:grid-cols-2'} gap-6 flex-grow`}>
-            {/* Basic Info */}
             <div className="space-y-4">
             {product.ean && (
               <div className="flex items-center gap-3">
@@ -184,7 +208,6 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
             )}
           </div>
 
-          {/* Chain Info */}
           <div className="space-y-4">
             {product.chain && (
               <div>
@@ -207,7 +230,6 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
         </div>
       </div>
 
-        {/* Description */}
         {product.description && (
           <div className="mt-6 pt-6 border-t border-gray-100">
             <h3 className="font-semibold text-gray-900 mb-2">{t('productDetails.description')}</h3>
@@ -216,7 +238,6 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
         )}
       </Card>
 
-      {/* Price Comparison */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">{t('productDetails.priceComparison')}</h2>
@@ -232,14 +253,13 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
         {pricesError && (
           <ErrorMessage
             title={t('productDetails.priceLoadingError')}
-            message={pricesError instanceof Error ? pricesError.message : 'Failed to load price comparison data'}
+            message={resolveApiErrorMessage(pricesError, t, 'priceComparison.loadFailed')}
             onRetry={() => window.location.reload()}
           />
         )}
 
         {priceComparison && !pricesLoading && (
           <div className="space-y-4">
-            {/* Price Summary */}
             {priceComparison.prices.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
                 <div className="text-center">
@@ -274,7 +294,6 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
               </div>
             )}
 
-            {/* Price List */}
             {priceComparison.prices.length > 0 ? (
               <div className="space-y-2">
                 <h3 className="font-medium text-gray-900">{t('productDetails.storesAndPrices')}</h3>

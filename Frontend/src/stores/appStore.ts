@@ -60,9 +60,11 @@ interface AppState {
   addFavoriteProduct: (product: Product) => void;
   removeFavoriteProduct: (productId: string) => void;
   isFavoriteProduct: (productId: string) => boolean;
+  setFavoriteProducts: (products: Product[]) => void;
   addFavoriteStore: (store: Store) => void;
   removeFavoriteStore: (storeId: string) => void;
   isFavoriteStore: (storeId: string) => boolean;
+  setFavoriteStores: (stores: Store[]) => void;
   clearFavorites: () => void;
 
   // Actions for search history
@@ -127,6 +129,16 @@ const initialState = {
 const MAX_SEARCH_HISTORY = 10;
 const MAX_RECENT_ITEMS = 20;
 
+const getStoreKey = (store: Store): string => {
+  if (store.id) {
+    return String(store.id);
+  }
+  if (store.chain_code && store.code) {
+    return `${store.chain_code}:${store.code}`;
+  }
+  return `${store.chain_code}-${store.address}`;
+};
+
 // Create the store with persistence
 export const useAppStore = create<AppState>()(
   persist(
@@ -168,19 +180,33 @@ export const useAppStore = create<AppState>()(
         const state = get();
         return state.favoriteProducts.some(p => (p.ean || p.id) === productId);
       },
+      setFavoriteProducts: (products: Product[]) => {
+        const deduped = products.filter((product, index, arr) => {
+          const productId = product.ean || product.id;
+          return !!productId && arr.findIndex((p) => (p.ean || p.id) === productId) === index;
+        });
+        set({ favoriteProducts: deduped });
+      },
       addFavoriteStore: (store: Store) => set((state) => {
-        const storeId = store.id || store.code || `${store.chain_code}-${store.address}`;
-        if (!storeId || state.favoriteStores.some(s => (s.id || s.code || `${s.chain_code}-${s.address}`) === storeId)) {
+        const storeId = getStoreKey(store);
+        if (!storeId || state.favoriteStores.some(s => getStoreKey(s) === storeId)) {
           return state;
         }
-        return { favoriteStores: [...state.favoriteStores, store] };
+        return { favoriteStores: [...state.favoriteStores, { ...store, id: storeId }] };
       }),
       removeFavoriteStore: (storeId: string) => set((state) => ({
-        favoriteStores: state.favoriteStores.filter(s => (s.id || s.code || `${s.chain_code}-${s.address}`) !== storeId)
+        favoriteStores: state.favoriteStores.filter(s => getStoreKey(s) !== storeId)
       })),
       isFavoriteStore: (storeId: string) => {
         const state = get();
-        return state.favoriteStores.some(s => (s.id || s.code || `${s.chain_code}-${s.address}`) === storeId);
+        return state.favoriteStores.some(s => getStoreKey(s) === storeId);
+      },
+      setFavoriteStores: (stores: Store[]) => {
+        const deduped = stores.filter((store, index, arr) => {
+          const storeId = getStoreKey(store);
+          return !!storeId && arr.findIndex((s) => getStoreKey(s) === storeId) === index;
+        }).map((store) => ({ ...store, id: getStoreKey(store) }));
+        set({ favoriteStores: deduped });
       },
       clearFavorites: () => set({ favoriteProducts: [], favoriteStores: [] }),
 
@@ -267,6 +293,14 @@ export const useAppStore = create<AppState>()(
     {
       name: 'cijene-app-store', // Storage key
       storage: createJSONStorage(() => localStorage),
+      version: 2,
+      migrate: (persistedState: unknown) => {
+        const state = (persistedState ?? {}) as Record<string, unknown>;
+        const { favoriteProducts, favoriteStores, ...rest } = state;
+        void favoriteProducts;
+        void favoriteStores;
+        return rest;
+      },
       // Only persist user preferences and user data, not UI state
       partialize: (state) => ({
         theme: state.theme,
@@ -275,8 +309,6 @@ export const useAppStore = create<AppState>()(
         preferredChains: state.preferredChains,
         currency: state.currency,
         language: state.language,
-        favoriteProducts: state.favoriteProducts,
-        favoriteStores: state.favoriteStores,
         searchHistory: state.searchHistory,
         recentlyViewedProducts: state.recentlyViewedProducts,
         recentlyViewedStores: state.recentlyViewedStores,
@@ -316,9 +348,11 @@ export const useFavoriteStores = () => useAppStore((state) => state.favoriteStor
 export const useAddFavoriteProduct = () => useAppStore((state) => state.addFavoriteProduct);
 export const useRemoveFavoriteProduct = () => useAppStore((state) => state.removeFavoriteProduct);
 export const useIsProductFavorite = () => useAppStore((state) => state.isFavoriteProduct);
+export const useSetFavoriteProducts = () => useAppStore((state) => state.setFavoriteProducts);
 export const useAddFavoriteStore = () => useAppStore((state) => state.addFavoriteStore);
 export const useRemoveFavoriteStore = () => useAppStore((state) => state.removeFavoriteStore);
 export const useIsStoreFavorite = () => useAppStore((state) => state.isFavoriteStore);
+export const useSetFavoriteStores = () => useAppStore((state) => state.setFavoriteStores);
 export const useClearFavorites = () => useAppStore((state) => state.clearFavorites);
 
 // Combined actions hook - avoid using this in components that frequently re-render
@@ -326,18 +360,22 @@ export const useFavoriteActions = () => {
   const addProduct = useAddFavoriteProduct();
   const removeProduct = useRemoveFavoriteProduct();
   const isProductFavorite = useIsProductFavorite();
+  const setProducts = useSetFavoriteProducts();
   const addStore = useAddFavoriteStore();
   const removeStore = useRemoveFavoriteStore();
   const isStoreFavorite = useIsStoreFavorite();
+  const setStores = useSetFavoriteStores();
   const clear = useClearFavorites();
 
   return {
     addProduct,
     removeProduct,
     isProductFavorite,
+    setProducts,
     addStore,
     removeStore,
     isStoreFavorite,
+    setStores,
     clear
   };
 };
