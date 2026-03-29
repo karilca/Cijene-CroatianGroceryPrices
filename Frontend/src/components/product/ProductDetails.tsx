@@ -69,7 +69,7 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
       const bestPrice = best.special_price || best.price;
       return currentPrice < bestPrice ? current : best;
     }).store_id;
-  }, [priceComparison, t]);
+  }, [priceComparison]);
 
   const worstPriceStoreId = React.useMemo(() => {
     if (!priceComparison?.prices?.length) return null;
