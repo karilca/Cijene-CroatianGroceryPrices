@@ -269,7 +269,10 @@ async def get_user_with_role(u_id: UUID, payload: dict):
 
     return user
 
-async def get_current_active_user(u_id_str: str = Depends(get_current_user), payload: dict = Depends(get_user_payload)):
+async def get_current_active_user(payload: dict = Depends(get_user_payload)):
+    u_id_str = payload.get("sub")
+    if not u_id_str:
+        raise HTTPException(status_code=401, detail="User ID missing in authentication token")
     user = await get_user_with_role(UUID(u_id_str), payload)
     if not user['is_active']:
         raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
@@ -311,6 +314,14 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+
+from fastapi.responses import RedirectResponse
+
+@app.get("/", include_in_schema=False)
+async def root():
+    if getattr(settings, "redirect_url", None):
+        return RedirectResponse(url=settings.redirect_url)
+    return {"message": "Cijene API is running. Check /docs for documentation."}
 
 @app.get("/health")
 async def healthcheck():

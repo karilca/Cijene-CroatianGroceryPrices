@@ -53,7 +53,7 @@ export const useCartStore = create<CartStoreState>((set, get) => ({
       });
     } catch (error) {
       set({
-        error,
+        error: error instanceof Error ? error.message : String(error),
         isInitialized: true,
         isLoading: false,
       });

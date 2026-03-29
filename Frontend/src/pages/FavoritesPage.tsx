@@ -71,33 +71,29 @@ export const FavoritesPage: React.FC = () => {
     }
 
     if (activeTab === 'products') {
-      await Promise.all(products.map(async (product) => {
-        const productId = product.ean || product.id || '';
-        if (!productId) {
-          return;
-        }
-        const previous = [...products];
-        removeProduct(productId);
-        try {
-          await removeFavoriteProductApi(supabase, productId);
-        } catch {
-          setProducts(previous);
-        }
-      }));
+      setProducts([]); // optimističan prikaz prazne liste
+      try {
+        await Promise.allSettled(products.map(async (product) => {
+          const productId = product.ean || product.id || '';
+          if (productId) {
+            await removeFavoriteProductApi(supabase, productId);
+          }
+        }));
+      } finally {
+        await refreshFavorites();
+      }
     } else {
-      await Promise.all(stores.map(async (store) => {
-        const storeId = getNormalizedStoreId(store);
-        if (!storeId) {
-          return;
-        }
-        const previous = [...stores];
-        removeStore(storeId);
-        try {
-          await removeFavoriteStoreApi(supabase, storeId);
-        } catch {
-          setStores(previous);
-        }
-      }));
+      setStores([]); // optimističan prikaz prazne liste
+      try {
+        await Promise.allSettled(stores.map(async (store) => {
+          const storeId = getNormalizedStoreId(store);
+          if (storeId) {
+            await removeFavoriteStoreApi(supabase, storeId);
+          }
+        }));
+      } finally {
+        await refreshFavorites();
+      }
     }
   };
 

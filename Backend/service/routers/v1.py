@@ -38,9 +38,15 @@ def _extract_name(payload: dict, fallback_email: str) -> str:
 
 
 async def get_current_active_user_for_v1(
-    u_id_str: str = Depends(get_current_user),
     payload: dict = Depends(get_user_payload),
 ) -> str:
+    from fastapi import status
+    u_id_str = payload.get("sub")
+    if not u_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID missing in authentication token",
+        )
     target_db = getattr(db, "_db", getattr(db, "pool", None))
 
     iat = payload.get("iat")
