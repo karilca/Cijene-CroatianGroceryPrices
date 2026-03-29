@@ -64,7 +64,7 @@ def build_default_output_path() -> Path:
 def write_report(output_path: Path, rows: list[asyncpg.Record]) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with output_path.open("w", encoding="utf-8") as f:
+    with output_path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f, lineterminator="\n")
         # Same column order as enrichment/stores.csv for easy copy/paste workflow.
         writer.writerow([
