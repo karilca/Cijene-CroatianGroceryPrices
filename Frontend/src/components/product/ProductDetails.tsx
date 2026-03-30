@@ -140,7 +140,7 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
         }
         return a.chainName.localeCompare(b.chainName);
       });
-  }, [priceComparison]);
+  }, [priceComparison, t]);
 
   const lowestChainPrice = chainPriceGroups[0]?.minPrice;
 
