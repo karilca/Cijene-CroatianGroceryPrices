@@ -291,6 +291,21 @@ def write_report(report_path: Path, rows: list[dict[str, str]]) -> None:
         writer.writerows(rows)
 
 
+def _safe_exc_msg(exc: Exception) -> str:
+    """Return a sanitized exception message that redacts query parameters (e.g., API keys).
+
+    For ``httpx.HTTPStatusError`` the message contains only the HTTP status code
+    and the URL host+path (query parameters such as ``key=`` are omitted).
+    For all other exceptions the plain string representation is returned.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        url = exc.request.url
+        host = url.host or "unknown"
+        path = url.path or "/"
+        return f"HTTP {exc.response.status_code} from {host}{path}"
+    return str(exc)
+
+
 async def _request_json_with_retry(
     client: httpx.AsyncClient,
     url: str,
@@ -546,11 +561,12 @@ async def run(args: argparse.Namespace) -> int:
                     result = await google_lookup_store(client, store)
                 except Exception as exc:
                     stats["lookup_failed"] += 1
+                    safe_msg = _safe_exc_msg(exc)
                     logger.warning(
                         "Lookup failed for existing %s/%s: %s",
                         store.chain_code,
                         store.store_code,
-                        exc,
+                        safe_msg,
                     )
                     report_rows.append(
                         _report_row(
@@ -561,7 +577,7 @@ async def run(args: argparse.Namespace) -> int:
                             lon=None,
                             zipcode=current_row.get("zipcode", ""),
                             phone=current_row.get("phone", ""),
-                            note=str(exc),
+                            note=safe_msg,
                         )
                     )
                     continue
@@ -623,11 +639,12 @@ async def run(args: argparse.Namespace) -> int:
                 result = await google_lookup_store(client, store)
             except Exception as exc:
                 stats["lookup_failed"] += 1
+                safe_msg = _safe_exc_msg(exc)
                 logger.warning(
                     "Lookup failed for %s/%s: %s",
                     store.chain_code,
                     store.store_code,
-                    exc,
+                    safe_msg,
                 )
                 report_rows.append(
                     _report_row(
@@ -638,7 +655,7 @@ async def run(args: argparse.Namespace) -> int:
                         lon=None,
                         zipcode=store.zipcode,
                         phone=store.phone,
-                        note=str(exc),
+                        note=safe_msg,
                     )
                 )
                 continue
