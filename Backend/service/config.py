@@ -23,6 +23,12 @@ class Settings:
         self.debug: bool = os.getenv("DEBUG", "false").lower() == "true"
         self.timezone: str = os.getenv("TIMEZONE", "Europe/Zagreb")
         self.redirect_url: str = os.getenv("REDIRECT_URL", "https://cijene.netlify.app/")
+        cors_origins_raw = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:5173")
+        self.cors_allow_origins: list[str] = [
+            origin.strip()
+            for origin in cors_origins_raw.split(",")
+            if origin.strip()
+        ]
 
         # Database configuration
         self.db_dsn: str = os.getenv(
@@ -32,6 +38,10 @@ class Settings:
         self.db_min_connections: int = int(os.getenv("DB_MIN_CONNECTIONS", "5"))
         self.db_max_connections: int = int(os.getenv("DB_MAX_CONNECTIONS", "20"))
         self.db_retention_days: int = max(0, int(os.getenv("DB_RETENTION_DAYS", "0")))
+        self.audit_log_retention_days: int = max(
+            1,
+            int(os.getenv("AUDIT_LOG_RETENTION_DAYS", "90")),
+        )
 
         self.search_fts_weight: float = max(
             0.0,
@@ -65,6 +75,11 @@ class Settings:
             0.0,
             float(os.getenv("SEARCH_TOKEN_AVG_WEIGHT", "0.15")),
         )
+        self.supabase_url = os.getenv("SUPABASE_URL", "")
+        # Legacy fallback only; primary token verification uses Supabase JWKS.
+        self.supabase_jwt_secret = os.getenv("SUPABASE_JWT_SECRET", "")
+        self.supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
 
         # Google Maps enrichment configuration
         self.google_maps_api_key: str = os.getenv("GOOGLE_MAPS_API_KEY", "")

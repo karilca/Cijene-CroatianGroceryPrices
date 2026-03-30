@@ -4,10 +4,30 @@ import axios from 'axios';
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { API_CONFIG, ERROR_MESSAGES } from '../constants';
 import { GlobalErrorHandler } from '../utils/errorHandling';
+import { supabase } from '../lib/supabase';
+
+const DEACTIVATED_ACCOUNT_MESSAGES = [
+  'Račun je deaktiviran.',
+  'Account is deactivated.',
+];
+
+const isDeactivatedAccountError = (payload: unknown): boolean => {
+  if (!payload || typeof payload !== 'object') return false;
+
+  const data = payload as { detail?: unknown; message?: unknown };
+  const detail = typeof data.detail === 'string' ? data.detail : '';
+  const message = typeof data.message === 'string' ? data.message : '';
+  const combined = `${detail} ${message}`.toLowerCase();
+
+  return DEACTIVATED_ACCOUNT_MESSAGES.some((candidate) =>
+    combined.includes(candidate.toLowerCase())
+  );
+};
 
 export class ApiClient {
   private client: AxiosInstance;
   private retryCount = 0;
+  private manualAuthToken: string | null = null;
 
   constructor(baseURL: string = API_CONFIG.BASE_URL) {
     this.client = axios.create({
@@ -16,7 +36,6 @@ export class ApiClient {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_API_TOKEN || ''}`,
       },
     });
 
@@ -26,7 +45,23 @@ export class ApiClient {
   private setupInterceptors(): void {
     // Request interceptor
     this.client.interceptors.request.use(
-      (config) => {
+      async (config) => {
+        // Prefer current Supabase session token for authenticated requests.
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const token =
+          session?.access_token ||
+          this.manualAuthToken ||
+          import.meta.env.VITE_API_TOKEN ||
+          null;
+
+        if (token) {
+          config.headers = config.headers || {};
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+
         // Add any auth headers, logging, etc.
         console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
         return config;
@@ -81,9 +116,10 @@ export class ApiClient {
 
         // Handle authentication errors
         if (status === 401) {
-          console.warn('Authentication failed:', data?.message || 'Unauthorized');
+          const errorMessage = data?.detail || data?.message || ERROR_MESSAGES.UNAUTHORIZED;
+          console.warn('Authentication failed:', errorMessage);
           const apiError = new ApiError(
-            data?.message || ERROR_MESSAGES.UNAUTHORIZED,
+            errorMessage,
             'UNAUTHORIZED',
             data?.details,
             status
@@ -93,9 +129,13 @@ export class ApiClient {
         }
 
         if (status === 403) {
-          console.warn('Access forbidden:', data?.message || 'Forbidden');
+          const errorMessage = data?.detail || data?.message || ERROR_MESSAGES.FORBIDDEN;
+          if (isDeactivatedAccountError(data)) {
+            void supabase.auth.signOut();
+          }
+          console.warn('Access forbidden:', errorMessage);
           const apiError = new ApiError(
-            data?.message || ERROR_MESSAGES.FORBIDDEN,
+            errorMessage,
             'FORBIDDEN',
             data?.details,
             status
@@ -169,16 +209,16 @@ export class ApiClient {
     this.client.defaults.baseURL = baseURL;
   }
 
-  // Set auth token (disabled - using static token)
-  setAuthToken(): void {
-    // No-op: Static token is used for all requests
-    console.log('setAuthToken called but ignored - using static token');
+  // Optionally set a manual bearer token override.
+  setAuthToken(token: string): void {
+    this.manualAuthToken = token;
+    this.client.defaults.headers.common.Authorization = `Bearer ${token}`;
   }
 
-  // Remove auth token (disabled - using static token)
+  // Remove manual bearer token override.
   removeAuthToken(): void {
-    // No-op: Static token is always present
-    console.log('removeAuthToken called but ignored - using static token');
+    this.manualAuthToken = null;
+    delete this.client.defaults.headers.common.Authorization;
   }
 
   // Get client instance for advanced usage

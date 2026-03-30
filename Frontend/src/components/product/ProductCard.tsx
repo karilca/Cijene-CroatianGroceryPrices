@@ -1,11 +1,13 @@
 import React from 'react';
-import { Eye, Scale, Package, Check } from 'lucide-react';
+import { Eye, Scale, Package, ShoppingCart } from 'lucide-react';
 import { BaseCard } from '../common/BaseCard';
 import { Button } from '../ui/Button';
 import { useProductFavorite } from '../../hooks/useFavorite';
 import { useCompareActions } from '../../stores/appStore';
+import { useCartStore } from '../../stores/cartStore';
 import type { Product } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useNotifications } from '../common/NotificationContext';
 
 interface ProductCardProps {
   product: Product;
@@ -22,6 +24,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const { isFavorite, toggleFavorite } = useProductFavorite(product);
   const { products: compareProducts, addProduct: addToCompare, removeProduct: removeFromCompare, isInCompare } = useCompareActions();
+  const addItem = useCartStore((state) => state.addItem);
+  const { notifyError, notifySuccess } = useNotifications();
   const { t } = useLanguage();
 
   const productId = product.ean || product.id || '';
@@ -41,11 +45,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     }
   };
 
-  // Extract pricing info if available (from chain data)
+  const handleAddToCart = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const targetId = String(product.ean || product.id || '');
+
+    if (!targetId) return;
+
+    try {
+      await addItem(targetId, 1);
+      notifySuccess(t('cart.itemAdded'));
+    } catch {
+      notifyError(t('cart.addFailed'), t('common.error'));
+    }
+  };
+
   const getPricingInfo = () => {
     if (!showPricing || !product.chain_code) return null;
 
-    // This would be enhanced with actual price data from the API
     return {
       hasPrice: true,
       minPrice: null,
@@ -57,38 +73,41 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const pricingInfo = getPricingInfo();
 
   const cardActions = (
-    <>
-      {onViewDetails && (
+    <div className="flex flex-col w-full gap-2"> {/* Kolona umjesto reda sprečava širenje */}
+      <div className="flex w-full gap-2">
+        {onViewDetails && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleViewDetails}
+            className="flex-1"
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            {t('common.details')}
+          </Button>
+        )}
         <Button
-          variant="outline"
+          variant={isInCompareList ? "primary" : "outline"}
           size="sm"
-          onClick={handleViewDetails}
+          onClick={handleCompareToggle}
+          disabled={!isInCompareList && !canAddToCompare}
           className="flex-1"
         >
-          <Eye className="h-4 w-4 mr-2" />
-          {t('common.details')}
+          <Scale className="h-4 w-4 mr-2" />
+          {isInCompareList ? t('compare.removeFromCompare') : t('compare.addToCompare')}
         </Button>
-      )}
+      </div>
+
       <Button
-        variant={isInCompareList ? "primary" : "outline"}
+        variant="primary"
         size="sm"
-        onClick={handleCompareToggle}
-        disabled={!isInCompareList && !canAddToCompare}
-        className={`flex-1 ${isInCompareList ? 'bg-primary-600 text-white' : ''}`}
+        onClick={handleAddToCart}
+        className="w-full"
       >
-        {isInCompareList ? (
-          <>
-            <Check className="h-4 w-4 mr-2" />
-            {t('compare.removeFromCompare')}
-          </>
-        ) : (
-          <>
-            <Scale className="h-4 w-4 mr-2" />
-            {t('compare.addToCompare')}
-          </>
-        )}
+        <ShoppingCart className="h-4 w-4 mr-2" />
+        {t('cart.addButton')}
       </Button>
-    </>
+    </div>
   );
 
   return (
@@ -100,12 +119,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       onFavoriteToggle={toggleFavorite}
       actions={cardActions}
     >
-      {/* Product name */}
       <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2 mb-1">
         {product.name || t('common.unknownProduct')}
       </h3>
 
-      {/* Product info */}
       <div className="space-y-2">
         {product.ean && (
           <div className="flex items-center text-xs text-gray-500">
@@ -125,7 +142,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         )}
 
-        {/* Pricing info */}
         {pricingInfo && (
           <div className="bg-green-50 p-2 rounded text-xs">
             <div className="text-green-700 font-medium">

@@ -1,5 +1,4 @@
-// Router configuration for the application
-
+// src/config/router.tsx
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AppLayout } from '../components/layout/AppLayout';
 import { HomePage } from '../pages/HomePage';
@@ -15,8 +14,13 @@ import { PrivacyPolicyPage } from '../pages/PrivacyPolicyPage';
 import { TermsOfServicePage } from '../pages/TermsOfServicePage';
 import { ContactPage } from '../pages/ContactPage';
 import { ChainDetails } from '../components/chain/ChainDetails';
+import { CartPage } from '../pages/CartPage'; 
+import { AuthPage } from '../pages/AuthPage';
+import { RequireAdmin, RequireAuth } from '../components/auth/RouteGuards';
 
-// Create router with all routes
+// UVOZ NOVE ADMIN STRANICE
+import AdminDashboard from '../pages/AdminDashboard'; 
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -25,27 +29,27 @@ const router = createBrowserRouter([
   },
   {
     path: "/products",
-    element: <AppLayout><ProductsPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><ProductsPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/products/compare",
-    element: <AppLayout showBreadcrumbs={false}><CompareProductPage /></AppLayout>,
+    element: <RequireAuth><AppLayout showBreadcrumbs={false}><CompareProductPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/stores",
-    element: <AppLayout><StoresPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><StoresPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/chains",
-    element: <AppLayout><ChainsPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><ChainsPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/chains/:chainCode",
-    element: <AppLayout showBreadcrumbs={false}><ChainDetails /></AppLayout>,
+    element: <RequireAuth><AppLayout showBreadcrumbs={false}><ChainDetails /></AppLayout></RequireAuth>,
   },
   {
     path: "/chains/:chainCode/stores",
-    element: <AppLayout showBreadcrumbs={false}><ChainDetails /></AppLayout>,
+    element: <RequireAuth><AppLayout showBreadcrumbs={false}><ChainDetails /></AppLayout></RequireAuth>,
   },
   {
     path: "/archives",
@@ -53,11 +57,20 @@ const router = createBrowserRouter([
   },
   {
     path: "/favorites",
-    element: <AppLayout><FavoritesPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><FavoritesPage /></AppLayout></RequireAuth>,
+  },
+  {
+    path: "/cart",
+    element: <RequireAuth><AppLayout><CartPage /></AppLayout></RequireAuth>,
+  },
+  // NOVA RUTA ZA ADMIN DASHBOARD
+  {
+    path: "/admin",
+    element: <RequireAdmin><AppLayout><AdminDashboard /></AppLayout></RequireAdmin>,
   },
   {
     path: "/settings",
-    element: <AppLayout><SettingsPage /></AppLayout>,
+    element: <RequireAuth><AppLayout><SettingsPage /></AppLayout></RequireAuth>,
   },
   {
     path: "/privacy",
@@ -72,12 +85,15 @@ const router = createBrowserRouter([
     element: <AppLayout><ContactPage /></AppLayout>,
   },
   {
+    path: "/auth",
+    element: <AuthPage />,
+  },
+  {
     path: "*",
     element: <AppLayout><NotFoundPage /></AppLayout>,
   },
 ]);
 
-// Router provider component
 export function AppRouter() {
-  return <RouterProvider router={router} />
+  return <RouterProvider router={router} />;
 }
