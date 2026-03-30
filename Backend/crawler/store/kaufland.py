@@ -265,9 +265,29 @@ class KauflandCrawler(BaseCrawler):
                             .strftime("%Y-%m-%d")
                         )
                         row["Sidrena cijena"] = price_str
-                    except (ValueError, IndexError) as e:
-                        logger.warning(f"Error parsing anchor price {anchor_price}: {e}")
-                        row["Sidrena cijena"] = ""
+                    except (ValueError, IndexError):
+                        try:
+                            # Handle typo in year (missing digit, e.g., 26.09.205 instead of 26.09.2025)
+                            # Try to fix by assuming it's 202X or 203X
+                            parts = date_str.split(".")
+                            if len(parts) == 3 and len(parts[2]) == 3:
+                                # Missing last digit - assume it's 2020s decade
+                                fixed_date_str = f"{parts[0]}.{parts[1]}.202{parts[2][-1]}"
+                                row["Datum sidrenja"] = (
+                                    datetime.datetime.strptime(
+                                        fixed_date_str,
+                                        "%d.%m.%Y",
+                                    )
+                                    .date()
+                                    .strftime("%Y-%m-%d")
+                                )
+                                row["Sidrena cijena"] = price_str
+                                logger.debug(f"Fixed typo in anchor price date: {date_str} → {fixed_date_str}")
+                            else:
+                                raise ValueError(f"Cannot fix date format: {date_str}")
+                        except (ValueError, IndexError) as e:
+                            logger.warning(f"Error parsing anchor price {anchor_price}: {e}")
+                            row["Sidrena cijena"] = ""
             else:
                 row["Sidrena cijena"] = ""
 

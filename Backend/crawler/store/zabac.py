@@ -52,6 +52,7 @@ class ZabacCrawler(BaseCrawler):
     HEADER_ALIASES = {
         "sifra": "Artikl",
         "šifra": "Artikl",
+        "sifra artikla": "Artikl",
         "naziv artikla / usluge": "Naziv artikla",
         "mpc": "MPC",
         "naziv grupe artikla": "Naziv grupe artikala",
