@@ -259,8 +259,8 @@ id,chain_code,code,type,address,city,zipcode,lat,lon,phone
 739,plodine,071,supermarket,Munida 3B,Medulin,52203,44.82682,13.9311,
 740,plodine,086,supermarket,Mutilska Ulica 60B,Pula,52100,44.86344,13.85722,
 741,plodine,031,supermarket,Naselje Korenika 1 1,Buzet,52420,45.409924,13.974559,
-7129,ntl,31038,supermarket,Frankopanska 70,Ludbreg,,,,
-7131,ntl,10101,supermarket,Frana Galovica 11A,Krapina,,,,
+7129,ntl,31038,supermarket,Frankopanska 70,Ludbreg,42230,46.2569951,16.6024575,+385 42 306 460
+7131,ntl,10101,supermarket,Frana Galovica 11A,Krapina,49000,46.1542751,15.8745407,+385 49 300 210
 616,lidl,148,supermarket,Ulica Kralja Zvonimira 14,Slatina,33520,45.69955,17.70642,
 684,plodine,064,hipermarket,Ante Starcevica 21,Zapresic,10290,45.85896,15.79901,
 685,plodine,066,hipermarket,Radna zona R-29 344,Kukuljanovo,51227,45.33629,14.49687,
@@ -270,7 +270,7 @@ id,chain_code,code,type,address,city,zipcode,lat,lon,phone
 691,plodine,108,hipermarket,Ulica Martina Kontusa 5,Rijeka,51000,45.32448,14.46986,
 692,plodine,015,hipermarket,Zagrebacka 2,Zadar,23000,44.11451,15.2564,
 693,plodine,061,hipermarket,Zvonimirova 3,Rijeka,51000,45.33791,14.40778,
-7132,ntl,10103,supermarket,Ljudevita Gaja 1,Duga Resa,,,,
+7132,ntl,10103,supermarket,Ljudevita Gaja 1,Duga Resa,47250,45.4537456,15.491236,+385 47 843 974
 698,plodine,163,supermarket,Bana Josipa Jelacica 158A,Pleternica,34310,45.428,17.818,
 794,plodine,082,supermarket,Ul Brace Andrijica 1,Pag,23250,44.44208,15.0618,
 813,tommy,10152,supermarket,Ante Starčevića 114,Makarska,21300,43.304064,17.010773,
@@ -655,22 +655,22 @@ id,chain_code,code,type,address,city,zipcode,lat,lon,phone
 769,plodine,019,supermarket,Skolska 3,Sisak,44000,45.46547,16.38162,
 5287,ktc,PJPJ58,trgovina,Ivanečko naselje 1c,Ivanec,42240,46.2335431882,16.1444738403,
 5283,ktc,PJPJ62,trgovina,Zrinskih Bb,Prelog,,46.32535020011806,16.61457737578113,+38540638161
-7136,ntl,31039,supermarket,Radnička 1,Novi Marof,,,,
-7130,ntl,20206,supermarket,TRG SV. JOSIPA 2,Slatina,,,,
+7136,ntl,31039,supermarket,Radnička 1,Novi Marof,42220,46.16223069999999,16.3297829,+385 42 612 617
+7130,ntl,20206,supermarket,TRG SV. JOSIPA 2,Slatina,33520,45.70235719999999,17.7004482,
 4696,eurospin,310018,supermarket,Zagrebacka cesta 162A,Zagreb_Dubec,10360,45.8272837858503,16.0817360240415,
 4709,eurospin,310005,diskontna_prodavaonica,Ulica hrvatskih branitelja 2,Samobor,10430,45.8107400608298,15.7144251921177,
 6887,trgocentar,P120,supermarket,Vladimira Nazora 58,Sveti Ivan Zelina,,45.96658,16.25044,
 775,plodine,074,supermarket,S S Kranjcevica 4,Novalja,53291,44.55235,14.88604,
 6884,trgocentar,P195,supermarket,Varazdinska 2A,Zlatar,,16.07808,46.09327,+38549268005
-7135,ntl,10102,supermarket,Soblinečka 55,Soblinec,,,,
+7135,ntl,10102,supermarket,Soblinečka 55,Soblinec,10360,45.8660851,16.1550729,+385 1 6323 400
 6883,trgocentar,P060,supermarket,Bana Josipa Jelacica 139,Zapresic,,15.8025,45.87014,+38516313053
-7134,ntl,20202,supermarket,Ulica kralja Tomislava 0,Čepin,,,,
+7134,ntl,20202,supermarket,Ulica kralja Tomislava 0,Čepin,31431,45.5229217,18.575316,
 771,plodine,172,supermarket,Stancija Kaligari 2,Poreč,52440,45.212,13.671,
 4711,eurospin,310002,diskontna_prodavaonica,I Štefanovecki zavoj 12,Zagreb,10000,45.8186907749337,16.0436990999999,
 770,plodine,131,supermarket,Splitska 28A,Metkovic,20350,43.05417,17.64833,
 179,konzum,0803,supermarket,Velimira Škorpika 23,Šibenik,22000,43.7130031,15.9134474,+385800400000
 4697,eurospin,310036,diskontna_prodavaonica,Ulica Ote Horvata 1 33000 Virovitica,Virovitica,33000,45.82096817224478,17.39309639714273,
-7133,ntl,31020,supermarket,Podravska 11,Varazdin,,,,
+7133,ntl,31020,supermarket,Podravska 11,Varazdin,42000,46.3086791,16.3591254,+385 42 402 401
 772,plodine,072,supermarket,Stara Cesta 9,Senj,53270,44.99115,14.90355,
 773,plodine,020,supermarket,Štrmac 320,Labin,52220,45.09464,14.12185,
 774,plodine,070,supermarket,Sv Vid 200,Malinska,51511,45.12833,14.5419,
@@ -793,7 +793,7 @@ id,chain_code,code,type,address,city,zipcode,lat,lon,phone
 8421,tommy,10246,supermarket,Stjepana Radića 139,Šibenik,22000,43.723266,15.908653,+385914952481
 630,lidl,174,supermarket,Ulica Nikole Tesle 2,Križevci,48260,46.02116,16.53767,
 778,plodine,029,supermarket,Trg Kralja Tomislava 10,Pitomaca,33405,45.95302,17.23401,
-10635,ntl,20201,supermarket,K. TOMISLAVA 3,Bilje,,,,
+10635,ntl,20201,supermarket,K. TOMISLAVA 3,Bilje,31327,45.6048705,18.7431151,
 625,lidl,159,supermarket,Braće Božić 4 A,Rovinj,52210,45.08,13.65592,
 604,lidl,131,supermarket,Crna Rika 7,Ploče,20340,43.05017,17.44001,
 605,lidl,132,supermarket,Ulica Grada Vukovara 11,Đurđevac,48350,46.03071,17.06423,
@@ -885,3 +885,113 @@ id,chain_code,code,type,address,city,zipcode,lat,lon,phone
 634,lidl,183,supermarket,Priljevo 30 A,Vukovar,32000,45.36797,18.97435,
 647,lidl,199,supermarket,Žedno - Drage 15,Supetar,21400,43.37972,16.56099,
 121,konzum,1312,supermarket,Maksimilijana Benkovića 24,Nova Gradiška,35400,45.2572724,17.3838235,+385800400000
+20,eurospin,310022,diskontna_prodavaonica,Samoborska cesta 131,Zagreb,10000,45.8115788,15.8674118,+385 800 202 020
+23,eurospin,310025,diskontna_prodavaonica,Ulica Gustava Krkleca 1,Varaždin,42000,46.3109483,16.326385,
+34,eurospin,310040,diskontna_prodavaonica,Ivanečko Naselje 2 28,Ivanec,42240,46.2327003,16.1459276,
+35,eurospin,310041,diskontna_prodavaonica,Ulica Kralja Petra Svačića 3,Nova_Gradiška,35400,45.2538215,17.3837031,
+36,eurospin,310043,diskontna_prodavaonica,Ulica sv Franje Asiškog 83A,Metković,,43.0421764,17.6222373,
+37,eurospin,310045,diskontna_prodavaonica,Ulica Josipa Jurja Strossmayera 343A,Osijek,31000,45.56466349999999,18.633975,
+38,eurospin,310048,diskontna_prodavaonica,Bana Josipa Jelačića 73a,Vukovar,,45.3397753,19.0203378,
+70,kaufland,5330,supermarket,Ventilatorska Cesta 1 Lucko,,,45.7591283,15.893427,
+59,kaufland,6430,hipermarket,Svilajska Ulica 37,Osijek,,45.5640086,18.636867,+385 800 223 223
+160,konzum,0606,supermarket,Trg A. Starčevića 7,Zagreb,10000,45.8050047,15.9777149,+385 800 400 000
+117,konzum,0680,supermarket,Ulica Verudella 11,Pula,52100,44.8365577,13.8373855,
+93,konzum,1268,supermarket,Zdeslava Turića 4A,Zagreb,10000,45.7881825,16.0073531,+385 800 400 000
+164,konzum,1271,supermarket,Puškarićeva 15 Lučko,Zagreb,10250,45.7605017,15.8861923,+385 800 400 000
+114,konzum,1733,supermarket,Vrboran 39,Split,21000,43.5167608,16.4989413,+385 21 455 020
+295,lidl,142,supermarket,Benka Benkovića 17,Zadar,23000,44.1237,15.23687,+385 800 200 220
+2112,lidl,172,supermarket,Ulica Kaetana Knežića 2,Senj,53270,44.98641,14.91431,+385 800 200 220
+379,lidl,265,supermarket,Ulica Franje Glada 13,Prelog,40323,46.3437297,16.6105563,
+2180,lidl,268,supermarket,Ulica Ii Istarske Brigade 27,Buzet,52420,45.41295,13.96734,+385 800 200 220
+381,lidl,269,supermarket,Ulica Julija Knifera 10,Zagreb,10020,45.77931,15.98102,+385 800 200 220
+392,metro,S10,cash and carry prodavaonica,Jankomir 31,Zagreb,,45.8003019,15.8811792,+385 1 3444 221
+397,metro,S11,cash and carry prodavaonica,Slavonska Avenija 71,Zagreb - Sesvete,,45.8052399,16.1147777,+385 1 2051 600
+393,metro,S12,cash and carry prodavaonica,Bujanovo 10,Cavle,,45.3480983,14.493521,+385 51 815 200
+399,metro,S14,skladiste za trgovanje robom na veliko i malo,Kneza Trpimira 28,Osijek,,45.5433292,18.6881783,+385 31 253 221
+396,metro,S15,prodajno skladiste cash and carry,Murvica Ik 2,Zadar,,44.1390414,15.313834,+385 23 353 200
+395,metro,S16,supermarket,Tomislava Macana 2,Dubrovnik,,42.6302082,18.1634711,+385 20 642 920
+398,metro,S18,cash and carry prodavaonica,Gospodarska 35,Varazdin,,46.29447930000001,16.3534793,+385 42 632 632
+394,metro,S19,supermarket,Fascinska Bb,Porec,,45.22887490000001,13.6184442,+385 52 645 540
+400,metro,S20,skladiste za trgovanje robom na veliko i malo,Cesta Pape Ivana Pavla Ii 3,Kastel Sucurac,,43.5440087,16.4530435,+385 21 708 222
+401,metro,S23,cash and carry prodavaonica,Industrijska 2 E,Pula,,44.8882565,13.8580835,+385 91 281 5291
+403,ntl,20245,supermarket,Sv. Leopolda B. Mandica 266,Osijek,,45.5337755,18.6289585,+385 31 300 184
+529,plodine,025,supermarket,Ulica Brace Bozic 4B,Rovinj,52210,45.0795914,13.657407,+385 51 669 070
+434,plodine,057,supermarket,Blazenog Alojzija Stepinca 3,Biograd Na Moru,23210,43.9424758,15.4555539,+385 51 669 070
+439,plodine,157,supermarket,Cesvinica 1B,Ston,20230,42.842576,17.6861832,+385 51 352 800
+2398,ribola,0019,hipermarket,Ulica Svetog Nikole16A,Solin,,43.5422541,16.474166,
+583,ribola,003,supermarket,Gospojska strada 1,Kastel Sucurac,,43.546981,16.4280532,+385 91 630 9016
+596,ribola,004,supermarket,Put blata 2,Kaštel Stari,,43.5520072,16.3395449,+385 91 630 9786
+616,ribola,005,supermarket,Cesta dr.Franje Tudmana 62,Kaštel Gomilica,,43.549437,16.3961083,+385 91 630 9787
+582,ribola,006,supermarket,Kralja Kresimira 1,Kastel Kambelovac,,43.5501753,16.3852531,+385 91 630 9788
+601,ribola,009,supermarket,Alojzija Stepinca 10,Kaštel Lukšić,,43.5533465,16.366777,+385 91 630 9790
+592,ribola,010,supermarket,Stjepana Radića 51,Okrug Gornji,,43.4925973,16.2632644,+385 91 630 9826
+578,ribola,012,supermarket,Sv.Martin 11 -13,Podstrana,,43.4822417,16.556771,+385 91 630 9818
+588,ribola,013,supermarket,A.Stepinca 41,Trogir,,43.5187189,16.2464059,+385 91 630 9792
+604,ribola,014,supermarket,Plinarska 1,Split,,43.510951,16.4362901,+385 91 630 9793
+605,ribola,017,supermarket,Sv.Lovre 45,Stobrec,,43.502623,16.525156,+385 91 630 9819
+584,ribola,018,supermarket,TN Medena,Seget Donji,,43.5132845,16.2067499,+385 91 630 9001
+572,ribola,020,supermarket,Kralja Zvonimira 103,Solin,,43.5376681,16.4909401,+385 91 630 9850
+600,ribola,021,supermarket,Sibenska 59,Split,,43.5192667,16.4582597,+385 91 630 9798
+606,ribola,022,supermarket,Ul.Branitelja dom.rata 4a,Šibenik,,43.7244657,15.9072769,+385 91 630 9799
+575,ribola,023,supermarket,POLJIČKA 71,Split,,43.5111512,16.4801037,+385 91 630 9012
+607,ribola,025,supermarket,Ul.Stjepana Radića 77 a i b,Šibenik,,43.7328964,15.8972305,
+594,ribola,027,supermarket,Domovinskog rata 51,Sinj,,43.7048606,16.6512022,+385 91 630 9804
+563,ribola,028,supermarket,Dr.Martina Zizica 15,Solin,,43.547977,16.4942641,+385 91 630 9009
+587,ribola,029,supermarket,Kralja Zvonimira 1,Trogir,,43.5150694,16.2535644,+385 91 630 9806
+585,ribola,030,supermarket,Breljanska 1,Makarska,,43.2896799,17.0267052,+385 91 630 9807
+565,ribola,033,supermarket,A.B.Simica 21,Kaštel Gomilica,,43.5505859,16.4015697,+385 91 630 9810
+569,ribola,034,supermarket,Vojka Krstulovica,Split,,43.5067101,16.4538326,+385 91 630 9811
+615,ribola,036,supermarket,Sv.Mihovila 57,Trilj,,43.6233601,16.7150515,+385 91 630 9815
+576,ribola,037,supermarket,Policka cesta 94,Podstrana,,43.5148874,16.5419323,+385 91 630 9816
+608,ribola,039,supermarket,Put sv. Jurja 115,Kaštel Novi,,43.5615543,16.3166774,
+573,ribola,040,supermarket,Molizanskih Hrvata 20,Makarska,,43.2989883,17.0195331,+385 91 630 9820
+595,ribola,043,supermarket,Strožanačka 25,Podstrana,,43.501321,16.535196,+385 91 630 9824
+577,ribola,044,supermarket,Bana Jelačića 35,Okrug Gornji,,43.4925973,16.2632644,+385 91 630 9826
+560,ribola,047,supermarket,Jeretova 12,Split,,43.5111666,16.4729615,+385 91 630 9847
+597,ribola,049,supermarket,Vukovarska 131,Split,,43.514305,16.4694703,+385 91 630 9837
+586,ribola,050,supermarket,Vinkovacka 60,Split,,43.5138976,16.4550491,+385 91 630 9838
+599,ribola,051,supermarket,Jobova 1,Split,,43.514364,16.4310115,+385 91 630 9839
+580,ribola,052,supermarket,Rudera Boskovica 10,Split,,43.505606,16.4661181,+385 91 630 9841
+570,ribola,053,supermarket,Gat SV.Duje,Split,,43.5029314,16.4425716,+385 91 630 9842
+589,ribola,054,supermarket,Dinka Simunovica 14B,Split,,43.5056057,16.4741108,+385 91 630 9843
+581,ribola,055,supermarket,Put Meja 6,Split,,43.5051507,16.4274875,+385 91 630 9844
+566,ribola,056,supermarket,Papandopulova 7,Split,,43.5076132,16.4724954,+385 91 630 9845
+612,ribola,057,supermarket,Mostarska 34,Split,,43.52313119999999,16.4680262,+385 91 630 9846
+590,ribola,059,supermarket,Strossmayerovo setaliste 1,Jelsa,,43.1620044,16.6890032,+385 91 630 9848
+614,ribola,060,supermarket,Nečujam bb,Nečujam,,43.38073060000001,16.3239583,+385 91 630 9854
+609,ribola,061,supermarket,Zagrebacka ul.50,Makarska,,43.3057366,17.0111148,+385 91 630 9865
+564,ribola,065,supermarket,Kneza Mislava 2,Split,,43.5087368,16.4435449,+385 91 630 9835
+571,ribola,067,supermarket,Mazuranicevo setaliste 49-51,Split,,43.5139418,16.4508518,+385 91 630 9780
+617,ribola,068,supermarket,Miljenka Buljana 29,Sinj,,43.7000495,16.6470555,+385 91 630 9853
+561,ribola,069,supermarket,Velikobrdski put 30,Makarska,,43.3037753,17.0172492,+385 91 630 9866
+619,ribola,070,supermarket,Poljicka cesta 121A,Dugi Rat,,43.4452159,16.6384099,+385 91 222 1373
+579,ribola,073,supermarket,Zagorski put 17,Kaštel Stari,,43.5611994,16.3427212,+385 91 630 9870
+602,ribola,074,supermarket,SPLITSKA 24,Primošten,,43.5880738,15.9295821,
+568,ribola,075,supermarket,Trg zrtava Domovinskog rata,Brela,,43.3757447,16.9247248,+385 91 630 9873
+610,ribola,078,supermarket,Cesta Dr.Franje Tudmana 705,Kaštel Stari,,43.5532856,16.3447397,+385 91 630 9825
+611,ribola,080,supermarket,Kneza Trpimira 103,Solin,,43.547977,16.4942641,+385 91 630 9009
+598,ribola,082,supermarket,Cesta dr.Franje Tudmana 1108,Kaštel Novi,,43.5474578,16.322478,+385 91 630 9879
+574,ribola,083,supermarket,Dubravica 13,Orebić,,42.9837776,17.1984629,+385 91 630 9864
+618,ribola,092,supermarket,Miroslava Krleže 1a,Zadar,,44.12059319999999,15.2283813,+385 91 616 3119
+613,ribola,094,supermarket,Ulica Krste Odaka 5 A,Zadar,,44.1135317,15.2624288,+385 91 616 3149
+567,ribola,095,supermarket,Ražanj 95A,Ražanj,,43.5099609,15.9793118,
+562,ribola,096,hipermarket,Obala dr. Franje Tuđmana 1,Ploče,,43.0547017,17.4345721,+385 91 630 9863
+593,ribola,098,supermarket,Obala Stjepana Radića 25,Dubrovnik,,42.6571075,18.0893856,+385 21 220 555
+591,ribola,099,supermarket,Žuljanska 1,Dubrovnik,,42.6522899,18.0876606,
+603,ribola,100,hipermarket,Cesta dr. Franje Tuđmana 7,Kastel Sucurac,,43.5391995,16.4498149,
+687,spar,87050,supermarket,Ulica Matice Hrvatske 19,Dugopolje,,43.5930257,16.5780912,
+757,spar,87138,supermarket,Cakovecka 113,Prelog,,46.3412434,16.6006563,
+765,spar,87172,supermarket,Nikole Jurisica 2A,Zagreb,,45.8123117,15.9788612,+385 1 5621 641
+772,studenac,T262,supermarket,Masarykov Put 3,C Dubrovnik,,42.6542349,18.0722228,+385 72 000 990
+773,studenac,T845,supermarket,Močići 24,A Močići,,42.563378,18.249716,+385 72 000 990
+859,tommy,10372,supermarket,Ulica Petra Zoranića 8,Obrovac,23450,44.1999255,15.6803689,+385 800 02 03
+791,tommy,10384,supermarket,Baštijanova 24,Rijeka,51000,45.3257213,14.4645122,+385 800 02 03
+861,tommy,10387,supermarket,Vere Bratonje 28,Rijeka,51000,45.34030509999999,14.3854229,+385 800 02 03
+868,vrutak,001,hipermarket,Vodovodna20A,Zagreb,10000,45.8089689,15.9460528,+385 1 3643 705
+870,vrutak,200,supermarket,Rabarova1A,Zagreb,10000,45.801486,15.9410765,+385 99 526 1015
+871,vrutak,600,supermarket,Bulvanova20,Zagreb,10000,45.8163654,16.0283537,+385 99 378 5470
+869,vrutak,900,supermarket,Samoborskacesta161A,Zagreb,10000,45.812725,15.8568008,+385 99 531 2474
+1793,zabac,SM-C162,supermarket,Dubrava 256L,Zagreb,10000,45.826626,16.0769259,+385 99 333 3633
+2666,zabac,SM-C175,supermarket,Dubrava 256L,Zagreb,10000,45.826626,16.0769259,+385 99 333 3633
+3539,zabac,SM-C177,supermarket,Dubrava 256L,Zagreb,10000,45.826626,16.0769259,+385 99 333 3633
+4253,zabac,SM-C179,supermarket,Dubrava 256L,Zagreb,10000,45.826626,16.0769259,+385 99 333 3633

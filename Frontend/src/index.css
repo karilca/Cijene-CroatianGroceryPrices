@@ -10,3 +10,24 @@
     font-family: 'Inter', system-ui, sans-serif;
   }
 }
+
+@layer components {
+  .chain-stores {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-4px);
+    overflow: hidden;
+    transition: grid-template-rows 280ms ease, opacity 200ms ease, transform 200ms ease;
+  }
+
+  .chain-stores.is-open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .chain-stores-inner {
+    overflow: hidden;
+  }
+}
