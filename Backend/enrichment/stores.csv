@@ -995,3 +995,9 @@ id,chain_code,code,type,address,city,zipcode,lat,lon,phone
 2666,zabac,SM-C175,supermarket,Dubrava 256L,Zagreb,10000,45.826626,16.0769259,+385 99 333 3633
 3539,zabac,SM-C177,supermarket,Dubrava 256L,Zagreb,10000,45.826626,16.0769259,+385 99 333 3633
 4253,zabac,SM-C179,supermarket,Dubrava 256L,Zagreb,10000,45.826626,16.0769259,+385 99 333 3633
+34,eurospin,310038,diskontna_prodavaonica,Kukuljanovo 350,Rijeka,51227,45.3351131,14.5058914,
+424,plodine,184,supermarket,Alfreda Nobela 6 Sop,Sesvetski Kraljevec,10361,45.7930633,16.1479866,+385 51 352 800
+519,plodine,186,supermarket,Stanka Frankovica 9,Rijeka,51000,45.3530434,14.4298758,+385 51 352 800
+683,tommy,10371,supermarket,Obala Palih Boraca Nor 15,Rovinj,52210,45.0777808,13.6394122,+385 800 02 03
+652,tommy,10390,supermarket,Braće Stipčić 3,Rijeka,51000,45.3520082,14.4204582,+385 800 02 03
+732,zabac,SM-DUBRAVA256L,supermarket,Dubrava 256L,,10040,45.826626,16.0769259,+385 99 333 3633
