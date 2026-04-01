@@ -1,18 +1,34 @@
 import json
 import httpx
+from logging import getLogger
 from fastapi import FastAPI, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 from uuid import UUID
 from datetime import date, datetime, timezone
+from time import monotonic, perf_counter
 from typing import Literal, Optional
 
 from service.config import settings
+from service.cart_optimizer import CartOptimizationError, optimize_cart_exact
+from service.cart_optimize_cache import (
+    build_cart_optimize_cache_key,
+    cart_optimize_cache,
+)
 from service.auth_utils import get_current_user, get_user_payload
 from service.db import set_db
 from service.text_utils import normalize_product_text
 
 db = settings.get_db()
+logger = getLogger(__name__)
+OPTIMIZATION_MODES = ("greedy", "balanced", "conservative")
+MODE_DOMINANT_DIMENSION_INDEX = {
+    "greedy": 0,
+    "balanced": 0,
+    "conservative": 2,
+}
+_mode_delta_cache: dict[str, float] | None = None
+_mode_delta_cache_expires_at: float = 0.0
 
 # --- MODELI ---
 
@@ -49,6 +65,32 @@ class BulkRoleUpdateRequest(BaseModel):
 class CartItemRequest(BaseModel):
     product_id: str
     quantity: int = 1
+
+
+class CartUserLocationRequest(BaseModel):
+    latitude: float
+    longitude: float
+
+
+class CartOptimizeOptionsRequest(BaseModel):
+    maxDistanceKm: float | None = None
+    maxStores: int | None = None
+
+
+class CartOptimizeRequest(BaseModel):
+    mode: Literal["greedy", "balanced", "conservative"] = "balanced"
+    userLocation: CartUserLocationRequest | None = None
+    options: CartOptimizeOptionsRequest | None = None
+    chains: list[str] | None = None
+
+
+class CartOptimizeFeedbackRequest(BaseModel):
+    mode: Literal["greedy", "balanced", "conservative"]
+    accepted: bool
+    algorithmUsed: str | None = None
+    recommendationTotalCost: float | None = None
+    recommendationStoresVisited: int | None = None
+    recommendationAverageDistanceKm: float | None = None
 
 
 class FavoriteProductRequest(BaseModel):
@@ -292,8 +334,12 @@ def require_role(role_name: str):
 async def lifespan(app: FastAPI):
     await db.connect()
     set_db(db)
-    yield
-    await db.close()
+    await cart_optimize_cache.initialize()
+    try:
+        yield
+    finally:
+        await cart_optimize_cache.close()
+        await db.close()
 
 app = FastAPI(
     title="Cijene API",
@@ -328,12 +374,10 @@ async def root():
 async def healthcheck():
     return {"status": "ok"}
 
-# --- KOŠARICA ---
 
-@app.get("/v1/cart")
-async def get_cart(user = Depends(get_current_active_user)):
-    target_db = getattr(db, '_db', getattr(db, 'pool', None))
-    rows = await target_db.fetch("""
+async def _fetch_cart_rows(target_db, user_uid: UUID):
+    return await target_db.fetch(
+        """
         SELECT DISTINCT ON (ci.product_id)
             ci.product_id,
             ci.quantity,
@@ -344,12 +388,212 @@ async def get_cart(user = Depends(get_current_active_user)):
         LEFT JOIN chain_products cp ON cp.product_id = p.id
         WHERE ci.user_id = $1
         ORDER BY ci.product_id, LENGTH(COALESCE(NULLIF(p.name, ''), cp.name)) DESC, COALESCE(NULLIF(p.name, ''), cp.name)
-    """, user['supabase_uid'])
+        """,
+        user_uid,
+    )
+
+
+def _serialize_cart_rows(rows) -> list[dict[str, object]]:
     rows_out = [dict(row) for row in rows]
-    for r in rows_out:
-        r['name'] = normalize_product_text(r.get('name'), capitalize=True)
-        r['brand'] = normalize_product_text(r.get('brand'), capitalize=True)
-    return {"items": rows_out}
+    for row in rows_out:
+        row["name"] = normalize_product_text(row.get("name"), capitalize=True)
+        row["brand"] = normalize_product_text(row.get("brand"), capitalize=True)
+    return rows_out
+
+
+def _log_cart_optimize_event(**payload: object) -> None:
+    logger.info(
+        json.dumps(
+            {
+                "event": "cart_optimize",
+                **payload,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+def _safe_float(value: object | None) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _compute_mode_delta(acceptance_rate: float) -> float:
+    delta = settings.cart_optimize_tuning_delta
+    threshold = settings.cart_optimize_tuning_acceptance_threshold
+    if delta <= 0:
+        return 0.0
+    if acceptance_rate < threshold:
+        return -delta
+    if acceptance_rate > (1.0 - threshold):
+        return delta
+    return 0.0
+
+
+async def _fetch_feedback_stats(target_db) -> dict[str, dict[str, float | int]]:
+    rows = await target_db.fetch(
+        """
+        SELECT
+            mode,
+            COUNT(*)::int AS feedback_count,
+            SUM(CASE WHEN accepted THEN 1 ELSE 0 END)::int AS accepted_count
+        FROM cart_optimize_feedback
+        WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
+        GROUP BY mode
+        """,
+        settings.cart_optimize_tuning_lookback_days,
+    )
+
+    stats: dict[str, dict[str, float | int]] = {}
+    for row in rows:
+        mode = str(row["mode"])
+        feedback_count = int(row["feedback_count"])
+        accepted_count = int(row["accepted_count"])
+        acceptance_rate = (accepted_count / feedback_count) if feedback_count > 0 else 0.0
+        stats[mode] = {
+            "feedbackCount": feedback_count,
+            "acceptedCount": accepted_count,
+            "acceptanceRate": acceptance_rate,
+        }
+    return stats
+
+
+async def _get_mode_weight_deltas(target_db) -> dict[str, float]:
+    global _mode_delta_cache
+    global _mode_delta_cache_expires_at
+
+    if not settings.cart_optimize_tuning_enabled:
+        return {}
+
+    now = monotonic()
+    if _mode_delta_cache is not None and now < _mode_delta_cache_expires_at:
+        return _mode_delta_cache
+
+    deltas: dict[str, float] = {}
+    try:
+        stats = await _fetch_feedback_stats(target_db)
+    except Exception as exc:
+        logger.warning("Unable to load cart optimizer feedback stats (%s); tuning disabled for this window.", exc)
+        _mode_delta_cache = {}
+        _mode_delta_cache_expires_at = now + settings.cart_optimize_tuning_cache_ttl_seconds
+        return _mode_delta_cache
+
+    min_samples = settings.cart_optimize_tuning_min_feedback_samples
+    for mode in OPTIMIZATION_MODES:
+        mode_stats = stats.get(mode)
+        if not mode_stats:
+            continue
+        feedback_count = int(mode_stats["feedbackCount"])
+        acceptance_rate = float(mode_stats["acceptanceRate"])
+        if feedback_count < min_samples:
+            continue
+        deltas[mode] = _compute_mode_delta(acceptance_rate)
+
+    _mode_delta_cache = deltas
+    _mode_delta_cache_expires_at = now + settings.cart_optimize_tuning_cache_ttl_seconds
+    return deltas
+
+
+def _clear_mode_delta_cache() -> None:
+    global _mode_delta_cache
+    global _mode_delta_cache_expires_at
+    _mode_delta_cache = None
+    _mode_delta_cache_expires_at = 0.0
+
+
+async def _track_cart_optimize_run(
+    *,
+    target_db,
+    user_uid: UUID,
+    mode: str,
+    cache_hit: bool,
+    metadata: dict[str, object],
+    total_request_ms: int,
+    total_cost: float | None,
+    stores_visited: int | None,
+) -> None:
+    try:
+        await target_db.execute(
+            """
+            INSERT INTO cart_optimize_runs (
+                user_id,
+                mode,
+                algorithm_used,
+                cache_hit,
+                partial_fulfillment,
+                heuristic_fallback,
+                stores_considered,
+                stores_after_pruning,
+                candidates_evaluated,
+                stores_visited,
+                total_cost,
+                computation_time_ms,
+                total_request_ms
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            """,
+            user_uid,
+            mode,
+            metadata.get("algorithmUsed"),
+            cache_hit,
+            bool(metadata.get("partialFulfillment", False)),
+            bool(metadata.get("heuristicFallback", False)),
+            metadata.get("storesConsidered"),
+            metadata.get("storesAfterPruning"),
+            metadata.get("candidatesEvaluated"),
+            stores_visited,
+            total_cost,
+            metadata.get("computationTimeMs"),
+            total_request_ms,
+        )
+    except Exception as exc:
+        logger.warning("Failed to persist cart optimize run tracking (%s).", exc)
+
+
+async def _store_cart_optimize_feedback(
+    *,
+    target_db,
+    user_uid: UUID,
+    payload: CartOptimizeFeedbackRequest,
+) -> None:
+    try:
+        await target_db.execute(
+            """
+            INSERT INTO cart_optimize_feedback (
+                user_id,
+                mode,
+                accepted,
+                algorithm_used,
+                recommendation_total_cost,
+                recommendation_stores_visited,
+                recommendation_average_distance_km
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            """,
+            user_uid,
+            payload.mode,
+            payload.accepted,
+            payload.algorithmUsed,
+            payload.recommendationTotalCost,
+            payload.recommendationStoresVisited,
+            payload.recommendationAverageDistanceKm,
+        )
+    except Exception as exc:
+        logger.warning("Failed to persist cart optimize feedback (%s).", exc)
+
+
+# --- KOŠARICA ---
+
+@app.get("/v1/cart")
+async def get_cart(user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    rows = await _fetch_cart_rows(target_db, user['supabase_uid'])
+    return {"items": _serialize_cart_rows(rows)}
 
 @app.post("/v1/cart/add")
 async def add_to_cart(item: CartItemRequest, user = Depends(get_current_active_user)):
@@ -362,6 +606,67 @@ async def add_to_cart(item: CartItemRequest, user = Depends(get_current_active_u
     """, user['supabase_uid'], item.product_id, item.quantity)
     return {"status": "success"}
 
+
+@app.post("/v1/cart/increment/{product_id}")
+async def increment_cart_item(product_id: str, user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+
+    normalized_product_id = product_id.strip()
+    if not normalized_product_id:
+        raise HTTPException(status_code=400, detail="Proizvod nije valjan.")
+
+    await target_db.execute(
+        """
+        INSERT INTO cart_items (user_id, product_id, quantity)
+        VALUES ($1, $2, 1)
+        ON CONFLICT (user_id, product_id)
+        DO UPDATE SET quantity = cart_items.quantity + 1
+        """,
+        user['supabase_uid'],
+        normalized_product_id,
+    )
+    return {"status": "success"}
+
+
+@app.post("/v1/cart/decrement/{product_id}")
+async def decrement_cart_item(product_id: str, user = Depends(get_current_active_user)):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+
+    normalized_product_id = product_id.strip()
+    if not normalized_product_id:
+        raise HTTPException(status_code=400, detail="Proizvod nije valjan.")
+
+    updated = await target_db.fetchrow(
+        """
+        UPDATE cart_items
+        SET quantity = quantity - 1
+        WHERE user_id = $1 AND product_id = $2
+        RETURNING quantity
+        """,
+        user['supabase_uid'],
+        normalized_product_id,
+    )
+
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Proizvod nije u košarici.")
+
+    quantity = int(updated["quantity"])
+    removed = False
+    if quantity <= 0:
+        await target_db.execute(
+            "DELETE FROM cart_items WHERE user_id = $1 AND product_id = $2",
+            user['supabase_uid'],
+            normalized_product_id,
+        )
+        quantity = 0
+        removed = True
+
+    return {
+        "status": "success",
+        "quantity": quantity,
+        "removed": removed,
+    }
+
 @app.delete("/v1/cart/remove/{product_id}")
 async def remove_from_cart(product_id: str, user = Depends(get_current_active_user)):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
@@ -370,6 +675,217 @@ async def remove_from_cart(product_id: str, user = Depends(get_current_active_us
         user['supabase_uid'], product_id
     )
     return {"status": "success"}
+
+
+@app.post("/v1/cart/optimize")
+async def optimize_cart(payload: CartOptimizeRequest, user = Depends(get_current_active_user)):
+    request_started_at = perf_counter()
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+
+    cart_rows = await _fetch_cart_rows(target_db, user['supabase_uid'])
+    if not cart_rows:
+        raise HTTPException(status_code=400, detail="Košarica je prazna.")
+
+    cart_items = _serialize_cart_rows(cart_rows)
+
+    max_distance_km = settings.cart_optimize_default_max_distance_km
+    max_stores = settings.cart_optimize_default_max_stores
+
+    if payload.options:
+        if payload.options.maxDistanceKm is not None:
+            max_distance_km = float(payload.options.maxDistanceKm)
+        if payload.options.maxStores is not None:
+            max_stores = int(payload.options.maxStores)
+
+    if max_distance_km <= 0:
+        raise HTTPException(status_code=422, detail="maxDistanceKm mora biti veći od 0.")
+    if max_stores <= 0:
+        raise HTTPException(status_code=422, detail="maxStores mora biti veći od 0.")
+
+    chain_codes = None
+    if payload.chains:
+        chain_codes = sorted({chain.strip().lower() for chain in payload.chains if chain.strip()})
+        if not chain_codes:
+            chain_codes = None
+
+    user_lat = payload.userLocation.latitude if payload.userLocation else None
+    user_lon = payload.userLocation.longitude if payload.userLocation else None
+
+    mode_weight_deltas = await _get_mode_weight_deltas(target_db)
+    active_mode_delta = float(mode_weight_deltas.get(payload.mode, 0.0))
+
+    cache_key = build_cart_optimize_cache_key(
+        cart_items=cart_items,
+        mode=payload.mode,
+        user_lat=user_lat,
+        user_lon=user_lon,
+        max_distance_km=max_distance_km,
+        max_stores=max_stores,
+        chains=chain_codes,
+        mode_weight_delta=active_mode_delta,
+    )
+
+    cached = await cart_optimize_cache.get_json(cache_key)
+    if cached is not None:
+        metadata = cached.get("metadata", {})
+        total_request_ms = int(round((perf_counter() - request_started_at) * 1000))
+
+        await _track_cart_optimize_run(
+            target_db=target_db,
+            user_uid=user['supabase_uid'],
+            mode=payload.mode,
+            cache_hit=True,
+            metadata=metadata,
+            total_request_ms=total_request_ms,
+            total_cost=_safe_float((cached.get("recommendation") or {}).get("totalCost")),
+            stores_visited=(cached.get("recommendation") or {}).get("storesVisited"),
+        )
+
+        _log_cart_optimize_event(
+            status="success",
+            cacheHit=True,
+            cacheBackend=cart_optimize_cache.effective_backend,
+            mode=payload.mode,
+            hasUserLocation=bool(payload.userLocation),
+            maxDistanceKm=max_distance_km,
+            maxStores=max_stores,
+            modeWeightDelta=round(active_mode_delta, 4),
+            chains=chain_codes or [],
+            algorithmUsed=metadata.get("algorithmUsed"),
+            computationTimeMs=metadata.get("computationTimeMs"),
+            totalRequestMs=total_request_ms,
+            storesConsidered=metadata.get("storesConsidered"),
+            storesAfterPruning=metadata.get("storesAfterPruning"),
+            candidatesEvaluated=metadata.get("candidatesEvaluated"),
+            partialFulfillment=metadata.get("partialFulfillment"),
+            heuristicFallback=metadata.get("heuristicFallback"),
+        )
+        return cached
+
+    try:
+        filtered_stores, _ = await db.filter_stores(
+            chain_codes=chain_codes,
+            lat=user_lat,
+            lon=user_lon,
+            d=max_distance_km,
+            limit=None,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if not filtered_stores:
+        raise HTTPException(status_code=404, detail="Nema trgovina za zadane filtere.")
+
+    product_ids = [str(item["product_id"]) for item in cart_items]
+    products = await db.get_products_by_ean(product_ids)
+    db_product_ids = [product.id for product in products]
+
+    store_prices = []
+    if db_product_ids:
+        store_prices = await db.get_product_store_prices(
+            product_ids=db_product_ids,
+            store_ids=[store.id for store in filtered_stores],
+        )
+
+    try:
+        result = optimize_cart_exact(
+            cart_items=cart_items,
+            store_prices=store_prices,
+            mode=payload.mode,
+            user_lat=user_lat,
+            user_lon=user_lon,
+            max_distance_km=max_distance_km,
+            max_stores=max_stores,
+            enum_store_limit=settings.cart_optimize_enum_store_limit,
+            mode_weight_deltas=mode_weight_deltas,
+        )
+    except CartOptimizationError as exc:
+        _raise_api_error(
+            status_code=exc.status_code,
+            detail_code=exc.detail_code,
+            detail=exc.message,
+        )
+
+    await cart_optimize_cache.set_json(cache_key, result)
+
+    metadata = result.get("metadata", {})
+    total_request_ms = int(round((perf_counter() - request_started_at) * 1000))
+
+    await _track_cart_optimize_run(
+        target_db=target_db,
+        user_uid=user['supabase_uid'],
+        mode=payload.mode,
+        cache_hit=False,
+        metadata=metadata,
+        total_request_ms=total_request_ms,
+        total_cost=_safe_float((result.get("recommendation") or {}).get("totalCost")),
+        stores_visited=(result.get("recommendation") or {}).get("storesVisited"),
+    )
+
+    _log_cart_optimize_event(
+        status="success",
+        cacheHit=False,
+        cacheBackend=cart_optimize_cache.effective_backend,
+        mode=payload.mode,
+        hasUserLocation=bool(payload.userLocation),
+        maxDistanceKm=max_distance_km,
+        maxStores=max_stores,
+        modeWeightDelta=round(active_mode_delta, 4),
+        chains=chain_codes or [],
+        algorithmUsed=metadata.get("algorithmUsed"),
+        computationTimeMs=metadata.get("computationTimeMs"),
+        totalRequestMs=total_request_ms,
+        storesConsidered=metadata.get("storesConsidered"),
+        storesAfterPruning=metadata.get("storesAfterPruning"),
+        candidatesEvaluated=metadata.get("candidatesEvaluated"),
+        partialFulfillment=metadata.get("partialFulfillment"),
+        heuristicFallback=metadata.get("heuristicFallback"),
+    )
+
+    return result
+
+
+@app.post("/v1/cart/optimize/feedback")
+async def submit_cart_optimization_feedback(
+    payload: CartOptimizeFeedbackRequest,
+    user = Depends(get_current_active_user),
+):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+
+    await _store_cart_optimize_feedback(
+        target_db=target_db,
+        user_uid=user['supabase_uid'],
+        payload=payload,
+    )
+    _clear_mode_delta_cache()
+
+    feedback_stats: dict[str, dict[str, float | int]] = {}
+    applied_delta = 0.0
+    if settings.cart_optimize_tuning_enabled:
+        try:
+            feedback_stats = await _fetch_feedback_stats(target_db)
+            current_mode_stats = feedback_stats.get(payload.mode)
+            if current_mode_stats is not None:
+                feedback_count = int(current_mode_stats["feedbackCount"])
+                acceptance_rate = float(current_mode_stats["acceptanceRate"])
+                if feedback_count >= settings.cart_optimize_tuning_min_feedback_samples:
+                    applied_delta = _compute_mode_delta(acceptance_rate)
+        except Exception:
+            feedback_stats = {}
+
+    return {
+        "status": "success",
+        "mode": payload.mode,
+        "accepted": payload.accepted,
+        "tuning": {
+            "enabled": settings.cart_optimize_tuning_enabled,
+            "lookbackDays": settings.cart_optimize_tuning_lookback_days,
+            "minFeedbackSamples": settings.cart_optimize_tuning_min_feedback_samples,
+            "acceptanceThreshold": settings.cart_optimize_tuning_acceptance_threshold,
+            "appliedDelta": round(applied_delta, 4),
+            "stats": feedback_stats.get(payload.mode),
+        },
+    }
 
 
 # --- FAVORITES ---
@@ -864,6 +1380,95 @@ async def admin_check(admin = Depends(require_role("ADMIN"))):
         "is_admin": True,
         "supabase_uid": str(admin["supabase_uid"]),
         "role": admin["role_name"],
+    }
+
+
+@app.get("/v1/admin/cart-optimizer/tuning-status")
+async def admin_cart_optimizer_tuning_status(admin = Depends(require_role("ADMIN"))):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+
+    run_stats_by_mode: dict[str, dict[str, object]] = {}
+    feedback_stats_by_mode: dict[str, dict[str, float | int]] = {}
+    active_deltas: dict[str, float] = {}
+
+    try:
+        run_rows = await target_db.fetch(
+            """
+            SELECT
+                mode,
+                COUNT(*)::int AS run_count,
+                SUM(CASE WHEN cache_hit THEN 1 ELSE 0 END)::int AS cache_hit_count,
+                AVG(total_request_ms)::float AS avg_request_ms,
+                AVG(computation_time_ms)::float AS avg_compute_ms,
+                AVG(total_cost)::float AS avg_total_cost,
+                AVG(stores_visited)::float AS avg_stores_visited,
+                AVG(CASE WHEN partial_fulfillment THEN 1.0 ELSE 0.0 END)::float AS partial_rate,
+                AVG(CASE WHEN heuristic_fallback THEN 1.0 ELSE 0.0 END)::float AS heuristic_rate
+            FROM cart_optimize_runs
+            WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
+            GROUP BY mode
+            """,
+            settings.cart_optimize_tuning_lookback_days,
+        )
+        for row in run_rows:
+            run_stats_by_mode[str(row["mode"])] = {
+                "runCount": int(row["run_count"]),
+                "cacheHitCount": int(row["cache_hit_count"]),
+                "avgRequestMs": round(float(row["avg_request_ms"] or 0.0), 2),
+                "avgComputationMs": round(float(row["avg_compute_ms"] or 0.0), 2),
+                "avgTotalCost": round(float(row["avg_total_cost"] or 0.0), 2),
+                "avgStoresVisited": round(float(row["avg_stores_visited"] or 0.0), 2),
+                "partialFulfillmentRate": round(float(row["partial_rate"] or 0.0), 4),
+                "heuristicFallbackRate": round(float(row["heuristic_rate"] or 0.0), 4),
+            }
+    except Exception as exc:
+        logger.warning("Failed to load cart optimizer run stats for admin status (%s).", exc)
+
+    try:
+        feedback_stats_by_mode = await _fetch_feedback_stats(target_db)
+    except Exception as exc:
+        logger.warning("Failed to load cart optimizer feedback stats for admin status (%s).", exc)
+
+    active_deltas = await _get_mode_weight_deltas(target_db)
+
+    modes_payload: dict[str, dict[str, object]] = {}
+    for mode in OPTIMIZATION_MODES:
+        mode_feedback = feedback_stats_by_mode.get(mode, {
+            "feedbackCount": 0,
+            "acceptedCount": 0,
+            "acceptanceRate": 0.0,
+        })
+        modes_payload[mode] = {
+            "runStats": run_stats_by_mode.get(mode, {
+                "runCount": 0,
+                "cacheHitCount": 0,
+                "avgRequestMs": 0.0,
+                "avgComputationMs": 0.0,
+                "avgTotalCost": 0.0,
+                "avgStoresVisited": 0.0,
+                "partialFulfillmentRate": 0.0,
+                "heuristicFallbackRate": 0.0,
+            }),
+            "feedback": {
+                "feedbackCount": int(mode_feedback["feedbackCount"]),
+                "acceptedCount": int(mode_feedback["acceptedCount"]),
+                "acceptanceRate": round(float(mode_feedback["acceptanceRate"]), 4),
+            },
+            "activeWeightDelta": round(float(active_deltas.get(mode, 0.0)), 4),
+            "dominantDimension": {
+                0: "cost",
+                1: "distance",
+                2: "storeCount",
+            }[MODE_DOMINANT_DIMENSION_INDEX[mode]],
+        }
+
+    return {
+        "lookbackDays": settings.cart_optimize_tuning_lookback_days,
+        "tuningEnabled": settings.cart_optimize_tuning_enabled,
+        "minFeedbackSamples": settings.cart_optimize_tuning_min_feedback_samples,
+        "acceptanceThreshold": settings.cart_optimize_tuning_acceptance_threshold,
+        "deltaStep": settings.cart_optimize_tuning_delta,
+        "modes": modes_payload,
     }
 
 

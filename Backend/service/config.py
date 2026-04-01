@@ -75,6 +75,68 @@ class Settings:
             0.0,
             float(os.getenv("SEARCH_TOKEN_AVG_WEIGHT", "0.15")),
         )
+
+        self.cart_optimize_default_max_distance_km: float = max(
+            1.0,
+            float(os.getenv("CART_OPTIMIZE_DEFAULT_MAX_DISTANCE_KM", "15")),
+        )
+        self.cart_optimize_default_max_stores: int = max(
+            1,
+            int(os.getenv("CART_OPTIMIZE_DEFAULT_MAX_STORES", "5")),
+        )
+        self.cart_optimize_enum_store_limit: int = max(
+            1,
+            int(os.getenv("CART_OPTIMIZE_ENUM_STORE_LIMIT", "20")),
+        )
+        self.cart_optimize_cache_enabled: bool = (
+            os.getenv("CART_OPTIMIZE_CACHE_ENABLED", "true").lower() == "true"
+        )
+        self.cart_optimize_cache_backend: str = os.getenv(
+            "CART_OPTIMIZE_CACHE_BACKEND",
+            "memory",
+        ).strip().lower()
+        if self.cart_optimize_cache_backend not in {"memory", "redis", "none"}:
+            self.cart_optimize_cache_backend = "memory"
+        self.cart_optimize_cache_ttl_seconds: int = max(
+            1,
+            int(os.getenv("CART_OPTIMIZE_CACHE_TTL_SECONDS", "900")),
+        )
+        self.cart_optimize_cache_location_bucket_m: float = max(
+            1.0,
+            float(os.getenv("CART_OPTIMIZE_CACHE_LOCATION_BUCKET_M", "200")),
+        )
+        self.cart_optimize_cache_version: str = os.getenv(
+            "CART_OPTIMIZE_CACHE_VERSION",
+            "v1",
+        ).strip() or "v1"
+        self.cart_optimize_cache_redis_url: str = os.getenv(
+            "CART_OPTIMIZE_CACHE_REDIS_URL",
+            "redis://redis:6379/0",
+        )
+        self.cart_optimize_tuning_enabled: bool = (
+            os.getenv("CART_OPTIMIZE_TUNING_ENABLED", "true").lower() == "true"
+        )
+        self.cart_optimize_tuning_lookback_days: int = max(
+            1,
+            int(os.getenv("CART_OPTIMIZE_TUNING_LOOKBACK_DAYS", "30")),
+        )
+        self.cart_optimize_tuning_min_feedback_samples: int = max(
+            1,
+            int(os.getenv("CART_OPTIMIZE_TUNING_MIN_FEEDBACK_SAMPLES", "20")),
+        )
+        self.cart_optimize_tuning_acceptance_threshold: float = min(
+            0.95,
+            max(0.05, float(os.getenv("CART_OPTIMIZE_TUNING_ACCEPTANCE_THRESHOLD", "0.25"))),
+        )
+        self.cart_optimize_tuning_delta: float = min(
+            0.20,
+            max(0.0, float(os.getenv("CART_OPTIMIZE_TUNING_DELTA", "0.05"))),
+        )
+        self.cart_optimize_tuning_cache_ttl_seconds: int = max(
+            30,
+            int(os.getenv("CART_OPTIMIZE_TUNING_CACHE_TTL_SECONDS", "300")),
+        )
+
         self.supabase_url = os.getenv("SUPABASE_URL", "")
         # Legacy fallback only; primary token verification uses Supabase JWKS.
         self.supabase_jwt_secret = os.getenv("SUPABASE_JWT_SECRET", "")

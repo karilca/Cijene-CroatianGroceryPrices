@@ -44,7 +44,9 @@ Algoritam prvo učita sve cijene za tražene proizvode, pa izračuna udaljenost 
 
 Algoritam isprobava sve moguće kombinacije jedne, dvije, tri (itd.) trgovine, sve do zadanog maksimuma. Za svaku kombinaciju provjeri može li pokriti sve proizvode iz košarice. Ako može, za svaki proizvod odabire najjeftiniju dostupnu trgovinu unutar te kombinacije i bilježi rezultat.
 
-Kad se broj filtriranih trgovina poveća iznad 20, egzaktna enumeracija postaje prespora, pa se koristi heuristika: algoritam krene od nekoliko dobrih početnih rješenja (najjeftinije po proizvodu, najbliža pojedinačna trgovina, najboljи parovi) i iterativno ih poboljšava dok nema više napretka.
+Kad se broj filtriranih trgovina poveća iznad 20, egzaktna enumeracija postaje prespora, pa se koristi heuristika: algoritam krene od nekoliko dobrih početnih rješenja (najjeftinije po proizvodu, najbliža pojedinačna trgovina, najbolji parovi) i iterativno ih poboljšava dok nema više napretka.
+
+U API odgovoru se to signalizira kroz `metadata.algorithmUsed = "heuristic_ranked_subset_search"` i warning `HEURISTIC_FALLBACK_USED`.
 
 ### Korak 3 — Ocjenjivanje
 
@@ -155,13 +157,14 @@ Greedy štedi €4,20 u usporedbi s Conservative (19,7% jeftinije), ali korisnik
 ### Tjedan 5 — Heuristika i infrastruktura
 
 - Heuristički pristup kao pričuva za slučaj kada je broj obližnjih trgovina veći od 20
-- Predmemoriranje odgovora (Redis, 15 minuta, grupiranje lokacija na mrežu od ~200 m)
-- Strukturirano zapisivanje: koji algoritam je korišten, koliko je trajalo, koji mod, koji je trošak
+- Predmemoriranje odgovora (TTL 15 min; location bucket ~200 m; backend `memory` ili `redis`)
+- Strukturirano zapisivanje: `algorithmUsed`, `computationTimeMs`, `storesConsidered`, `candidatesEvaluated`, `heuristicFallback`, `cacheHit`
 
 ### Tjedan 6+ — Praćenje i podešavanje
 
-- Praćenje koje načine rada korisnici biraju i prihvaćaju li preporuku
-- Ako je stopa prihvaćanja nekog moda ispod 25%, težine se prilagođavaju za ±0,05
+- Praćenje koje načine rada korisnici biraju i prihvaćaju li preporuku (`cart_optimize_runs`, `cart_optimize_feedback`)
+- Feedback API: `POST /v1/cart/optimize/feedback` (korisno / nije korisno)
+- Ako je stopa prihvaćanja nekog moda ispod 25%, dominantna težina moda se smanjuje za `0.05`; iznad `75%` povećava se za `0.05`
 - Evaluacija dodavanja procijenjene udaljenosti vožnje umjesto ravne linije
 
 ---

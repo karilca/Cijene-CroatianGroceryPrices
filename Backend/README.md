@@ -24,6 +24,11 @@ cp .env.docker.example .env
 docker-compose -f docker-compose.yml up -d
 ```
 
+**Produkcija + Redis cache profil:**
+```bash
+docker-compose -f docker-compose.yml --profile cache up -d
+```
+
 **Razvoj (s hot reload):**
 ```bash
 docker-compose up -d
@@ -44,6 +49,21 @@ docker-compose up -d
 - `SEARCH_TRIGRAM_THRESHOLD_SHORT` - minimalni trigram score za kratke upite
 - `SEARCH_TRIGRAM_THRESHOLD_LONG` - minimalni trigram score za duže upite
 - `SEARCH_TRIGRAM_LONG_QUERY_LEN` - duljina upita od koje se koristi LONG threshold
+- `CART_OPTIMIZE_DEFAULT_MAX_DISTANCE_KM` - zadani maksimalni radijus za optimizer košarice (km)
+- `CART_OPTIMIZE_DEFAULT_MAX_STORES` - zadani maksimalni broj trgovina u optimizeru
+- `CART_OPTIMIZE_ENUM_STORE_LIMIT` - prag broja kandidatskih trgovina; iznad praga optimizer prelazi na heuristički fallback
+- `CART_OPTIMIZE_CACHE_ENABLED` - uključuje/isključuje cache za `/v1/cart/optimize`
+- `CART_OPTIMIZE_CACHE_BACKEND` - backend cache-a (`memory`, `redis`, `none`)
+- `CART_OPTIMIZE_CACHE_TTL_SECONDS` - trajanje cache unosa u sekundama (default `900`)
+- `CART_OPTIMIZE_CACHE_LOCATION_BUCKET_M` - grupiranje korisničke lokacije za cache key u metrima (default `200`)
+- `CART_OPTIMIZE_CACHE_VERSION` - verzioniranje cache ključa za siguran invalidate pri promjenama algoritma
+- `CART_OPTIMIZE_CACHE_REDIS_URL` - Redis URL kada je backend postavljen na `redis`
+- `CART_OPTIMIZE_TUNING_ENABLED` - uključuje dinamičko prilagođavanje težina po mode-u na temelju feedbacka
+- `CART_OPTIMIZE_TUNING_LOOKBACK_DAYS` - period (u danima) koji ulazi u izračun acceptance rate-a
+- `CART_OPTIMIZE_TUNING_MIN_FEEDBACK_SAMPLES` - minimalni broj feedback zapisa po mode-u prije aktivacije tuninga
+- `CART_OPTIMIZE_TUNING_ACCEPTANCE_THRESHOLD` - prag prihvaćanja ispod kojeg se dominantna težina smanjuje
+- `CART_OPTIMIZE_TUNING_DELTA` - korak promjene težina (±), default `0.05`
+- `CART_OPTIMIZE_TUNING_CACHE_TTL_SECONDS` - TTL cache-a za izračun aktivnih tuning delta vrijednosti
 - `GOOGLE_MAPS_API_KEY` - Google Maps API ključ za automatsko geokodiranje trgovina
 - `GOOGLE_MAPS_TIMEOUT_SECONDS` - timeout po API pozivu u sekundama
 - `GOOGLE_MAPS_REQUEST_DELAY_SECONDS` - pauza između API poziva radi kvota
@@ -181,6 +201,18 @@ Read endpointi pod `/v1/*` koriste Supabase JWT autentikaciju.
 Nakon registracije i prijave u Frontendu nije potreban ručni unos `api_key` u bazu.
 Admin sync prema Supabase Auth koristi `SUPABASE_SERVICE_ROLE_KEY` (Secret key).
 
+Feedback endpoint za optimizer:
+
+```bash
+POST /v1/cart/optimize/feedback
+```
+
+Admin status tuninga i metrike po mode-u:
+
+```bash
+GET /v1/admin/cart-optimizer/tuning-status
+```
+
 Pretraga trgovina po `city` i `address` je case-insensitive i accent-insensitive
 (npr. `Šibenik` = `Sibenik`, te `đ` ≈ `dj`) i ne mijenja originalne vrijednosti
 pohranjene u bazi.
@@ -207,6 +239,28 @@ docker-compose exec db pg_dump -U cijene_user cijene > backup.sql
 
 Napomena: ručno kreiranje `api_key` korisnika više nije potrebno za standardni rad
 pretrage proizvoda, lanaca i trgovina kroz `/v1/*`.
+
+### Benchmark optimizera košarice
+
+Za usporedbu exact i heuristic grane optimizatora koristi skriptu:
+
+```bash
+docker compose exec api uv run -m service.tools.cart_optimizer_benchmark
+```
+
+Korisne opcije:
+
+```bash
+docker compose exec api uv run -m service.tools.cart_optimizer_benchmark \
+	--scenarios 60 \
+	--cart-size 18 \
+	--store-count 32 \
+	--heuristic-limit 12 \
+	--output /app/data/cart_optimizer_benchmark.json
+```
+
+Skripta ispisuje P50/P95 latenciju i quality gap (% razlika troška heuristic vs exact),
+te fallback rate za heuristički path.
 
 ## Održavanje
 

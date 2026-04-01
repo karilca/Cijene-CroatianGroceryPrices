@@ -52,6 +52,14 @@ services:
       - crawler
     restart: "no"
 
+  redis:
+    image: redis:7-alpine
+    profiles:
+      - cache
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     driver: local

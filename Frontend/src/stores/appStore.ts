@@ -19,6 +19,7 @@ interface AppState {
   preferredChains: string[];
   currency: 'EUR' | 'HRK';
   language: 'en' | 'hr';
+  optimizationMode: 'greedy' | 'balanced' | 'conservative';
 
   // Favorites
   favoriteProducts: Product[];
@@ -55,6 +56,7 @@ interface AppState {
   removePreferredChain: (chainCode: string) => void;
   setCurrency: (currency: 'EUR' | 'HRK') => void;
   setLanguage: (language: 'en' | 'hr') => void;
+  setOptimizationMode: (mode: 'greedy' | 'balanced' | 'conservative') => void;
 
   // Actions for favorites
   addFavoriteProduct: (product: Product) => void;
@@ -106,6 +108,7 @@ const initialState = {
   preferredChains: [],
   currency: 'EUR' as const,
   language: 'en' as const,
+  optimizationMode: 'balanced' as const,
 
   // Favorites
   favoriteProducts: [],
@@ -164,6 +167,7 @@ export const useAppStore = create<AppState>()(
       })),
       setCurrency: (currency: 'EUR' | 'HRK') => set({ currency }),
       setLanguage: (language: 'en' | 'hr') => set({ language }),
+      setOptimizationMode: (optimizationMode: 'greedy' | 'balanced' | 'conservative') => set({ optimizationMode }),
 
       // Favorite actions
       addFavoriteProduct: (product: Product) => set((state) => {
@@ -309,6 +313,7 @@ export const useAppStore = create<AppState>()(
         preferredChains: state.preferredChains,
         currency: state.currency,
         language: state.language,
+        optimizationMode: state.optimizationMode,
         searchHistory: state.searchHistory,
         recentlyViewedProducts: state.recentlyViewedProducts,
         recentlyViewedStores: state.recentlyViewedStores,
@@ -338,7 +343,9 @@ export const useUserPreferences = () => useAppStore((state) => ({
   currency: state.currency,
   setCurrency: state.setCurrency,
   language: state.language,
-  setLanguage: state.setLanguage
+  setLanguage: state.setLanguage,
+  optimizationMode: state.optimizationMode,
+  setOptimizationMode: state.setOptimizationMode,
 }));
 // Individual selectors to avoid object creation on each render
 export const useFavoriteProducts = () => useAppStore((state) => state.favoriteProducts);

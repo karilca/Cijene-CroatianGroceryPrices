@@ -166,6 +166,132 @@ export interface StorePricesResponse {
   store_prices: StorePrice[];
 }
 
+export type OptimizationMode = 'greedy' | 'balanced' | 'conservative';
+
+export interface CartOptimizeRequest {
+  mode?: OptimizationMode;
+  userLocation?: {
+    latitude: number;
+    longitude: number;
+  };
+  options?: {
+    maxDistanceKm?: number;
+    maxStores?: number;
+  };
+  chains?: string[];
+}
+
+export interface OptimizedStoreSummary {
+  id: string;
+  name: string;
+  chain: string;
+  storeCode: string;
+  address?: string;
+  city?: string;
+  lat?: number;
+  lon?: number;
+  distanceKm: number;
+  distanceEstimated?: boolean;
+  subtotal: number;
+  itemCount: number;
+}
+
+export interface OptimizedUnavailableProduct {
+  productId: string;
+  productName?: string;
+  quantity: number;
+  reason: string;
+}
+
+export interface OptimizedAssignment {
+  productId: string;
+  productName?: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  store: {
+    id: string;
+    name: string;
+    chain: string;
+    storeCode: string;
+    address?: string;
+    city?: string;
+    distanceKm: number;
+    distanceEstimated?: boolean;
+  };
+}
+
+export interface CartRecommendationSummary {
+  mode: OptimizationMode;
+  totalCost: number;
+  currency: string;
+  storesVisited: number;
+  averageDistanceKm: number;
+  score: number;
+  storeNames: string[];
+  stores: OptimizedStoreSummary[];
+  unavailableProducts: OptimizedUnavailableProduct[];
+  assignments?: OptimizedAssignment[];
+}
+
+export interface CartOptimizationMetadata {
+  algorithmUsed: string;
+  computationTimeMs: number;
+  storesConsidered: number;
+  storesAfterPruning: number;
+  candidatesEvaluated: number;
+  maxEnumerationStores: number;
+  hasUserLocation: boolean;
+  partialFulfillment: boolean;
+  heuristicFallback?: boolean;
+  modeWeightDelta?: number;
+  modeWeights?: Partial<Record<OptimizationMode, {
+    cost: number;
+    distance: number;
+    storeCount: number;
+  }>>;
+}
+
+export interface CartOptimizationResponse {
+  recommendation: CartRecommendationSummary;
+  alternatives: Partial<Record<OptimizationMode, CartRecommendationSummary>>;
+  warnings: string[];
+  metadata: CartOptimizationMetadata;
+}
+
+export interface CartQuantityUpdateResponse {
+  status: string;
+  quantity: number;
+  removed: boolean;
+}
+
+export interface CartOptimizeFeedbackRequest {
+  mode: OptimizationMode;
+  accepted: boolean;
+  algorithmUsed?: string;
+  recommendationTotalCost?: number;
+  recommendationStoresVisited?: number;
+  recommendationAverageDistanceKm?: number;
+}
+
+export interface CartOptimizeFeedbackResponse {
+  status: string;
+  mode: OptimizationMode;
+  accepted: boolean;
+  tuning: {
+    enabled: boolean;
+    lookbackDays: number;
+    minFeedbackSamples: number;
+    acceptanceThreshold: number;
+    appliedDelta: number;
+    stats?: {
+      feedbackCount: number;
+      acceptedCount: number;
+      acceptanceRate: number;
+    };
+  };
+}
+
 // Utility types for API responses
 export type ApiResponse<T> = {
   data: T;

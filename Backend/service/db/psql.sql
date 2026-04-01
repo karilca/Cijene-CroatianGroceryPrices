@@ -248,6 +248,44 @@ CREATE TABLE IF NOT EXISTS cart_items (
 CREATE INDEX IF NOT EXISTS idx_cart_items_user_id ON cart_items (user_id);
 CREATE INDEX IF NOT EXISTS idx_cart_items_product_id ON cart_items (product_id);
 
+CREATE TABLE IF NOT EXISTS cart_optimize_runs (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    mode VARCHAR(32) NOT NULL,
+    algorithm_used VARCHAR(64),
+    cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
+    partial_fulfillment BOOLEAN NOT NULL DEFAULT FALSE,
+    heuristic_fallback BOOLEAN NOT NULL DEFAULT FALSE,
+    stores_considered INTEGER,
+    stores_after_pruning INTEGER,
+    candidates_evaluated INTEGER,
+    stores_visited INTEGER,
+    total_cost DECIMAL(10, 2),
+    computation_time_ms INTEGER,
+    total_request_ms INTEGER,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_cart_optimize_runs_created_at ON cart_optimize_runs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cart_optimize_runs_mode_created ON cart_optimize_runs (mode, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cart_optimize_runs_user_created ON cart_optimize_runs (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS cart_optimize_feedback (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    mode VARCHAR(32) NOT NULL,
+    accepted BOOLEAN NOT NULL,
+    algorithm_used VARCHAR(64),
+    recommendation_total_cost DECIMAL(10, 2),
+    recommendation_stores_visited INTEGER,
+    recommendation_average_distance_km DECIMAL(10, 2),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_cart_optimize_feedback_created_at ON cart_optimize_feedback (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cart_optimize_feedback_mode_created ON cart_optimize_feedback (mode, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cart_optimize_feedback_user_created ON cart_optimize_feedback (user_id, created_at DESC);
+
 -- Favorites tables used by authenticated API endpoints
 CREATE TABLE IF NOT EXISTS favorite_products (
     user_id UUID NOT NULL,

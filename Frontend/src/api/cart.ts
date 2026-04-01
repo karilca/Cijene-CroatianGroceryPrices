@@ -1,6 +1,13 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { apiUrl } from '../config/api';
-import type { Product } from '../types';
+import type {
+    CartOptimizeFeedbackRequest,
+    CartOptimizeFeedbackResponse,
+    CartOptimizationResponse,
+    CartOptimizeRequest,
+    CartQuantityUpdateResponse,
+    Product,
+} from '../types';
 import { createLocalizedApiErrorFromPayload, LocalizedApiError } from '../utils/apiErrors';
 
 // Types aligned with frontend interfaces and backend responses
@@ -25,6 +32,14 @@ export interface CartItemsPayload {
     items: CartItem[];
 }
 
+const getAccessToken = async (supabase: SupabaseClient): Promise<string> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
+    }
+    return session.access_token;
+};
+
 /**
  * Add a product to the cart.
  */
@@ -34,10 +49,7 @@ export const addToCart = async (
     quantity: number = 1
 ): Promise<{ success: boolean; message?: string }> => {
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-            throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
-        }
+        const accessToken = await getAccessToken(supabase);
 
         const payload: CartItemRequest = {
             product_id: productId,
@@ -48,7 +60,7 @@ export const addToCart = async (
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${session.access_token}` 
+                "Authorization": `Bearer ${accessToken}` 
             },
             body: JSON.stringify(payload)
         });
@@ -68,14 +80,11 @@ export const addToCart = async (
  * Fetch all cart items.
  */
 export const getCartItems = async (supabase: SupabaseClient): Promise<CartItemsPayload> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-        throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
-    }
+    const accessToken = await getAccessToken(supabase);
 
     const response = await fetch(apiUrl('/v1/cart'), {
         method: "GET",
-        headers: { "Authorization": `Bearer ${session.access_token}` }
+        headers: { "Authorization": `Bearer ${accessToken}` }
     });
 
     if (!response.ok) {
@@ -93,14 +102,11 @@ export const removeFromCart = async (
     productId: string
 ): Promise<CartResponse> => {
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-            throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
-        }
+        const accessToken = await getAccessToken(supabase);
 
         const response = await fetch(apiUrl(`/v1/cart/remove/${encodeURIComponent(productId)}`), {
             method: "DELETE",
-            headers: { "Authorization": `Bearer ${session.access_token}` }
+            headers: { "Authorization": `Bearer ${accessToken}` }
         });
 
         if (!response.ok) {
@@ -116,6 +122,99 @@ export const removeFromCart = async (
             message: error instanceof Error ? error.message : 'Failed to remove item from cart.' 
         };
     }
+};
+
+const updateCartQuantity = async (
+    supabase: SupabaseClient,
+    endpoint: string,
+    fallbackErrorMessage: string,
+): Promise<{ success: boolean; message?: string; payload?: CartQuantityUpdateResponse }> => {
+    try {
+        const accessToken = await getAccessToken(supabase);
+        const response = await fetch(apiUrl(endpoint), {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            throw createLocalizedApiErrorFromPayload(payload, fallbackErrorMessage);
+        }
+
+        const payload = (await response.json()) as CartQuantityUpdateResponse;
+        return { success: true, payload };
+    } catch (error: unknown) {
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : fallbackErrorMessage,
+        };
+    }
+};
+
+export const incrementCartItem = async (
+    supabase: SupabaseClient,
+    productId: string,
+): Promise<{ success: boolean; message?: string; payload?: CartQuantityUpdateResponse }> => {
+    return updateCartQuantity(
+        supabase,
+        `/v1/cart/increment/${encodeURIComponent(productId)}`,
+        'Failed to increase cart quantity.',
+    );
+};
+
+export const decrementCartItem = async (
+    supabase: SupabaseClient,
+    productId: string,
+): Promise<{ success: boolean; message?: string; payload?: CartQuantityUpdateResponse }> => {
+    return updateCartQuantity(
+        supabase,
+        `/v1/cart/decrement/${encodeURIComponent(productId)}`,
+        'Failed to decrease cart quantity.',
+    );
+};
+
+export const optimizeCart = async (
+    supabase: SupabaseClient,
+    request: CartOptimizeRequest,
+): Promise<CartOptimizationResponse> => {
+    const accessToken = await getAccessToken(supabase);
+    const response = await fetch(apiUrl('/v1/cart/optimize'), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw createLocalizedApiErrorFromPayload(payload, 'Failed to optimize cart.');
+    }
+
+    return (await response.json()) as CartOptimizationResponse;
+};
+
+export const submitCartOptimizationFeedback = async (
+    supabase: SupabaseClient,
+    request: CartOptimizeFeedbackRequest,
+): Promise<CartOptimizeFeedbackResponse> => {
+    const accessToken = await getAccessToken(supabase);
+    const response = await fetch(apiUrl('/v1/cart/optimize/feedback'), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw createLocalizedApiErrorFromPayload(payload, 'Failed to submit optimization feedback.');
+    }
+
+    return (await response.json()) as CartOptimizeFeedbackResponse;
 };
 
 /**
