@@ -30,6 +30,7 @@ export const CartPage = () => {
     const optimizationError = useCartStore((state) => state.optimizationError);
     const submitOptimizationFeedback = useCartStore((state) => state.submitOptimizationFeedback);
     const isSubmittingOptimizationFeedback = useCartStore((state) => state.isSubmittingOptimizationFeedback);
+    const clearOptimization = useCartStore((state) => state.clearOptimization);
     const clearError = useCartStore((state) => state.clearError);
 
     const optimizationMode = useAppStore((state) => state.optimizationMode);
@@ -42,7 +43,6 @@ export const CartPage = () => {
     const [isRemoving, setIsRemoving] = useState(false);
     const [updatingQuantityId, setUpdatingQuantityId] = useState<string | null>(null);
     const [lastOptimizationFeedback, setLastOptimizationFeedback] = useState<null | boolean>(null);
-    const [locationCheckFinished, setLocationCheckFinished] = useState(false);
 
     const reloadCart = useCallback(async () => {
         clearError();
@@ -55,6 +55,44 @@ export const CartPage = () => {
 
     const changeMode = (mode: OptimizationMode) => {
         setOptimizationMode(mode);
+    };
+
+    const runOptimization = async () => {
+        if (cartItems.length === 0 || isOptimizing) {
+            return;
+        }
+
+        let userLocation: { latitude: number; longitude: number } | undefined;
+        const hasSavedLocation = defaultLocation.latitude !== null && defaultLocation.longitude !== null;
+
+        if (hasSavedLocation) {
+            userLocation = {
+                latitude: defaultLocation.latitude as number,
+                longitude: defaultLocation.longitude as number,
+            };
+        } else if (isGeolocationSupported) {
+            try {
+                const currentPosition = await getCurrentPosition();
+                if (currentPosition) {
+                    userLocation = {
+                        latitude: currentPosition.latitude,
+                        longitude: currentPosition.longitude,
+                    };
+                }
+            } catch {
+                notifyWarning(t('cart.locationPermissionNotice'));
+            }
+        }
+
+        await optimizeCart({
+            mode: optimizationMode,
+            userLocation,
+            options: {
+                maxDistanceKm: Math.max(1, searchRadius / 1000),
+            },
+        });
+
+        setLastOptimizationFeedback(null);
     };
 
     const handleIncrement = async (productId: string) => {
@@ -123,74 +161,15 @@ export const CartPage = () => {
     }, [optimizationError, notifyError, t]);
 
     useEffect(() => {
-        if (cartItems.length === 0) {
-            setLocationCheckFinished(false);
-            return;
-        }
-
-        const hasLocation = defaultLocation.latitude !== null && defaultLocation.longitude !== null;
-        if (hasLocation || !isGeolocationSupported || locationCheckFinished) {
-            return;
-        }
-
-        let isActive = true;
-
-        void getCurrentPosition()
-            .catch(() => {
-                notifyWarning(t('cart.locationPermissionNotice'));
-            })
-            .finally(() => {
-                if (isActive) {
-                    setLocationCheckFinished(true);
-                }
-            });
-
-        return () => {
-            isActive = false;
-        };
-    }, [
-        cartItems.length,
-        defaultLocation.latitude,
-        defaultLocation.longitude,
-        isGeolocationSupported,
-        locationCheckFinished,
-        getCurrentPosition,
-        notifyWarning,
-        t,
-    ]);
-
-    useEffect(() => {
-        if (cartItems.length === 0) {
-            return;
-        }
-
-        const hasLocation = defaultLocation.latitude !== null && defaultLocation.longitude !== null;
-        if (!hasLocation && isGeolocationSupported && !locationCheckFinished) {
-            return;
-        }
-
-        void optimizeCart({
-            mode: optimizationMode,
-            userLocation: hasLocation
-                ? {
-                    latitude: defaultLocation.latitude as number,
-                    longitude: defaultLocation.longitude as number,
-                }
-                : undefined,
-            options: {
-                maxDistanceKm: Math.max(1, searchRadius / 1000),
-            },
-        });
         setLastOptimizationFeedback(null);
+        clearOptimization();
     }, [
         cartItems,
         optimizationMode,
         defaultLocation.latitude,
         defaultLocation.longitude,
         searchRadius,
-        isGeolocationSupported,
-        locationCheckFinished,
-        optimizeCart,
+        clearOptimization,
     ]);
 
     if (loading) {
@@ -227,6 +206,14 @@ export const CartPage = () => {
                                     {t(`cart.mode.${mode}`)}
                                 </button>
                             ))}
+                            <button
+                                type="button"
+                                onClick={() => void runOptimization()}
+                                disabled={isOptimizing || cartItems.length === 0}
+                                className="px-3 py-1.5 rounded-full text-sm font-semibold transition bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                {t('cart.runOptimization')}
+                            </button>
                         </div>
                     </div>
 

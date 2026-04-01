@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { useNotifications } from '../components/common/NotificationContext';
 import { useErrorState, classifyError } from '../utils/errorHandling';
 import { useLanguage } from '../contexts/LanguageContext';
+import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 export interface UseComponentErrorOptions {
   showNotifications?: boolean;
@@ -39,7 +40,7 @@ export const useComponentError = (options: UseComponentErrorOptions = {}) => {
 
     // Show notification if enabled
     if (showNotifications) {
-      let message = enhancedError.message || t('errors.unexpected');
+      let message = resolveApiErrorMessage(enhancedError, t, 'errors.unexpected');
       switch (enhancedError.type) {
         case 'NETWORK':
           message = t('errors.network.message');
@@ -51,7 +52,7 @@ export const useComponentError = (options: UseComponentErrorOptions = {}) => {
           message = t('errors.notFound.message');
           break;
         case 'VALIDATION':
-          message = enhancedError.message || t('errors.validation.message');
+          message = resolveApiErrorMessage(enhancedError, t, 'errors.validation.message');
           break;
         default:
           break;
@@ -80,7 +81,7 @@ export const useComponentError = (options: UseComponentErrorOptions = {}) => {
     handleError,
     handleRetry,
     hasError: !!errorState.error,
-    errorMessage: errorState.userMessage,
+    errorMessage: errorState.error ? resolveApiErrorMessage(errorState.error, t, 'errors.unexpected') : null,
     canRetry: errorState.canRetry
   };
 };
@@ -94,6 +95,7 @@ export const useApiError = () => {
 
   const handleApiError = useCallback((error: unknown) => {
     const enhancedError = classifyError(error);
+    const resolvedMessage = resolveApiErrorMessage(enhancedError, t, 'errors.server.message');
 
     switch (enhancedError.type) {
       case 'NETWORK':
@@ -112,7 +114,7 @@ export const useApiError = () => {
         break;
 
       case 'VALIDATION':
-        notifyWarning(enhancedError.message, t('errors.validation.title'));
+        notifyWarning(resolveApiErrorMessage(enhancedError, t, 'errors.validation.message'), t('errors.validation.title'));
         break;
 
       case 'NOT_FOUND':
@@ -121,7 +123,7 @@ export const useApiError = () => {
 
       default:
         notifyError(
-          enhancedError.message || t('errors.server.message'),
+          resolvedMessage,
           t('common.error')
         );
         break;

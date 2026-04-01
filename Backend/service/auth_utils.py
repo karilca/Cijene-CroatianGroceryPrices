@@ -16,6 +16,16 @@ _jwks_client: PyJWKClient | None = None
 _jwks_url: str | None = None
 
 
+def _raise_auth_error(status_code: int, detail_code: str, detail: str) -> None:
+    raise HTTPException(
+        status_code=status_code,
+        detail={
+            "detail_code": detail_code,
+            "detail": detail,
+        },
+    )
+
+
 def _get_jwks_client() -> tuple[PyJWKClient, str]:
     supabase_url = settings.supabase_url.strip().rstrip("/")
     if not supabase_url:
@@ -70,10 +80,11 @@ def _decode_token(token: str) -> dict:
         try:
             return _decode_with_legacy_shared_secret(token)
         except InvalidTokenError as exc:
-            raise HTTPException(
+            _raise_auth_error(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials",
-            ) from exc
+                detail_code="UNAUTHORIZED",
+                detail="Invalid authentication credentials.",
+            )
     except HTTPException:
         raise
     except Exception as exc:
@@ -89,9 +100,10 @@ def get_current_user(
     payload = _decode_token(credentials.credentials)
     supabase_uid = payload.get("sub")
     if not supabase_uid:
-        raise HTTPException(
+        _raise_auth_error(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User ID missing in authentication token",
+            detail_code="AUTH_TOKEN_SUB_MISSING",
+            detail="User ID is missing in authentication token.",
         )
     return supabase_uid
 

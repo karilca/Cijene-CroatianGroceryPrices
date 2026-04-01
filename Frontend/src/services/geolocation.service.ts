@@ -29,6 +29,22 @@ export interface GeolocationOptions {
   maximumAge?: number;
 }
 
+export const GEOLOCATION_ERROR_TOKENS = {
+  NOT_SUPPORTED: 'GEOLOCATION_NOT_SUPPORTED',
+  PERMISSION_DENIED: 'GEOLOCATION_PERMISSION_DENIED',
+  UNAVAILABLE: 'GEOLOCATION_UNAVAILABLE',
+  TIMEOUT: 'GEOLOCATION_TIMEOUT',
+  PERMISSIONS_API_UNSUPPORTED: 'GEOLOCATION_PERMISSIONS_API_UNSUPPORTED',
+  UNKNOWN: 'GEOLOCATION_UNKNOWN_ERROR',
+} as const;
+
+export type GeolocationErrorToken =
+  (typeof GEOLOCATION_ERROR_TOKENS)[keyof typeof GEOLOCATION_ERROR_TOKENS];
+
+const GEOLOCATION_CACHE_MAX_AGE_MS = 3 * 60 * 1000;
+const GEOLOCATION_FAST_TIMEOUT_MS = 1000;
+const GEOLOCATION_FRESH_TIMEOUT_MS = 6000;
+
 export class GeolocationService {
   private static instance: GeolocationService;
   private lastKnownPosition: GeolocationPosition | null = null;
@@ -77,9 +93,9 @@ export class GeolocationService {
   /**
    * Get current position – two-phase for speed.
    *
-   * 1. Try browser-cached position (maximumAge ≈ 10 min, timeout 5 s).
+    * 1. Try browser-cached position (maximumAge ≈ 3 min, timeout 1 s).
    *    ➜ Returns in < 50 ms when the browser has a cached fix.
-   * 2. If phase 1 fails, do a fresh request (timeout 15 s).
+    * 2. If phase 1 fails, do a fresh request (timeout 6 s).
    *
    * Callers can still pass custom options; they feed into phase 2.
    */
@@ -95,8 +111,8 @@ export class GeolocationService {
     try {
       const cached = await this.requestPosition({
         enableHighAccuracy: false,
-        timeout: 5_000,
-        maximumAge: 600_000, // accept any position ≤ 10 min old
+        timeout: GEOLOCATION_FAST_TIMEOUT_MS,
+        maximumAge: GEOLOCATION_CACHE_MAX_AGE_MS,
       });
       // Kick off a silent background refresh so the NEXT call is fresh
       this.refreshInBackground(options);
@@ -108,7 +124,7 @@ export class GeolocationService {
     // ── Phase 2: fresh position with generous timeout ───────────────────
     const freshOpts: PositionOptions = {
       enableHighAccuracy: options?.enableHighAccuracy ?? false,
-      timeout: options?.timeout ?? LOCATION.GEOLOCATION_TIMEOUT,
+      timeout: options?.timeout ?? GEOLOCATION_FRESH_TIMEOUT_MS,
       maximumAge: 0, // force fresh
     };
 
@@ -124,7 +140,7 @@ export class GeolocationService {
 
     this.refreshPromise = this.requestPosition({
       enableHighAccuracy: options?.enableHighAccuracy ?? false,
-      timeout: options?.timeout ?? LOCATION.GEOLOCATION_TIMEOUT,
+      timeout: options?.timeout ?? GEOLOCATION_FRESH_TIMEOUT_MS,
       maximumAge: 0,
     })
       .catch(() => this.lastKnownPosition!) // swallow error
@@ -271,20 +287,20 @@ export class GeolocationService {
   /**
    * Get user-friendly error message
    */
-  private getErrorMessage(code: number): string {
+  private getErrorMessage(code: number): GeolocationErrorToken {
     switch (code) {
       case 0:
-        return 'Geolocation is not supported by this browser.';
+        return GEOLOCATION_ERROR_TOKENS.NOT_SUPPORTED;
       case 1:
-        return 'Location access denied. Please enable location services.';
+        return GEOLOCATION_ERROR_TOKENS.PERMISSION_DENIED;
       case 2:
-        return 'Location unavailable. Please check your GPS or network connection.';
+        return GEOLOCATION_ERROR_TOKENS.UNAVAILABLE;
       case 3:
-        return 'Location request timed out. Please try again.';
+        return GEOLOCATION_ERROR_TOKENS.TIMEOUT;
       case 4:
-        return 'Permissions API is not supported in this browser.';
+        return GEOLOCATION_ERROR_TOKENS.PERMISSIONS_API_UNSUPPORTED;
       default:
-        return 'An unknown geolocation error occurred.';
+        return GEOLOCATION_ERROR_TOKENS.UNKNOWN;
     }
   }
 

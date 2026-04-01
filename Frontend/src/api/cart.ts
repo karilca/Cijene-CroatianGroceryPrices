@@ -35,7 +35,7 @@ export interface CartItemsPayload {
 const getAccessToken = async (supabase: SupabaseClient): Promise<string> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
-        throw new LocalizedApiError('AUTH_REQUIRED', 'Authentication is required.');
+        throw new LocalizedApiError('AUTH_REQUIRED');
     }
     return session.access_token;
 };
@@ -67,12 +67,12 @@ export const addToCart = async (
 
         if (!response.ok) {
             const payload = await response.json().catch(() => null);
-            throw createLocalizedApiErrorFromPayload(payload, 'Failed to add item to cart.');
+            throw createLocalizedApiErrorFromPayload(payload, 'CART_ADD_FAILED');
         }
 
         return { success: true };
     } catch (error) {
-        return { success: false, message: error instanceof Error ? error.message : 'Failed to add item to cart.' };
+        return { success: false, message: error instanceof Error ? error.message : 'CART_ADD_FAILED' };
     }
 };
 
@@ -89,7 +89,7 @@ export const getCartItems = async (supabase: SupabaseClient): Promise<CartItemsP
 
     if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw createLocalizedApiErrorFromPayload(payload, 'Failed to load cart.');
+        throw createLocalizedApiErrorFromPayload(payload, 'CART_LOAD_FAILED');
     }
     return await response.json() as CartItemsPayload;
 };
@@ -111,7 +111,7 @@ export const removeFromCart = async (
 
         if (!response.ok) {
             const payload = await response.json().catch(() => null);
-            throw createLocalizedApiErrorFromPayload(payload, 'Failed to remove item from cart.');
+            throw createLocalizedApiErrorFromPayload(payload, 'CART_REMOVE_FAILED');
         }
 
         return { status: 'success', success: true };
@@ -119,7 +119,7 @@ export const removeFromCart = async (
         return { 
             status: 'error', 
             success: false, 
-            message: error instanceof Error ? error.message : 'Failed to remove item from cart.' 
+            message: error instanceof Error ? error.message : 'CART_REMOVE_FAILED' 
         };
     }
 };
@@ -127,7 +127,7 @@ export const removeFromCart = async (
 const updateCartQuantity = async (
     supabase: SupabaseClient,
     endpoint: string,
-    fallbackErrorMessage: string,
+    fallbackErrorCode: string,
 ): Promise<{ success: boolean; message?: string; payload?: CartQuantityUpdateResponse }> => {
     try {
         const accessToken = await getAccessToken(supabase);
@@ -138,7 +138,7 @@ const updateCartQuantity = async (
 
         if (!response.ok) {
             const payload = await response.json().catch(() => null);
-            throw createLocalizedApiErrorFromPayload(payload, fallbackErrorMessage);
+            throw createLocalizedApiErrorFromPayload(payload, fallbackErrorCode);
         }
 
         const payload = (await response.json()) as CartQuantityUpdateResponse;
@@ -146,7 +146,7 @@ const updateCartQuantity = async (
     } catch (error: unknown) {
         return {
             success: false,
-            message: error instanceof Error ? error.message : fallbackErrorMessage,
+            message: error instanceof Error ? error.message : fallbackErrorCode,
         };
     }
 };
@@ -158,7 +158,7 @@ export const incrementCartItem = async (
     return updateCartQuantity(
         supabase,
         `/v1/cart/increment/${encodeURIComponent(productId)}`,
-        'Failed to increase cart quantity.',
+        'CART_INCREMENT_FAILED',
     );
 };
 
@@ -169,7 +169,7 @@ export const decrementCartItem = async (
     return updateCartQuantity(
         supabase,
         `/v1/cart/decrement/${encodeURIComponent(productId)}`,
-        'Failed to decrease cart quantity.',
+        'CART_DECREMENT_FAILED',
     );
 };
 
@@ -189,7 +189,7 @@ export const optimizeCart = async (
 
     if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw createLocalizedApiErrorFromPayload(payload, 'Failed to optimize cart.');
+        throw createLocalizedApiErrorFromPayload(payload, 'CART_OPTIMIZE_FAILED');
     }
 
     return (await response.json()) as CartOptimizationResponse;
@@ -211,7 +211,7 @@ export const submitCartOptimizationFeedback = async (
 
     if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw createLocalizedApiErrorFromPayload(payload, 'Failed to submit optimization feedback.');
+        throw createLocalizedApiErrorFromPayload(payload, 'CART_OPTIMIZATION_FEEDBACK_FAILED');
     }
 
     return (await response.json()) as CartOptimizeFeedbackResponse;

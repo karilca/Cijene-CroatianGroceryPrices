@@ -11,6 +11,16 @@ from service.auth_utils import get_current_user, get_user_payload
 from service.text_utils import normalize_product_text
 
 
+def _raise_api_error(status_code: int, detail_code: str, detail: str) -> None:
+    raise HTTPException(
+        status_code=status_code,
+        detail={
+            "detail_code": detail_code,
+            "detail": detail,
+        },
+    )
+
+
 def _extract_email(payload: dict) -> str:
     return (
         payload.get("email")
@@ -41,18 +51,22 @@ def _extract_name(payload: dict, fallback_email: str) -> str:
 async def get_current_active_user_for_v1(
     payload: dict = Depends(get_user_payload),
 ) -> str:
-    from fastapi import status
     u_id_str = payload.get("sub")
     if not u_id_str:
-        raise HTTPException(
+        _raise_api_error(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User ID missing in authentication token",
+            detail_code="AUTH_TOKEN_SUB_MISSING",
+            detail="User ID is missing in authentication token.",
         )
     target_db = getattr(db, "_db", getattr(db, "pool", None))
 
     iat = payload.get("iat")
     if iat and (datetime.datetime.now(datetime.timezone.utc).timestamp() - iat) > 86400:
-        raise HTTPException(status_code=401, detail="Sesija istekla.")
+        _raise_api_error(
+            status_code=401,
+            detail_code="AUTH_SESSION_EXPIRED",
+            detail="Session has expired.",
+        )
 
     u_id = UUID(u_id_str)
     is_hard_deleted = await target_db.fetchval(
@@ -60,7 +74,11 @@ async def get_current_active_user_for_v1(
         u_id,
     )
     if is_hard_deleted:
-        raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
+        _raise_api_error(
+            status_code=403,
+            detail_code="AUTH_ACCOUNT_DISABLED",
+            detail="Account is disabled.",
+        )
 
     user = await target_db.fetchrow(
         "SELECT is_active FROM users WHERE supabase_uid = $1",
@@ -86,7 +104,11 @@ async def get_current_active_user_for_v1(
         )
 
     if user is None or not user["is_active"]:
-        raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
+        _raise_api_error(
+            status_code=403,
+            detail_code="AUTH_ACCOUNT_DISABLED",
+            detail="Account is disabled.",
+        )
 
     return u_id_str
 

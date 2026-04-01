@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNotifications } from '../components/common/NotificationContext';
 import { GlobalErrorHandler, ErrorType } from '../utils/errorHandling';
 import { useLanguage } from '../contexts/LanguageContext';
+import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 export const useGlobalErrorHandler = () => {
   const { notifyError, notifyWarning } = useNotifications();
@@ -14,6 +15,8 @@ export const useGlobalErrorHandler = () => {
       if (error.type === ErrorType.AUTHENTICATION || error.type === ErrorType.AUTHORIZATION) {
         return;
       }
+
+      const resolvedMessage = resolveApiErrorMessage(error, t, 'errors.unexpected');
 
       switch (error.type) {
         case ErrorType.NETWORK:
@@ -39,7 +42,7 @@ export const useGlobalErrorHandler = () => {
           break;
 
         case ErrorType.VALIDATION:
-          notifyWarning(error.message || t('errors.validation.message'), t('errors.validation.title'));
+          notifyWarning(resolveApiErrorMessage(error, t, 'errors.validation.message'), t('errors.validation.title'));
           break;
 
         case ErrorType.NOT_FOUND:
@@ -48,7 +51,7 @@ export const useGlobalErrorHandler = () => {
 
         default:
           notifyError(
-            error.message || t('errors.unexpected'),
+            resolvedMessage,
             t('common.error')
           );
           break;

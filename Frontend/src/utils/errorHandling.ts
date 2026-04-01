@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { ApiError } from '../services/api-client';
-import { ERROR_MESSAGES } from '../constants';
 
 // Error types for better categorization
 export const ErrorType = {
@@ -76,7 +75,8 @@ export const classifyError = (error: unknown): EnhancedError => {
   if (!navigator.onLine) {
     return {
       type: ErrorType.NETWORK,
-      message: 'No internet connection. Please check your network.',
+      message: 'NETWORK_UNAVAILABLE',
+      code: 'NETWORK_UNAVAILABLE',
       timestamp,
       isRetryable: true
     };
@@ -86,8 +86,8 @@ export const classifyError = (error: unknown): EnhancedError => {
   if (typedError.name === 'ValidationError' || typedError.code === 'VALIDATION_ERROR') {
     return {
       type: ErrorType.VALIDATION,
-      message: typedError.message || 'Invalid input provided.',
-      code: typedError.code,
+      message: typedError.message || 'VALIDATION_ERROR',
+      code: typedError.code || 'VALIDATION_ERROR',
       details: typedError.details,
       timestamp,
       isRetryable: false
@@ -97,7 +97,8 @@ export const classifyError = (error: unknown): EnhancedError => {
   // Generic error fallback
   return {
     type: ErrorType.UNKNOWN,
-    message: typedError.message || 'An unexpected error occurred.',
+    message: typedError.message || 'API_GENERIC',
+    code: typedError.code,
     timestamp,
     isRetryable: false
   };
@@ -107,17 +108,17 @@ export const classifyError = (error: unknown): EnhancedError => {
 export const getUserFriendlyMessage = (error: EnhancedError): string => {
   switch (error.type) {
     case ErrorType.NETWORK:
-      return ERROR_MESSAGES.NETWORK_ERROR;
+      return error.code || 'NETWORK_UNAVAILABLE';
     case ErrorType.AUTHENTICATION:
-      return ERROR_MESSAGES.AUTH_ERROR;
+      return error.code || 'UNAUTHORIZED';
     case ErrorType.AUTHORIZATION:
-      return ERROR_MESSAGES.FORBIDDEN;
+      return error.code || 'FORBIDDEN';
     case ErrorType.VALIDATION:
       return error.message; // Use specific validation message
     case ErrorType.SERVER:
-      return ERROR_MESSAGES.API_ERROR;
+      return error.code || 'API_GENERIC';
     default:
-      return error.message || 'Something went wrong. Please try again.';
+      return error.message || 'API_GENERIC';
   }
 };
 

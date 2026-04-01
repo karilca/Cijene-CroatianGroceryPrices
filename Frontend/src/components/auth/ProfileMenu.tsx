@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { resolveApiErrorMessage } from '../../utils/apiErrors';
 
 export const ProfileMenu = () => {
   const { user, signOut, signingOut } = useAuth();
@@ -49,7 +50,7 @@ export const ProfileMenu = () => {
       setIsOpen(false);
       navigate('/', { replace: true });
     } catch (signOutError: unknown) {
-      setError(signOutError instanceof Error ? signOutError.message : t('auth.genericError'));
+      setError(resolveApiErrorMessage(signOutError, t, 'auth.genericError'));
     }
   };
 

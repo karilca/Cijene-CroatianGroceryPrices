@@ -2,7 +2,7 @@
 
 import axios from 'axios';
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { API_CONFIG, ERROR_MESSAGES } from '../constants';
+import { API_CONFIG } from '../constants';
 import { GlobalErrorHandler } from '../utils/errorHandling';
 import { supabase } from '../lib/supabase';
 
@@ -11,13 +11,66 @@ const DEACTIVATED_ACCOUNT_MESSAGES = [
   'Account is deactivated.',
 ];
 
+const asNonEmptyString = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+  if (typeof value === 'object' && value !== null) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+};
+
+const getApiErrorCode = (payload: unknown, fallbackCode: string): string => {
+  const root = asRecord(payload);
+  if (!root) {
+    return fallbackCode;
+  }
+
+  const detailObject = asRecord(root.detail);
+  return (
+    asNonEmptyString(root.detail_code) ||
+    asNonEmptyString(root.code) ||
+    (detailObject ? asNonEmptyString(detailObject.detail_code) : null) ||
+    fallbackCode
+  );
+};
+
+const getApiErrorMessage = (payload: unknown, fallbackMessage: string): string => {
+  const root = asRecord(payload);
+  if (!root) {
+    return fallbackMessage;
+  }
+
+  const detailObject = asRecord(root.detail);
+  return (
+    asNonEmptyString(root.message) ||
+    asNonEmptyString(root.detail) ||
+    (detailObject ? asNonEmptyString(detailObject.detail) : null) ||
+    fallbackMessage
+  );
+};
+
 const isDeactivatedAccountError = (payload: unknown): boolean => {
   if (!payload || typeof payload !== 'object') return false;
 
   const data = payload as { detail?: unknown; message?: unknown };
+  const detailObject = asRecord(data.detail);
   const detail = typeof data.detail === 'string' ? data.detail : '';
+  const nestedDetail = detailObject && typeof detailObject.detail === 'string' ? detailObject.detail : '';
   const message = typeof data.message === 'string' ? data.message : '';
-  const combined = `${detail} ${message}`.toLowerCase();
+  const detailCode = detailObject && typeof detailObject.detail_code === 'string' ? detailObject.detail_code : '';
+  const combined = `${detail} ${message} ${nestedDetail}`.toLowerCase();
+
+  if (detailCode === 'AUTH_ACCOUNT_DISABLED') {
+    return true;
+  }
 
   return DEACTIVATED_ACCOUNT_MESSAGES.some((candidate) =>
     combined.includes(candidate.toLowerCase())
@@ -85,22 +138,17 @@ export class ApiClient {
         if (!error.response) {
           console.error('Network error:', error.message);
 
-          // Provide more specific error messages based on error type
-          let errorMessage: string = ERROR_MESSAGES.NETWORK_ERROR;
-          let errorCode = 'NETWORK_ERROR';
+          let errorCode = 'NETWORK_UNAVAILABLE';
 
           if (error.code === 'ENOTFOUND' || error.message.includes('getaddrinfo')) {
-            errorMessage = ERROR_MESSAGES.DNS_ERROR;
             errorCode = 'DNS_ERROR';
           } else if (error.code === 'ECONNREFUSED') {
-            errorMessage = ERROR_MESSAGES.CONNECTION_REFUSED;
             errorCode = 'CONNECTION_REFUSED';
-          } else if (error.code === 'TIMEOUT' || error.message.includes('timeout')) {
-            errorMessage = ERROR_MESSAGES.TIMEOUT_ERROR;
+          } else if (error.code === 'TIMEOUT' || error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
             errorCode = 'TIMEOUT_ERROR';
           }
 
-          const networkError = new ApiError(errorMessage, errorCode, {
+          const networkError = new ApiError(errorCode, errorCode, {
             originalError: error.message,
             code: error.code
           });
@@ -116,12 +164,13 @@ export class ApiClient {
 
         // Handle authentication errors
         if (status === 401) {
-          const errorMessage = data?.detail || data?.message || ERROR_MESSAGES.UNAUTHORIZED;
+          const errorCode = getApiErrorCode(data, 'UNAUTHORIZED');
+          const errorMessage = getApiErrorMessage(data, errorCode);
           console.warn('Authentication failed:', errorMessage);
           const apiError = new ApiError(
             errorMessage,
-            'UNAUTHORIZED',
-            data?.details,
+            errorCode,
+            asRecord(data)?.details,
             status
           );
 
@@ -129,15 +178,16 @@ export class ApiClient {
         }
 
         if (status === 403) {
-          const errorMessage = data?.detail || data?.message || ERROR_MESSAGES.FORBIDDEN;
+          const errorCode = getApiErrorCode(data, 'FORBIDDEN');
+          const errorMessage = getApiErrorMessage(data, errorCode);
           if (isDeactivatedAccountError(data)) {
             void supabase.auth.signOut();
           }
           console.warn('Access forbidden:', errorMessage);
           const apiError = new ApiError(
             errorMessage,
-            'FORBIDDEN',
-            data?.details,
+            errorCode,
+            asRecord(data)?.details,
             status
           );
 
@@ -157,10 +207,13 @@ export class ApiClient {
         this.retryCount = 0;
 
         // Transform error response
+        const fallbackCode = status >= 500 ? 'API_GENERIC' : status.toString();
+        const errorCode = getApiErrorCode(data, fallbackCode);
+        const errorMessage = getApiErrorMessage(data, errorCode);
         const apiError = new ApiError(
-          data?.message || ERROR_MESSAGES.API_ERROR,
-          data?.code || status.toString(),
-          data?.details,
+          errorMessage,
+          errorCode,
+          asRecord(data)?.details,
           status
         );
 

@@ -7,7 +7,7 @@ import { useGeolocation } from '../../hooks/useGeolocation';
 import { useAppStore } from '../../stores/appStore';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { LoadingSpinner } from '../common/LoadingSpinner';
-import { ErrorMessage } from '../common/ErrorMessage';
+import { useNotifications } from '../common/NotificationContext';
 import type { StoreSearchRequest, Store } from '../../types';
 
 export interface StoreSearchProps {
@@ -17,6 +17,7 @@ export interface StoreSearchProps {
 
 export const StoreSearch: React.FC<StoreSearchProps> = ({ onSearch, className = '' }) => {
   const { t } = useLanguage();
+  const { notifyError } = useNotifications();
   const [query, setQuery] = useState('');
   const [city, setCity] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -63,6 +64,14 @@ export const StoreSearch: React.FC<StoreSearchProps> = ({ onSearch, className = 
     8,
     { enabled: (query?.length ?? 0) >= 2 && showSuggestions }
   );
+  useEffect(() => {
+    if (!geoError) {
+      return;
+    }
+
+    notifyError(geoError.message, t('common.error'));
+    clearGeoError();
+  }, [geoError, notifyError, t, clearGeoError]);
 
   // Handle search submission
   const handleSearch = useCallback((searchQuery?: string, searchCity?: string, forcePosition?: { latitude: number; longitude: number }) => {
@@ -413,14 +422,6 @@ export const StoreSearch: React.FC<StoreSearchProps> = ({ onSearch, className = 
           <MapPin className="h-4 w-4" />
           {t('storeSearch.locationDetected')}: {position.latitude.toFixed(6)}, {position.longitude.toFixed(6)}
         </div>
-      )}
-
-      {/* Geolocation Error */}
-      {geoError && (
-        <ErrorMessage
-          message={geoError.message}
-          onRetry={clearGeoError}
-        />
       )}
     </div>
   );

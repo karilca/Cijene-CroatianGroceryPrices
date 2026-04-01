@@ -21,7 +21,7 @@ const getLocalizedAuthError = (error: unknown, fallback: string, invalidCredenti
       return invalidCredentials;
     }
 
-    return error.message;
+    return fallback;
   }
 
   return fallback;
@@ -42,6 +42,12 @@ export const AuthModal = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
@@ -77,10 +83,6 @@ export const AuthModal = ({
       window.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen, onClose]);
-
-  if (!isOpen) {
-    return null;
-  }
 
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -156,13 +158,6 @@ export const AuthModal = ({
     setError('');
     setInfo('');
   };
-
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
 
   if (!isOpen || !mounted) return null;
 

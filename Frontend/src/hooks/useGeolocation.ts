@@ -8,6 +8,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { geolocationService } from '../services/geolocation.service';
 import type { GeolocationPosition, GeolocationError } from '../services/geolocation.service';
 import { useAppStore } from '../stores/appStore';
+import { useLanguage } from '../contexts/LanguageContext';
+import type { TranslationKey } from '../utils/translations';
 
 export interface UseGeolocationOptions {
   watchPosition?: boolean;
@@ -30,12 +32,32 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
   });
 
   const setDefaultLocation = useAppStore((s) => s.setDefaultLocation);
+  const { t } = useLanguage();
+
+  const getLocalizedErrorMessage = useCallback((code: number, fallback?: string): string => {
+    const messageKeyMap: Record<number, TranslationKey> = {
+      0: 'errors.geolocation.notSupported',
+      1: 'errors.geolocation.permissionDenied',
+      2: 'errors.geolocation.unavailable',
+      3: 'errors.geolocation.timeout',
+      4: 'errors.geolocation.permissionsApiUnsupported',
+    };
+
+    const translationKey = messageKeyMap[code] ?? 'errors.geolocation.unknown';
+    const translated = t(translationKey);
+
+    if (translated !== translationKey) {
+      return translated;
+    }
+
+    return fallback || t('errors.geolocation.unknown');
+  }, [t]);
 
   const getCurrentPosition = useCallback(async () => {
     if (!state.supported) {
       setState((prev) => ({
         ...prev,
-        error: { code: 0, message: 'Geolocation is not supported by this browser' },
+        error: { code: 0, message: getLocalizedErrorMessage(0) },
       }));
       return;
     }
@@ -80,11 +102,17 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
       setState((prev) => ({
         ...prev,
         loading: false,
-        error: geoError,
+        error: {
+          ...geoError,
+          message: getLocalizedErrorMessage(geoError.code, geoError.message),
+        },
       }));
-      throw geoError;
+      throw {
+        ...geoError,
+        message: getLocalizedErrorMessage(geoError.code, geoError.message),
+      } as GeolocationError;
     }
-  }, [state.supported, setDefaultLocation]);
+  }, [state.supported, setDefaultLocation, getLocalizedErrorMessage]);
 
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
@@ -114,7 +142,13 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
     };
 
     const handleError = (error: GeolocationError) => {
-      setState((prev) => ({ ...prev, error }));
+      setState((prev) => ({
+        ...prev,
+        error: {
+          ...error,
+          message: getLocalizedErrorMessage(error.code, error.message),
+        },
+      }));
     };
 
     const watchId = geolocationService.watchPosition(handleSuccess, handleError);
@@ -124,7 +158,7 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
         geolocationService.clearWatch(watchId);
       }
     };
-  }, [options.watchPosition, state.supported, setDefaultLocation]);
+  }, [options.watchPosition, state.supported, setDefaultLocation, getLocalizedErrorMessage]);
 
   // Request position on mount if requested
   useEffect(() => {

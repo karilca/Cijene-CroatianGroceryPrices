@@ -6,6 +6,7 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
 import type { PriceComparison as PriceComparisonType, Price } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { resolveApiErrorMessage } from '../../utils/apiErrors';
 
 interface PriceComparisonProps {
   priceComparison: PriceComparisonType | undefined;
@@ -133,7 +134,7 @@ export const PriceComparison: React.FC<PriceComparisonProps> = ({
       <Card className={`p-6 ${className}`}>
         <ErrorMessage
           title={t('priceComparison.error')}
-          message={error.message || t('priceComparison.loadFailed')}
+          message={resolveApiErrorMessage(error, t, 'priceComparison.loadFailed')}
           onRetry={() => window.location.reload()}
         />
       </Card>

@@ -4,6 +4,7 @@ import React from 'react';
 import { ChainList } from '../components/chain/ChainList';
 import { useChains } from '../hooks/useApiQueries';
 import { useLanguage } from '../contexts/LanguageContext';
+import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 export const ChainsPage: React.FC = () => {
   const { t } = useLanguage();
@@ -23,7 +24,7 @@ export const ChainsPage: React.FC = () => {
       <ChainList
         chains={chains}
         isLoading={isLoading}
-        error={error?.message || null}
+        error={error ? resolveApiErrorMessage(error, t, 'errors.unexpected') : null}
         showSearch={true}
         showViewToggle={true}
       />

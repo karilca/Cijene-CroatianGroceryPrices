@@ -12,6 +12,7 @@ import { Breadcrumb } from '../ui/Breadcrumb';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import type { Store } from '../../types';
+import { resolveApiErrorMessage } from '../../utils/apiErrors';
 
 interface ChainDetailsProps {
   chainCode?: string;
@@ -157,7 +158,7 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
   if (chainError || !chain) {
     return (
       <ErrorMessage
-        message={chainError?.message || t('chainDetails.failedToLoadChain')}
+        message={resolveApiErrorMessage(chainError, t, 'chainDetails.failedToLoadChain')}
         onRetry={() => window.location.reload()}
       />
     );
@@ -332,7 +333,7 @@ export const ChainDetails: React.FC<ChainDetailsProps> = ({ chainCode: propChain
           </div>
         ) : storesError ? (
           <ErrorMessage
-            message={storesError.message || t('chainDetails.failedToLoadStores')}
+            message={resolveApiErrorMessage(storesError, t, 'chainDetails.failedToLoadStores')}
             onRetry={() => window.location.reload()}
           />
         ) : filteredStores.length === 0 ? (

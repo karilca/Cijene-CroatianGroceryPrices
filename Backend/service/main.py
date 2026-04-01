@@ -216,7 +216,11 @@ async def get_user_with_role(u_id: UUID, payload: dict):
 
     iat = payload.get("iat")
     if iat and (datetime.now(timezone.utc).timestamp() - iat) > 86400:
-        raise HTTPException(status_code=401, detail="Sesija istekla.")
+        _raise_api_error(
+            status_code=401,
+            detail_code="AUTH_SESSION_EXPIRED",
+            detail="Session has expired.",
+        )
 
     query = """
         SELECT u.id, u.name, u.email, u.is_active, u.supabase_uid, u.role_id, r.name as role_name 
@@ -253,7 +257,11 @@ async def get_user_with_role(u_id: UUID, payload: dict):
             except Exception:
                 # Reject access even if audit persistence fails.
                 pass
-            raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
+            _raise_api_error(
+                status_code=403,
+                detail_code="AUTH_ACCOUNT_DISABLED",
+                detail="Account is disabled.",
+            )
 
         deleted_user = await target_db.fetchrow(
             """
@@ -282,7 +290,11 @@ async def get_user_with_role(u_id: UUID, payload: dict):
             except Exception:
                 # Reject access even if audit persistence fails.
                 pass
-            raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
+            _raise_api_error(
+                status_code=403,
+                detail_code="AUTH_ACCOUNT_DISABLED",
+                detail="Account is disabled.",
+            )
 
         user_role_id = await target_db.fetchval("SELECT id FROM roles WHERE name = 'USER'")
         await target_db.execute(
@@ -315,16 +327,28 @@ async def get_user_with_role(u_id: UUID, payload: dict):
 async def get_current_active_user(payload: dict = Depends(get_user_payload)):
     u_id_str = payload.get("sub")
     if not u_id_str:
-        raise HTTPException(status_code=401, detail="User ID missing in authentication token")
+        _raise_api_error(
+            status_code=401,
+            detail_code="AUTH_TOKEN_SUB_MISSING",
+            detail="User ID is missing in authentication token.",
+        )
     user = await get_user_with_role(UUID(u_id_str), payload)
     if not user['is_active']:
-        raise HTTPException(status_code=403, detail="Račun je deaktiviran.")
+        _raise_api_error(
+            status_code=403,
+            detail_code="AUTH_ACCOUNT_DISABLED",
+            detail="Account is disabled.",
+        )
     return user
 
 def require_role(role_name: str):
     async def role_checker(user = Depends(get_current_active_user)):
         if user['role_name'] != role_name:
-            raise HTTPException(status_code=403, detail="Pristup dopušten samo administratorima.")
+            _raise_api_error(
+                status_code=403,
+                detail_code="AUTH_ADMIN_REQUIRED",
+                detail="Admin role is required for this action.",
+            )
         return user
     return role_checker
 
@@ -613,7 +637,11 @@ async def increment_cart_item(product_id: str, user = Depends(get_current_active
 
     normalized_product_id = product_id.strip()
     if not normalized_product_id:
-        raise HTTPException(status_code=400, detail="Proizvod nije valjan.")
+        _raise_api_error(
+            status_code=400,
+            detail_code="CART_PRODUCT_ID_INVALID",
+            detail="Product identifier is invalid.",
+        )
 
     await target_db.execute(
         """
@@ -634,7 +662,11 @@ async def decrement_cart_item(product_id: str, user = Depends(get_current_active
 
     normalized_product_id = product_id.strip()
     if not normalized_product_id:
-        raise HTTPException(status_code=400, detail="Proizvod nije valjan.")
+        _raise_api_error(
+            status_code=400,
+            detail_code="CART_PRODUCT_ID_INVALID",
+            detail="Product identifier is invalid.",
+        )
 
     updated = await target_db.fetchrow(
         """
@@ -648,7 +680,11 @@ async def decrement_cart_item(product_id: str, user = Depends(get_current_active
     )
 
     if updated is None:
-        raise HTTPException(status_code=404, detail="Proizvod nije u košarici.")
+        _raise_api_error(
+            status_code=404,
+            detail_code="CART_ITEM_NOT_FOUND",
+            detail="Product is not present in cart.",
+        )
 
     quantity = int(updated["quantity"])
     removed = False
@@ -684,7 +720,11 @@ async def optimize_cart(payload: CartOptimizeRequest, user = Depends(get_current
 
     cart_rows = await _fetch_cart_rows(target_db, user['supabase_uid'])
     if not cart_rows:
-        raise HTTPException(status_code=400, detail="Košarica je prazna.")
+        _raise_api_error(
+            status_code=400,
+            detail_code="CART_EMPTY",
+            detail="Cart is empty.",
+        )
 
     cart_items = _serialize_cart_rows(cart_rows)
 
@@ -698,9 +738,17 @@ async def optimize_cart(payload: CartOptimizeRequest, user = Depends(get_current
             max_stores = int(payload.options.maxStores)
 
     if max_distance_km <= 0:
-        raise HTTPException(status_code=422, detail="maxDistanceKm mora biti veći od 0.")
+        _raise_api_error(
+            status_code=422,
+            detail_code="CART_INVALID_MAX_DISTANCE",
+            detail="maxDistanceKm must be greater than 0.",
+        )
     if max_stores <= 0:
-        raise HTTPException(status_code=422, detail="maxStores mora biti veći od 0.")
+        _raise_api_error(
+            status_code=422,
+            detail_code="CART_INVALID_MAX_STORES",
+            detail="maxStores must be greater than 0.",
+        )
 
     chain_codes = None
     if payload.chains:
@@ -771,10 +819,18 @@ async def optimize_cart(payload: CartOptimizeRequest, user = Depends(get_current
             limit=None,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        _raise_api_error(
+            status_code=400,
+            detail_code="CART_FILTER_INVALID",
+            detail=str(exc),
+        )
 
     if not filtered_stores:
-        raise HTTPException(status_code=404, detail="Nema trgovina za zadane filtere.")
+        _raise_api_error(
+            status_code=404,
+            detail_code="CART_NO_STORES_FOUND",
+            detail="No stores found for current filters.",
+        )
 
     product_ids = [str(item["product_id"]) for item in cart_items]
     products = await db.get_products_by_ean(product_ids)
