@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { User, Trash2, Edit3 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { apiUrl } from '../config/api';
@@ -677,8 +678,8 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {editingUser && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      {editingUser && createPortal(
+        <div className="app-modal-overlay bg-black/20" style={{ zIndex: 9999 }}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-gray-100 overflow-hidden">
             <div className="p-6">
               <h2 className="text-lg font-bold mb-1">{t('admin.edit.title')}</h2>
@@ -741,11 +742,11 @@ const AdminDashboard: React.FC = () => {
               </Button>
             </div>
           </div>
-        </div>
+        </div>, document.body
       )}
 
-      {pendingDeleteUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
+      {pendingDeleteUser && createPortal(
+        <div className="app-modal-overlay bg-black/20" style={{ zIndex: 9999 }}>
           <div className="w-full max-w-md rounded-xl border border-gray-100 bg-white shadow-2xl overflow-hidden">
             <div className="p-6">
               <h2 className="text-lg font-bold text-gray-900">{t('admin.confirmDeleteTitle')}</h2>
@@ -793,11 +794,11 @@ const AdminDashboard: React.FC = () => {
               </Button>
             </div>
           </div>
-        </div>
+        </div>, document.body
       )}
 
-      {pendingDeactivateUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
+      {pendingDeactivateUser && createPortal(
+        <div className="app-modal-overlay bg-black/20" style={{ zIndex: 9999 }}>
           <div className="w-full max-w-md rounded-xl border border-gray-100 bg-white shadow-2xl overflow-hidden">
             <div className="p-6">
               <h2 className="text-lg font-bold text-gray-900">{t('admin.confirmDeactivateTitle')}</h2>
@@ -848,11 +849,11 @@ const AdminDashboard: React.FC = () => {
               </Button>
             </div>
           </div>
-        </div>
+        </div>, document.body
       )}
 
-      {isBulkDeactivateConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
+      {isBulkDeactivateConfirmOpen && createPortal(
+        <div className="app-modal-overlay bg-black/20" style={{ zIndex: 9999 }}>
           <div className="w-full max-w-md rounded-xl border border-gray-100 bg-white shadow-2xl overflow-hidden">
             <div className="p-6">
               <h2 className="text-lg font-bold text-gray-900">{t('admin.bulk.confirmDeactivateTitle')}</h2>
@@ -885,7 +886,7 @@ const AdminDashboard: React.FC = () => {
               </Button>
             </div>
           </div>
-        </div>
+        </div>, document.body
       )}
 
       <div className="rounded-xl border border-gray-100 bg-white p-5">

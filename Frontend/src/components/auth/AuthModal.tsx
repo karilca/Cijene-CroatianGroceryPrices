@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
@@ -156,9 +157,19 @@ export const AuthModal = ({
     setInfo('');
   };
 
-  return (
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+      className="app-modal-overlay bg-black/30"
+      style={{ zIndex: 9999 }}
       onClick={closeOnOverlayClick ? onClose : undefined}
       aria-hidden={false}
     >
@@ -285,6 +296,6 @@ export const AuthModal = ({
           </form>
         </div>
       </div>
-    </div>
+    </div>, document.body
   );
 };

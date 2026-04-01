@@ -1,17 +1,24 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 export const LanguageSelectionPopup: React.FC = () => {
     const { language, setLanguage, t } = useLanguage();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+        return () => setMounted(false);
+    }, []);
 
     // If language is already set, do not show the popup
-    if (language) {
+    if (language || !mounted) {
         return null;
     }
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+    return createPortal(
+        <div className="app-modal-overlay bg-black/60 animate-in fade-in duration-300" style={{ zIndex: 9999 }}>
             <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden transform transition-all animate-in zoom-in-95 duration-300">
                 <div className="p-8 text-center">
                     <div className="mb-6 flex justify-center">
@@ -64,6 +71,6 @@ export const LanguageSelectionPopup: React.FC = () => {
                     This setting will be saved for your next visit
                 </div>
             </div>
-        </div>
+        </div>, document.body
     );
 };

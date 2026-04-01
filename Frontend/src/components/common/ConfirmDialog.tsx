@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 
 interface ConfirmDialogProps {
@@ -22,10 +23,17 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onCancel,
   isLoading = false,
 }) => {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4">
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
+    <div className="app-modal-overlay bg-black/20" style={{ zIndex: 9999 }}>
       <div className="w-full max-w-md rounded-xl border border-gray-100 bg-white shadow-2xl overflow-hidden">
         <div className="p-6">
           <h2 className="text-lg font-bold text-gray-900">{title}</h2>
@@ -52,6 +60,6 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           </Button>
         </div>
       </div>
-    </div>
+    </div>, document.body
   );
 };

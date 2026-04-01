@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CartProductCard } from '../components/cart/CartProductCard';
-import { Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { ThumbsDown, ThumbsUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCartStore } from '../stores/cartStore';
@@ -12,10 +12,11 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Button } from '../components/ui/Button';
 import { resolveApiErrorMessage } from '../utils/apiErrors';
 import type { OptimizationMode } from '../types';
+import { useGeolocation } from '../hooks/useGeolocation';
 
 export const CartPage = () => {
     const { t } = useLanguage();
-    const { notifyError, notifySuccess } = useNotifications();
+    const { notifyError, notifySuccess, notifyWarning } = useNotifications();
     const cartItems = useCartStore((state) => state.items);
     const loading = useCartStore((state) => state.isLoading);
     const error = useCartStore((state) => state.error);
@@ -35,11 +36,13 @@ export const CartPage = () => {
     const setOptimizationMode = useAppStore((state) => state.setOptimizationMode);
     const defaultLocation = useAppStore((state) => state.defaultLocation);
     const searchRadius = useAppStore((state) => state.searchRadius);
+    const { supported: isGeolocationSupported, getCurrentPosition } = useGeolocation();
 
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
     const [isRemoving, setIsRemoving] = useState(false);
     const [updatingQuantityId, setUpdatingQuantityId] = useState<string | null>(null);
     const [lastOptimizationFeedback, setLastOptimizationFeedback] = useState<null | boolean>(null);
+    const [locationCheckFinished, setLocationCheckFinished] = useState(false);
 
     const reloadCart = useCallback(async () => {
         clearError();
@@ -121,10 +124,51 @@ export const CartPage = () => {
 
     useEffect(() => {
         if (cartItems.length === 0) {
+            setLocationCheckFinished(false);
             return;
         }
 
         const hasLocation = defaultLocation.latitude !== null && defaultLocation.longitude !== null;
+        if (hasLocation || !isGeolocationSupported || locationCheckFinished) {
+            return;
+        }
+
+        let isActive = true;
+
+        void getCurrentPosition()
+            .catch(() => {
+                notifyWarning(t('cart.locationPermissionNotice'));
+            })
+            .finally(() => {
+                if (isActive) {
+                    setLocationCheckFinished(true);
+                }
+            });
+
+        return () => {
+            isActive = false;
+        };
+    }, [
+        cartItems.length,
+        defaultLocation.latitude,
+        defaultLocation.longitude,
+        isGeolocationSupported,
+        locationCheckFinished,
+        getCurrentPosition,
+        notifyWarning,
+        t,
+    ]);
+
+    useEffect(() => {
+        if (cartItems.length === 0) {
+            return;
+        }
+
+        const hasLocation = defaultLocation.latitude !== null && defaultLocation.longitude !== null;
+        if (!hasLocation && isGeolocationSupported && !locationCheckFinished) {
+            return;
+        }
+
         void optimizeCart({
             mode: optimizationMode,
             userLocation: hasLocation
@@ -144,6 +188,8 @@ export const CartPage = () => {
         defaultLocation.latitude,
         defaultLocation.longitude,
         searchRadius,
+        isGeolocationSupported,
+        locationCheckFinished,
         optimizeCart,
     ]);
 
@@ -163,8 +209,7 @@ export const CartPage = () => {
             {cartItems.length > 0 && (
                 <div className="rounded-2xl border border-primary-100 bg-primary-50/70 p-5 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                            <Sparkles className="w-5 h-5 text-primary-600" />
+                        <div className="flex items-center">
                             <h2 className="text-lg font-semibold text-gray-900">{t('cart.optimizationTitle')}</h2>
                         </div>
                         <div className="flex gap-2">
@@ -248,7 +293,7 @@ export const CartPage = () => {
 
                                                 {items.length > 0 ? (
                                                     <>
-                                                        <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-600">{t('cart.buyInThisStore')}</p>
+                                                        <p className="mt-2 text-xs font-semibold text-gray-600">{t('cart.buyInThisStore')}</p>
                                                         <ul className="mt-1 list-disc list-inside space-y-1 text-sm text-gray-700">
                                                             {items.map((assignment) => (
                                                                 <li key={`${store.id}-${assignment.productId}`}>
