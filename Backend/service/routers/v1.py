@@ -8,6 +8,7 @@ from uuid import UUID
 from service.config import settings
 from service.db.models import ChainStats, ProductWithId, StorePrice
 from service.auth_utils import get_current_user, get_user_payload
+from service.text_utils import normalize_product_text
 
 
 def _extract_email(payload: dict) -> str:
@@ -98,12 +99,7 @@ logger = logging.getLogger(__name__)
 
 
 def normalize_brand_text(value: str | None) -> str | None:
-    if not value:
-        return None
-    stripped = value.strip()
-    if not stripped or stripped == "#":
-        return None
-    return stripped
+    return normalize_product_text(value)
 
 
 class ListChainsResponse(BaseModel):
@@ -404,13 +400,13 @@ async def prepare_product_response(
             chain_brands = [cpr.brand for cpr in product.chains if cpr.brand]
             chain_brands.sort(key=lambda x: len(x))
             if chain_brands:
-                product.brand = chain_brands[0].capitalize()
+                product.brand = normalize_product_text(chain_brands[0], capitalize=True)
 
         if not product.name:
             chain_names = [cpr.name for cpr in product.chains if cpr.name]
             chain_names.sort(key=lambda x: len(x), reverse=True)
             if chain_names:
-                product.name = chain_names[0].capitalize()
+                product.name = normalize_product_text(chain_names[0], capitalize=True)
 
     return [p for p in product_response_map.values() if p.chains]
 
@@ -419,12 +415,7 @@ async def prepare_product_list_response(
     products: list[ProductWithId],
 ) -> list[ProductListItemResponse]:
     def normalize_fallback_text(value: str | None) -> str | None:
-        if not value:
-            return value
-        stripped = value.strip()
-        if not stripped:
-            return None
-        return stripped.capitalize()
+        return normalize_product_text(value, capitalize=True)
 
     missing_ids = [p.id for p in products if not p.name or not normalize_brand_text(p.brand)]
 

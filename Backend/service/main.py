@@ -10,6 +10,7 @@ from typing import Literal, Optional
 from service.config import settings
 from service.auth_utils import get_current_user, get_user_payload
 from service.db import set_db
+from service.text_utils import normalize_product_text
 
 db = settings.get_db()
 
@@ -333,14 +334,22 @@ async def healthcheck():
 async def get_cart(user = Depends(get_current_active_user)):
     target_db = getattr(db, '_db', getattr(db, 'pool', None))
     rows = await target_db.fetch("""
-        SELECT DISTINCT ON (ci.product_id) ci.product_id, ci.quantity, cp.name, cp.brand
+        SELECT DISTINCT ON (ci.product_id)
+            ci.product_id,
+            ci.quantity,
+            COALESCE(NULLIF(p.name, ''), cp.name) AS name,
+            COALESCE(NULLIF(p.brand, ''), cp.brand) AS brand
         FROM cart_items ci
         LEFT JOIN products p ON p.ean = ci.product_id
         LEFT JOIN chain_products cp ON cp.product_id = p.id
         WHERE ci.user_id = $1
-        ORDER BY ci.product_id, cp.name
+        ORDER BY ci.product_id, LENGTH(COALESCE(NULLIF(p.name, ''), cp.name)) DESC, COALESCE(NULLIF(p.name, ''), cp.name)
     """, user['supabase_uid'])
-    return {"items": [dict(row) for row in rows]}
+    rows_out = [dict(row) for row in rows]
+    for r in rows_out:
+        r['name'] = normalize_product_text(r.get('name'), capitalize=True)
+        r['brand'] = normalize_product_text(r.get('brand'), capitalize=True)
+    return {"items": rows_out}
 
 @app.post("/v1/cart/add")
 async def add_to_cart(item: CartItemRequest, user = Depends(get_current_active_user)):
@@ -372,8 +381,8 @@ async def get_favorite_products(user = Depends(get_current_active_user)):
         SELECT DISTINCT ON (fp.product_id)
             fp.product_id,
             fp.created_at,
-            cp.name,
-            cp.brand,
+            COALESCE(NULLIF(p.name, ''), cp.name) AS name,
+            COALESCE(NULLIF(p.brand, ''), cp.brand) AS brand,
             p.ean,
             p.quantity,
             p.unit
@@ -381,9 +390,13 @@ async def get_favorite_products(user = Depends(get_current_active_user)):
         LEFT JOIN products p ON p.ean = fp.product_id
         LEFT JOIN chain_products cp ON cp.product_id = p.id
         WHERE fp.user_id = $1
-        ORDER BY fp.product_id, cp.name
+        ORDER BY fp.product_id, LENGTH(COALESCE(NULLIF(p.name, ''), cp.name)) DESC, COALESCE(NULLIF(p.name, ''), cp.name)
     """, user['supabase_uid'])
-    return {"items": [dict(row) for row in rows]}
+    rows_out = [dict(row) for row in rows]
+    for r in rows_out:
+        r['name'] = normalize_product_text(r.get('name'), capitalize=True)
+        r['brand'] = normalize_product_text(r.get('brand'), capitalize=True)
+    return {"items": rows_out}
 
 
 @app.post("/v1/favorites/products")

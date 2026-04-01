@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 from service.config import settings
 from service.db.models import Chain, ChainProduct, Price, Store
 from service.db.stats import compute_stats
+from service.text_utils import normalize_product_text
 
 logger = logging.getLogger("importer")
 
@@ -49,12 +50,8 @@ def _normalize_address(value: str | None) -> str:
 
 
 def _normalize_brand(value: str | None) -> str | None:
-    if not value:
-        return None
-    brand = value.strip()
-    if not brand or brand == "#":
-        return None
-    return brand
+    # Delegate to shared normalization helper to keep behavior consistent
+    return normalize_product_text(value, capitalize=True)
 
 
 async def process_stores(
@@ -196,8 +193,8 @@ async def process_products(
                 chain_id=chain_id,
                 product_id=global_product_id,
                 code=code,
-                name=product["name"],
-                brand=_normalize_brand(product.get("brand")),
+                name=normalize_product_text(product.get("name"), capitalize=True),
+                brand=normalize_product_text(product.get("brand"), capitalize=True),
                 category=(product["category"] or "").strip() or None,
                 unit=(product["unit"] or "").strip() or None,
                 quantity=(product["quantity"] or "").strip() or None,
