@@ -187,34 +187,36 @@ export const CartPage = () => {
 
             {cartItems.length > 0 && (
                 <div className="rounded-2xl border border-primary-100 bg-primary-50/70 p-5 space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="flex flex-col lg:flex-row lg:items-center gap-3 w-full md:w-auto">
                             <h2 className="text-lg font-semibold text-gray-900">{t('cart.optimizationTitle')}</h2>
+                            
+                            <div className="flex bg-gray-200/60 p-1 rounded-lg w-full sm:w-auto">
+                                {(['greedy', 'balanced', 'conservative'] as OptimizationMode[]).map((mode) => (
+                                    <button
+                                        key={mode}
+                                        type="button"
+                                        onClick={() => changeMode(mode)}
+                                        className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                                            optimizationMode === mode
+                                                ? 'bg-white text-primary-700 shadow-sm'
+                                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                                        }`}
+                                    >
+                                        {t(`cart.mode.${mode}`)}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                        <div className="flex gap-2">
-                            {(['greedy', 'balanced', 'conservative'] as OptimizationMode[]).map((mode) => (
-                                <button
-                                    key={mode}
-                                    type="button"
-                                    onClick={() => changeMode(mode)}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-semibold transition ${
-                                        optimizationMode === mode
-                                            ? 'bg-primary-600 text-white'
-                                            : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                                    }`}
-                                >
-                                    {t(`cart.mode.${mode}`)}
-                                </button>
-                            ))}
-                            <button
-                                type="button"
-                                onClick={() => void runOptimization()}
-                                disabled={isOptimizing || cartItems.length === 0}
-                                className="px-3 py-1.5 rounded-full text-sm font-semibold transition bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {t('cart.runOptimization')}
-                            </button>
-                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => void runOptimization()}
+                            disabled={isOptimizing || cartItems.length === 0}
+                            className="w-full md:w-auto px-6 py-2.5 rounded-lg text-sm font-semibold transition bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+                        >
+                            {t('cart.runOptimization')}
+                        </button>
                     </div>
 
                     {isOptimizing && (
