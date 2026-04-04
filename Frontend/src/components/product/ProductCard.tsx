@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, Scale, ShoppingCart } from 'lucide-react';
 import { BaseCard } from '../common/BaseCard';
 import { Button } from '../ui/Button';
@@ -8,6 +9,7 @@ import { useCartStore } from '../../stores/cartStore';
 import type { Product } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotifications } from '../common/NotificationContext';
+import { useAuth } from '../../hooks/useAuth';
 
 interface ProductCardProps {
   product: Product;
@@ -27,6 +29,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const addItem = useCartStore((state) => state.addItem);
   const { notifyError, notifySuccess } = useNotifications();
   const { t } = useLanguage();
+  const { session } = useAuth();
+  const navigate = useNavigate();
 
   const formatProductBarcode = () => {
     if (product.ean) return product.ean;
@@ -53,6 +57,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.stopPropagation();
+
+    if (!session) {
+      navigate('/auth');
+      return;
+    }
+
     const targetId = String(product.ean || product.id || '');
 
     if (!targetId) return;
