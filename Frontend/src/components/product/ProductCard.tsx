@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Scale, Package, ShoppingCart } from 'lucide-react';
+import { Eye, Scale, ShoppingCart } from 'lucide-react';
 import { BaseCard } from '../common/BaseCard';
 import { Button } from '../ui/Button';
 import { useProductFavorite } from '../../hooks/useFavorite';
@@ -27,6 +27,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const addItem = useCartStore((state) => state.addItem);
   const { notifyError, notifySuccess } = useNotifications();
   const { t } = useLanguage();
+
+  const formatProductBarcode = () => {
+    if (product.ean) return product.ean;
+    if (product.id) return product.id;
+    return t('common.noId');
+  };
 
   const productId = product.ean || product.id || '';
   const isInCompareList = isInCompare(productId);
@@ -72,39 +78,39 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const pricingInfo = getPricingInfo();
 
+  const isTwoCols = Boolean(onViewDetails);
+
   const cardActions = (
-    <div className="flex flex-col w-full gap-2"> {/* Kolona umjesto reda sprečava širenje */}
-      <div className="flex w-full gap-2">
-        {onViewDetails && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleViewDetails}
-            className="flex-1"
-          >
-            <Eye className="h-4 w-4 mr-2" />
-            {t('common.details')}
-          </Button>
-        )}
+    <div className={`grid gap-2 w-full ${isTwoCols ? 'grid-cols-2' : 'grid-cols-1'}`}>
+      {onViewDetails && (
         <Button
-          variant={isInCompareList ? "primary" : "outline"}
+          variant="outline"
           size="sm"
-          onClick={handleCompareToggle}
-          disabled={!isInCompareList && !canAddToCompare}
-          className="flex-1"
+          onClick={handleViewDetails}
+          className="w-full px-2"
         >
-          <Scale className="h-4 w-4 mr-2" />
-          {isInCompareList ? t('compare.removeFromCompare') : t('compare.addToCompare')}
+          <Eye className="h-4 w-4 shrink-0 mr-1.5" />
+          <span className="whitespace-normal leading-tight text-center sm:text-sm text-xs">{t('common.details')}</span>
         </Button>
-      </div>
+      )}
+      <Button
+        variant={isInCompareList ? "primary" : "outline"}
+        size="sm"
+        onClick={handleCompareToggle}
+        disabled={!isInCompareList && !canAddToCompare}
+        className="w-full px-2"
+      >
+        <Scale className="h-4 w-4 shrink-0 mr-1.5" />
+        <span className="whitespace-normal leading-tight text-center sm:text-sm text-xs">{isInCompareList ? t('compare.removeFromCompare') : t('compare.addToCompare')}</span>
+      </Button>
 
       <Button
         variant="primary"
         size="sm"
         onClick={handleAddToCart}
-        className="w-full"
+        className={`${isTwoCols ? 'col-span-2' : 'col-span-1'} w-full`}
       >
-        <ShoppingCart className="h-4 w-4 mr-2" />
+        <ShoppingCart className="h-4 w-4 shrink-0 mr-2" />
         {t('cart.addButton')}
       </Button>
     </div>
@@ -124,14 +130,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       </h3>
 
       <div className="space-y-2">
-        {product.ean && (
-          <div className="flex items-center text-xs text-gray-500">
-            <Package className="h-3 w-3 mr-1" />
-            <span className="font-mono mr-2">{product.ean}</span>
+        {(product.ean || product.id || product.brand) && (
+          <div className="text-xs text-gray-500 space-y-1">
+            {(product.ean || product.id) && (
+              <div>
+                <span className="font-medium text-gray-700">{t('product.barcodeLabel')}</span>{' '}
+                <span className="font-mono">{formatProductBarcode()}</span>
+              </div>
+            )}
             {product.brand && (
-              <span className="font-medium text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
-                {product.brand}
-              </span>
+              <div>
+                <span className="font-medium text-gray-700">{t('product.brandLabel')}</span>{' '}
+                <span>{product.brand}</span>
+              </div>
             )}
           </div>
         )}

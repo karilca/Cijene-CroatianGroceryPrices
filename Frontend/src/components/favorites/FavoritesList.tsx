@@ -25,9 +25,9 @@ type StoreWithDistance = StoreType & { distance?: number };
 const FavoriteItem: React.FC<FavoriteItemProps> = ({ item, type, onRemove }) => {
   const { t } = useLanguage();
 
-  const formatProductIdentifier = (product: Product) => {
-    if (product.ean) return `EAN: ${product.ean}`;
-    if (product.id) return `ID: ${product.id}`;
+  const formatProductBarcode = (product: Product) => {
+    if (product.ean) return product.ean;
+    if (product.id) return product.id;
     return t('common.noId');
   };
 
@@ -52,7 +52,7 @@ const FavoriteItem: React.FC<FavoriteItemProps> = ({ item, type, onRemove }) => 
 
             {product.brand && (
               <p className="text-xs text-gray-600 mb-2">
-                {product.brand}
+                <span className="font-medium text-gray-700">{t('favoritesList.brandLabel')}</span> {product.brand}
               </p>
             )}
 
@@ -69,7 +69,9 @@ const FavoriteItem: React.FC<FavoriteItemProps> = ({ item, type, onRemove }) => 
               )}
 
               <div className="flex items-center gap-2 text-xs text-gray-500">
-                <span>{formatProductIdentifier(product)}</span>
+                <span>
+                  <span className="font-medium text-gray-700">{t('favoritesList.barcodeLabel')}</span> {formatProductBarcode(product)}
+                </span>
               </div>
 
               {product.chain && (

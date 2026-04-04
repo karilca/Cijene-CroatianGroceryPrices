@@ -155,6 +155,8 @@ export const translations = {
 
         // Product Card
         'product.chain': 'Chain:',
+        'product.barcodeLabel': 'Barcode:',
+        'product.brandLabel': 'Brand:',
         'product.priceAvailable': 'Price available',
         'product.fromChains': 'From {count} chain(s)',
         'product.specialOffer': 'Special Offer',
@@ -579,6 +581,8 @@ export const translations = {
         'favoritesList.favoriteStores': 'Favorite Stores',
         'favoritesList.productsSaved': '{count} products saved',
         'favoritesList.storesSaved': '{count} stores saved',
+        'favoritesList.brandLabel': 'Brand:',
+        'favoritesList.barcodeLabel': 'Barcode:',
 
         // Common UI
         'common.unknownProduct': 'Unknown Product',
@@ -808,6 +812,8 @@ export const translations = {
 
         // Product Card
         'product.chain': 'Lanac:',
+        'product.barcodeLabel': 'Barkod:',
+        'product.brandLabel': 'Brend:',
         'product.priceAvailable': 'Cijena dostupna',
         'product.fromChains': 'Iz {count} lanca/lanaca',
         'product.specialOffer': 'Posebna ponuda',
@@ -1233,6 +1239,8 @@ export const translations = {
         'favoritesList.favoriteStores': 'Omiljene trgovine',
         'favoritesList.productsSaved': '{count} proizvoda spremljeno',
         'favoritesList.storesSaved': '{count} trgovina spremljeno',
+        'favoritesList.brandLabel': 'Brend:',
+        'favoritesList.barcodeLabel': 'Barkod:',
 
         // Common UI
         'common.unknownProduct': 'Nepoznat proizvod',
