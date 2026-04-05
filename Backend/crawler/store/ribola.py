@@ -1,5 +1,6 @@
 import datetime
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -24,6 +25,10 @@ class RibolaCrawler(BaseCrawler):
     CHAIN = "ribola"
     BASE_URL = "https://ribola.hr"
     INDEX_URL = f"{BASE_URL}/ribola-cjenici/"
+    # Ribola endpoints are sensitive to bursty concurrency; lower worker count
+    # reduces long-tail waiting while keeping full store coverage.
+    STORE_WORKERS = 1
+    MAX_RETRIES = 1
 
     # Known cities for address parsing
     CITIES = [
@@ -260,6 +265,19 @@ class RibolaCrawler(BaseCrawler):
 
         return xml_urls
 
+    def _process_store_url(self, url: str) -> Store | None:
+        try:
+            store = self.get_store_data(url)
+        except Exception as e:
+            logger.error(f"Error processing Ribola store from {url}: {e}", exc_info=True)
+            return None
+
+        if not store.items:
+            logger.warning(f"No products found for Ribola store at {url}, skipping.")
+            return None
+
+        return store
+
     def get_all_products(self, date: datetime.date) -> list[Store]:
         """
         Main method to fetch and parse all Ribola store, product, and price info for a given date.
@@ -277,22 +295,25 @@ class RibolaCrawler(BaseCrawler):
             return []
 
         stores = []
-        for url in xml_urls:
-            try:
-                store = self.get_store_data(url)
-            except Exception as e:
-                logger.error(
-                    f"Error processing Ribola store from {url}: {e}", exc_info=True
-                )
-                continue
 
-            if not store.items:
-                logger.warning(
-                    f"No products found for Ribola store at {url}, skipping."
-                )
-                continue
+        n_workers = min(self.STORE_WORKERS, len(xml_urls))
+        if n_workers <= 1:
+            for url in xml_urls:
+                store = self._process_store_url(url)
+                if store:
+                    stores.append(store)
+            return stores
 
-            stores.append(store)
+        logger.info(
+            "Processing %s Ribola stores with %s workers",
+            len(xml_urls),
+            n_workers,
+        )
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for store in executor.map(self._process_store_url, xml_urls):
+                if store:
+                    stores.append(store)
 
         return stores
 

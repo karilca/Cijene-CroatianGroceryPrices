@@ -1,6 +1,7 @@
 import csv
 import datetime
 import io
+from concurrent.futures import ThreadPoolExecutor
 from json import loads
 import logging
 import re
@@ -26,6 +27,7 @@ class TommyCrawler(BaseCrawler):
 
     CHAIN = "tommy"
     BASE_URL = "https://spiza.tommy.hr/api/v2"
+    STORE_WORKERS = 8
 
     def fetch_stores_list(self, date: datetime.date) -> dict[str, str]:
         """
@@ -341,29 +343,57 @@ class TommyCrawler(BaseCrawler):
             logger.warning(f"No stores found for date {date}")
             return []
 
-        stores = []
-        for filename, url in store_map.items():
-            # Extract store information
-            store_type, store_id, address, zipcode, city = (
-                self.parse_store_from_filename(filename)
-            )
+        def process_store_entry(entry: Tuple[str, str]) -> Store | None:
+            filename, url = entry
 
-            store = Store(
-                chain="tommy",
-                name=f"Tommy {store_type.title()} {address}",
-                store_type=store_type,
-                store_id=store_id,
-                city=city,
-                street_address=address,
-                zipcode=zipcode,
-                items=[],
-            )
+            try:
+                store_type, store_id, address, zipcode, city = self.parse_store_from_filename(filename)
 
-            csv_content = self.fetch_text(url)
-            products = self.parse_csv(csv_content)
+                store = Store(
+                    chain="tommy",
+                    name=f"Tommy {store_type.title()} {address}",
+                    store_type=store_type,
+                    store_id=store_id,
+                    city=city,
+                    street_address=address,
+                    zipcode=zipcode,
+                    items=[],
+                )
+
+                csv_content = self.fetch_text(url)
+                products = self.parse_csv(csv_content)
+            except Exception as e:
+                logger.error(f"Error processing Tommy store from {url}: {e}", exc_info=True)
+                return None
+
+            if not products:
+                logger.warning(f"No products found for Tommy store at {url}, skipping")
+                return None
 
             store.items = products
-            stores.append(store)
+            return store
+
+        stores = []
+        store_items = list(store_map.items())
+        n_workers = min(self.STORE_WORKERS, len(store_items))
+
+        if n_workers <= 1:
+            for entry in store_items:
+                store = process_store_entry(entry)
+                if store:
+                    stores.append(store)
+            return stores
+
+        logger.info(
+            "Processing %s Tommy stores with %s workers",
+            len(store_items),
+            n_workers,
+        )
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for store in executor.map(process_store_entry, store_items):
+                if store:
+                    stores.append(store)
 
         return stores
 

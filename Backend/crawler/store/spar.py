@@ -1,7 +1,8 @@
 import datetime
 import logging
 import re
-from typing import Optional
+from concurrent.futures import ThreadPoolExecutor
+from typing import Optional, Tuple
 from json import loads
 
 
@@ -97,6 +98,7 @@ class SparCrawler(BaseCrawler):
 
     # Required to detect text encoding
     CSV_PREFIX = "naziv;šifra;marka;neto količina;jedinica mjere;"
+    STORE_WORKERS = 8
 
     def fetch_price_list_index(self, date: datetime.date) -> dict[str, str]:
         """
@@ -169,6 +171,32 @@ class SparCrawler(BaseCrawler):
         )
         return store
 
+    def _process_store_file(self, file_info: Tuple[str, str]) -> Store | None:
+        filename, url = file_info
+
+        store = self.parse_store_from_filename(filename)
+        if not store:
+            logger.warning(f"Skipping CSV from {url} due to store parsing failure")
+            return None
+
+        try:
+            csv_content = self.fetch_text(
+                url,
+                ["iso-8859-2", "windows-1250"],
+                self.CSV_PREFIX,
+            )
+            if not csv_content:
+                logger.warning(f"Skipping CSV from {url} due to download failure")
+                return None
+
+            products = self.parse_csv(csv_content, ";")
+        except Exception as e:
+            logger.error(f"Error processing CSV from {url}: {e}", exc_info=True)
+            return None
+
+        store.items = products
+        return store
+
     def get_all_products(self, date: datetime.date) -> list[Store]:
         """
         Main method to fetch and parse all products from Spar's price lists.
@@ -187,29 +215,30 @@ class SparCrawler(BaseCrawler):
         csv_files = self.fetch_price_list_index(date)
 
         logger.info(f"Found {len(csv_files)} CSV files in the price list index")
+        if not csv_files:
+            return []
 
         stores = []
 
-        for filename, url in csv_files.items():
-            store = self.parse_store_from_filename(filename)
-            if not store:
-                logger.warning(f"Skipping CSV from {url} due to store parsing failure")
-                continue
+        file_items = list(csv_files.items())
+        n_workers = min(self.STORE_WORKERS, len(file_items))
+        if n_workers <= 1:
+            for file_info in file_items:
+                store = self._process_store_file(file_info)
+                if store:
+                    stores.append(store)
+            return stores
 
-            csv_content = self.fetch_text(
-                url, ["iso-8859-2", "windows-1250"], self.CSV_PREFIX
-            )
-            if not csv_content:
-                logger.warning(f"Skipping CSV from {url} due to download failure")
-                continue
+        logger.info(
+            "Processing %s Spar stores with %s workers",
+            len(file_items),
+            n_workers,
+        )
 
-            try:
-                products = self.parse_csv(csv_content, ";")
-                store.items = products
-                stores.append(store)
-            except Exception as e:
-                logger.error(f"Error processing CSV from {url}: {e}", exc_info=True)
-                continue
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for store in executor.map(self._process_store_file, file_items):
+                if store:
+                    stores.append(store)
 
         return stores
 

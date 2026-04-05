@@ -1,6 +1,7 @@
 import datetime
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import List
 from json import loads
 
@@ -18,6 +19,7 @@ class KauflandCrawler(BaseCrawler):
     CHAIN = "kaufland"
     BASE_URL = "https://www.kaufland.hr"
     INDEX_URL = f"{BASE_URL}/akcije-novosti/popis-mpc.html"
+    STORE_WORKERS = 8
 
     # Mapping for price fields
     PRICE_MAP = {
@@ -233,6 +235,22 @@ class KauflandCrawler(BaseCrawler):
             )
             return []
 
+    def _process_store_file(self, file_info: tuple[str, str]) -> Store | None:
+        title, url = file_info
+        try:
+            store = self.parse_store_info(title)
+            products = self.get_store_prices(url)
+        except Exception as e:
+            logger.error(f"Error processing store from {url}: {e}", exc_info=True)
+            return None
+
+        if not products:
+            logger.warning(f"No products found for {url}, skipping")
+            return None
+
+        store.items = products
+        return store
+
     def parse_csv_row(self, row: dict) -> Product:
         anchor_price = row.get("Sidrena cijena")
         row["Datum sidrenja"] = ""
@@ -304,22 +322,30 @@ class KauflandCrawler(BaseCrawler):
             List of Store objects with their products.
         """
         csv_links = self.get_index(date)
+        if not csv_links:
+            return []
+
         stores = []
 
-        for title, url in csv_links.items():
-            try:
-                store = self.parse_store_info(title)
-                products = self.get_store_prices(url)
-            except Exception as e:
-                logger.error(f"Error processing store from {url}: {e}", exc_info=True)
-                continue
+        file_items = list(csv_links.items())
+        n_workers = min(self.STORE_WORKERS, len(file_items))
+        if n_workers <= 1:
+            for file_info in file_items:
+                store = self._process_store_file(file_info)
+                if store:
+                    stores.append(store)
+            return stores
 
-            if not products:
-                logger.warning(f"No products found for {url}, skipping")
-                continue
+        logger.info(
+            "Processing %s Kaufland stores with %s workers",
+            len(file_items),
+            n_workers,
+        )
 
-            store.items = products
-            stores.append(store)
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for store in executor.map(self._process_store_file, file_items):
+                if store:
+                    stores.append(store)
 
         return stores
 

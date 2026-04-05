@@ -1,6 +1,7 @@
 import datetime
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -25,6 +26,7 @@ class VrutakCrawler(BaseCrawler):
     CHAIN = "vrutak"
     BASE_URL = "https://www.vrutak.hr"
     INDEX_URL = "https://www.vrutak.hr/cjenik-svih-artikala"
+    STORE_WORKERS = 8
 
     # Known store types
     STORE_TYPES = ["hipermarket", "supermarket"]
@@ -212,6 +214,19 @@ class VrutakCrawler(BaseCrawler):
 
         return matching_urls
 
+    def _process_store_url(self, url: str) -> Store | None:
+        try:
+            store = self.get_store_data(url)
+        except Exception as e:
+            logger.error(f"Error processing Vrutak store from {url}: {e}", exc_info=True)
+            return None
+
+        if not store.items:
+            logger.warning(f"No products found for Vrutak store at {url}, skipping.")
+            return None
+
+        return store
+
     def get_all_products(self, date: datetime.date) -> list[Store]:
         """
         Main method to fetch and parse all Vrutak store, product, and price info for a given date.
@@ -229,22 +244,25 @@ class VrutakCrawler(BaseCrawler):
             return []
 
         stores = []
-        for url in xml_urls:
-            try:
-                store = self.get_store_data(url)
-            except Exception as e:
-                logger.error(
-                    f"Error processing Vrutak store from {url}: {e}", exc_info=True
-                )
-                continue
 
-            if not store.items:
-                logger.warning(
-                    f"No products found for Vrutak store at {url}, skipping."
-                )
-                continue
+        n_workers = min(self.STORE_WORKERS, len(xml_urls))
+        if n_workers <= 1:
+            for url in xml_urls:
+                store = self._process_store_url(url)
+                if store:
+                    stores.append(store)
+            return stores
 
-            stores.append(store)
+        logger.info(
+            "Processing %s Vrutak stores with %s workers",
+            len(xml_urls),
+            n_workers,
+        )
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for store in executor.map(self._process_store_url, xml_urls):
+                if store:
+                    stores.append(store)
 
         return stores
 

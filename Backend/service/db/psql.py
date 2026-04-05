@@ -90,6 +90,7 @@ class PostgresDatabase(Database):
         self.logger = logging.getLogger(__name__)
         self._search_cache = _TTLCache(maxsize=512, ttl=300.0)
         self._suggest_cache = _TTLCache(maxsize=256, ttl=300.0)
+        self._prepared_stmt_cache: dict[int, tuple[asyncpg.Connection, dict[str, Any]]] = {}
 
     async def connect(self) -> None:
         self.pool = await asyncpg.create_pool(
@@ -117,6 +118,7 @@ class PostgresDatabase(Database):
         """Close all database connections."""
         if self.pool:
             await self.pool.close()
+        self._prepared_stmt_cache = {}
 
     async def create_tables(self) -> None:
         schema_path = os.path.join(os.path.dirname(__file__), "psql.sql")
@@ -208,6 +210,26 @@ class PostgresDatabase(Database):
     async def _fetchval(self, query: str, *args: Any) -> Any:
         async with self._get_conn() as conn:
             return await conn.fetchval(query, *args)
+
+    async def _prepared_fetch(
+        self,
+        conn: asyncpg.Connection,
+        sql: str,
+        *params: Any,
+    ) -> list[Any]:
+        conn_id = id(conn)
+        cache_entry = self._prepared_stmt_cache.get(conn_id)
+        if cache_entry is None or cache_entry[0] is not conn:
+            stmt_cache: dict[str, Any] = {}
+            self._prepared_stmt_cache[conn_id] = (conn, stmt_cache)
+        else:
+            stmt_cache = cache_entry[1]
+
+        statement = stmt_cache.get(sql)
+        if statement is None:
+            statement = await conn.prepare(sql)
+            stmt_cache[sql] = statement
+        return await statement.fetch(*params)
 
     async def get_product_barcodes(self) -> dict[str, int]:
         async with self._get_conn() as conn:
@@ -1038,7 +1060,7 @@ class PostgresDatabase(Database):
         """
 
         async with self._get_conn() as conn:
-            rows = await conn.fetch(fast_sql, *params)
+            rows = await self._prepared_fetch(conn, fast_sql, *params)
 
             # ==============================================================
             # PHASE 2 — Full query with fuzzy branches (only when Phase 1
@@ -1196,7 +1218,7 @@ class PostgresDatabase(Database):
                         "SELECT set_config('pg_trgm.similarity_threshold', $1, false)",
                         str(trigram_operator_threshold),
                     )
-                    rows = await conn.fetch(full_sql, *params)
+                    rows = await self._prepared_fetch(conn, full_sql, *params)
                 finally:
                     await conn.execute(
                         "SELECT set_config('pg_trgm.similarity_threshold', $1, false)",
@@ -1289,7 +1311,13 @@ class PostgresDatabase(Database):
         """
 
         async with self._get_conn() as conn:
-            rows = await conn.fetch(suggest_sql, normalized_query, limit, first_token)
+            rows = await self._prepared_fetch(
+                conn,
+                suggest_sql,
+                normalized_query,
+                limit,
+                first_token,
+            )
 
         products = [
             ProductWithId(
@@ -1496,8 +1524,6 @@ class PostgresDatabase(Database):
 
     async def compute_chain_stats(self, date: date) -> None:
         async with self._atomic() as conn:
-            # Not doing insert in the same query because that caused deadlocks
-            # for reasons which I don't understand.
             stats = await conn.fetch(
                 """
                 SELECT
@@ -1512,21 +1538,44 @@ class PostgresDatabase(Database):
                 date,
             )
 
-            for record in stats:
-                await conn.execute(
-                    """
-                    INSERT INTO chain_stats(chain_id, price_date, price_count, store_count)
-                    VALUES ($1, $2, $3, $4)
-                    ON CONFLICT (chain_id, price_date)
-                    DO UPDATE SET
-                        price_count = EXCLUDED.price_count,
-                        store_count = EXCLUDED.store_count;
-                    """,
-                    record["chain_id"],
-                    date,
-                    record["price_count"],
-                    record["store_count"],
-                )
+            if not stats:
+                return
+
+            await conn.execute(
+                """
+                CREATE TEMP TABLE temp_chain_stats (
+                    chain_id INT,
+                    price_date DATE,
+                    price_count BIGINT,
+                    store_count BIGINT
+                ) ON COMMIT DROP
+                """
+            )
+
+            await conn.copy_records_to_table(
+                "temp_chain_stats",
+                records=(
+                    (
+                        record["chain_id"],
+                        date,
+                        record["price_count"],
+                        record["store_count"],
+                    )
+                    for record in stats
+                ),
+            )
+
+            await conn.execute(
+                """
+                INSERT INTO chain_stats (chain_id, price_date, price_count, store_count)
+                SELECT chain_id, price_date, price_count, store_count
+                FROM temp_chain_stats
+                ON CONFLICT (chain_id, price_date)
+                DO UPDATE SET
+                    price_count = EXCLUDED.price_count,
+                    store_count = EXCLUDED.store_count
+                """
+            )
 
     async def get_user_by_api_key(self, api_key: str) -> User | None:
         async with self._get_conn() as conn:

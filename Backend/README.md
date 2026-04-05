@@ -122,6 +122,19 @@ docker-compose exec api uv run -m service.db.stats YYYY-MM-DD
 
 **Opcije uvoza:** `-s` preskače statistike (brže), `-d` debug info.
 
+Paralelizacija importa:
+
+- `-w` / `--workers` definira maksimalan broj lanaca koji se uvoze istovremeno.
+- Ako se ne zada, default je broj workera jednak broju pronađenih lanaca.
+- Efektivni paralelizam je `min(workers, broj_lanaca)`.
+
+Primjer:
+
+```bash
+# Uvoz s maksimalno 4 paralelna workera
+docker-compose exec api uv run -m service.db.import /app/data/YYYY-MM-DD --workers 4
+```
+
 ### Provjera trgovina bez koordinata
 
 Skripta izvozi trgovine koje nemaju `lat` ili `lon` u TXT datoteku.

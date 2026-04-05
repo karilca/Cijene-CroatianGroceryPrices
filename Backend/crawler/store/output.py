@@ -140,10 +140,60 @@ def save_chain(chain_path: Path, stores: list[Store]):
     """
 
     makedirs(chain_path, exist_ok=True)
-    store_list, product_list, price_list = transform_products(stores)
-    save_csv(chain_path / "stores.csv", store_list, STORE_COLUMNS)
-    save_csv(chain_path / "products.csv", product_list, PRODUCT_COLUMNS)
-    save_csv(chain_path / "prices.csv", price_list, PRICE_COLUMNS)
+
+    products_by_key: dict[str, dict] = {}
+
+    with (
+        open(chain_path / "stores.csv", "w", newline="") as stores_file,
+        open(chain_path / "products.csv", "w", newline="") as products_file,
+        open(chain_path / "prices.csv", "w", newline="") as prices_file,
+    ):
+        stores_writer = DictWriter(stores_file, fieldnames=STORE_COLUMNS)
+        products_writer = DictWriter(products_file, fieldnames=PRODUCT_COLUMNS)
+        prices_writer = DictWriter(prices_file, fieldnames=PRICE_COLUMNS)
+
+        stores_writer.writeheader()
+        products_writer.writeheader()
+        prices_writer.writeheader()
+
+        for store in stores:
+            stores_writer.writerow(
+                {
+                    "store_id": str(store.store_id),
+                    "type": str(store.store_type),
+                    "address": str(store.street_address),
+                    "city": str(store.city),
+                    "zipcode": str(store.zipcode or ""),
+                }
+            )
+
+            for product in store.items:
+                product_key = f"{store.chain}:{product.product_id}"
+                if product_key not in products_by_key:
+                    products_by_key[product_key] = {
+                        "barcode": str(product.barcode or product_key),
+                        "product_id": str(product.product_id),
+                        "name": str(product.product),
+                        "brand": str(product.brand),
+                        "category": str(product.category),
+                        "unit": str(product.unit),
+                        "quantity": str(product.quantity),
+                    }
+
+                prices_writer.writerow(
+                    {
+                        "store_id": str(store.store_id),
+                        "product_id": str(product.product_id),
+                        "price": str(product.price),
+                        "unit_price": str(product.unit_price or ""),
+                        "best_price_30": str(product.best_price_30 or ""),
+                        "anchor_price": str(product.anchor_price or ""),
+                        "special_price": str(product.special_price or ""),
+                    }
+                )
+
+        for product_row in products_by_key.values():
+            products_writer.writerow(product_row)
 
 
 def copy_archive_info(path: Path):

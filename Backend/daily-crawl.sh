@@ -12,7 +12,7 @@ docker-compose run --rm crawler
 
 # Check if crawler was successful
 if [ $? -eq 0 ]; then
-    echo "Crawler completed successfully. Starting import for date: $CURRENT_DATE"
+    echo "Crawler completed successfully at $(date). Starting import for date: $CURRENT_DATE"
     
     # Run the import with current date
     docker-compose exec -T api uv run -m service.db.import /app/data/$CURRENT_DATE

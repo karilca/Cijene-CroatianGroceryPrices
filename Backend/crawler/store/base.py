@@ -1,7 +1,10 @@
 from csv import DictReader
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from functools import lru_cache
 from logging import getLogger
+from random import uniform
 from tempfile import NamedTemporaryFile
+from time import sleep
 from typing import Any, BinaryIO, Generator
 from time import time
 from zipfile import ZipFile
@@ -29,6 +32,8 @@ class BaseCrawler:
     USER_AGENT = None
     VERIFY_TLS_CERT = True
     MAX_RETRIES = 3
+    RETRY_BACKOFF_SECONDS = 0.5
+    RETRY_MAX_BACKOFF_SECONDS = 4.0
 
     ZIP_DATE_PATTERN: Pattern | None = None
 
@@ -40,10 +45,23 @@ class BaseCrawler:
 
     def __init__(self):
         self.client = httpx.Client(
-            timeout=30.0,
+            timeout=self.TIMEOUT,
             follow_redirects=True,
             verify=self.VERIFY_TLS_CERT,
         )
+
+    @staticmethod
+    def _can_retry(err: Exception) -> bool:
+        if isinstance(err, httpx.HTTPStatusError):
+            status_code = err.response.status_code
+            return status_code == 429 or 500 <= status_code < 600
+        return isinstance(err, httpx.RequestError)
+
+    def _retry_wait_seconds(self, attempt: int) -> float:
+        backoff = self.RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1))
+        capped_backoff = min(backoff, self.RETRY_MAX_BACKOFF_SECONDS)
+        jitter = min(0.25, capped_backoff * 0.2)
+        return capped_backoff + uniform(0.0, jitter)
 
     def fetch_text(
         self,
@@ -73,16 +91,31 @@ class BaseCrawler:
             raise ValueError(f"Error decoding {url} - tried: {encodings}")
 
         logger.debug(f"Fetching {url}")
-        try:
-            response = self.client.get(url)
-            response.raise_for_status()
-            if encodings:
-                return try_decode(response.content)
-            else:
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                response = self.client.get(url)
+                response.raise_for_status()
+                if encodings:
+                    return try_decode(response.content)
                 return response.text
-        except httpx.RequestError as e:
-            logger.error(f"Download from {url} failed: {e}", exc_info=True)
-            raise
+            except (httpx.RequestError, httpx.HTTPStatusError) as err:
+                is_last_attempt = attempt == self.MAX_RETRIES
+                if is_last_attempt or not self._can_retry(err):
+                    logger.error(f"Download from {url} failed: {err}", exc_info=True)
+                    raise
+
+                wait_seconds = self._retry_wait_seconds(attempt)
+                logger.warning(
+                    "Retrying %s after attempt %s/%s failed: %s (waiting %.2fs)",
+                    url,
+                    attempt,
+                    self.MAX_RETRIES,
+                    err,
+                    wait_seconds,
+                )
+                sleep(wait_seconds)
+
+        raise RuntimeError(f"Unexpected retry flow for {url}")
 
     def fetch_binary(self, url: str, fp: BinaryIO):
         """
@@ -101,18 +134,37 @@ class BaseCrawler:
 
         MB = 1024 * 1024
 
-        t0 = time()
-        with self.client.stream("GET", url) as response:
-            response.raise_for_status()
-            total_mb = int(response.headers.get("content-length", 0)) // MB
-            logger.debug(f"File size: {total_mb} MB")
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            t0 = time()
+            try:
+                with self.client.stream("GET", url) as response:
+                    response.raise_for_status()
+                    total_mb = int(response.headers.get("content-length", 0)) // MB
+                    logger.debug(f"File size: {total_mb} MB")
 
-            for chunk in response.iter_bytes(chunk_size=1 * MB):
-                fp.write(chunk)
+                    for chunk in response.iter_bytes(chunk_size=1 * MB):
+                        fp.write(chunk)
 
-        t1 = time()
-        dt = int(t1 - t0)
-        logger.debug(f"Downloaded {total_mb} MB in {dt}s")
+                t1 = time()
+                dt = int(t1 - t0)
+                logger.debug(f"Downloaded {total_mb} MB in {dt}s")
+                return
+            except (httpx.RequestError, httpx.HTTPStatusError) as err:
+                is_last_attempt = attempt == self.MAX_RETRIES
+                if is_last_attempt or not self._can_retry(err):
+                    logger.error(f"Download from {url} failed: {err}", exc_info=True)
+                    raise
+
+                wait_seconds = self._retry_wait_seconds(attempt)
+                logger.warning(
+                    "Retrying binary download %s after attempt %s/%s failed: %s (waiting %.2fs)",
+                    url,
+                    attempt,
+                    self.MAX_RETRIES,
+                    err,
+                    wait_seconds,
+                )
+                sleep(wait_seconds)
 
     def read_csv(self, text: str, delimiter: str = ",") -> DictReader:
         return DictReader(text.splitlines(), delimiter=delimiter)  # type: ignore
@@ -204,6 +256,7 @@ class BaseCrawler:
                 return None
 
     @staticmethod
+    @lru_cache(maxsize=8192)
     def strip_diacritics(text: str) -> str:
         """
         Remove diacritics from a string.

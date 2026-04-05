@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote, quote_plus
 
 from bs4 import BeautifulSoup
@@ -17,6 +18,8 @@ class NtlCrawler(BaseCrawler):
 
     CHAIN = "ntl"
     BASE_URL = "https://ntl.hr/cjenik"
+    STORE_WORKERS = 8
+    HISTORY_LOOKUP_WORKERS = 8
 
     # Regex to parse store information from the filename
     # Format: Supermarket_Ljudevita Gaja 1_DUGA RESA_10103_263_25052025_07_22_36.csv
@@ -244,10 +247,26 @@ class NtlCrawler(BaseCrawler):
                 return []
 
             historical_urls = []
-            for store_name in stores:
-                csv_url = self.get_historical_csv_for_date(store_name, date)
-                if csv_url:
-                    historical_urls.append(csv_url)
+            n_workers = min(self.HISTORY_LOOKUP_WORKERS, len(stores))
+            if n_workers <= 1:
+                for store_name in stores:
+                    csv_url = self.get_historical_csv_for_date(store_name, date)
+                    if csv_url:
+                        historical_urls.append(csv_url)
+            else:
+                logger.info(
+                    "Looking up historical NTL CSVs for %s stores with %s workers",
+                    len(stores),
+                    n_workers,
+                )
+
+                def lookup_store(store_name: str) -> str | None:
+                    return self.get_historical_csv_for_date(store_name, date)
+
+                with ThreadPoolExecutor(max_workers=n_workers) as executor:
+                    for csv_url in executor.map(lookup_store, stores):
+                        if csv_url:
+                            historical_urls.append(csv_url)
 
             if not historical_urls:
                 raise ValueError(f"No stores found for date {date:%Y-%m-%d}")
@@ -256,6 +275,27 @@ class NtlCrawler(BaseCrawler):
                 f"Found {len(historical_urls)} historical CSV files for {date:%Y-%m-%d}"
             )
             return historical_urls
+
+    def _process_store_url(self, url: str) -> Store | None:
+        try:
+            store = self.parse_store_info(url)
+            products = self.get_store_prices(url)
+        except ValueError as ve:
+            logger.error(
+                f"Skipping store due to parsing error from URL {url}: {ve}",
+                exc_info=False,
+            )
+            return None
+        except Exception as e:
+            logger.error(f"Error processing NTL store from {url}: {e}", exc_info=True)
+            return None
+
+        if not products:
+            logger.warning(f"No products found for NTL store at {url}, skipping.")
+            return None
+
+        store.items = products
+        return store
 
     def get_all_products(self, date: datetime.date) -> list[Store]:
         """
@@ -274,28 +314,25 @@ class NtlCrawler(BaseCrawler):
             return []
 
         stores = []
-        for url in csv_links:
-            try:
-                store = self.parse_store_info(url)
-                products = self.get_store_prices(url)
-            except ValueError as ve:
-                logger.error(
-                    f"Skipping store due to parsing error from URL {url}: {ve}",
-                    exc_info=False,
-                )
-                continue
-            except Exception as e:
-                logger.error(
-                    f"Error processing NTL store from {url}: {e}", exc_info=True
-                )
-                continue
 
-            if not products:
-                logger.warning(f"No products found for NTL store at {url}, skipping.")
-                continue
+        n_workers = min(self.STORE_WORKERS, len(csv_links))
+        if n_workers <= 1:
+            for url in csv_links:
+                store = self._process_store_url(url)
+                if store:
+                    stores.append(store)
+            return stores
 
-            store.items = products
-            stores.append(store)
+        logger.info(
+            "Processing %s NTL stores with %s workers",
+            len(csv_links),
+            n_workers,
+        )
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for store in executor.map(self._process_store_url, csv_links):
+                if store:
+                    stores.append(store)
 
         return stores
 

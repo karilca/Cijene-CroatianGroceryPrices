@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import List
 from urllib.parse import unquote
 
@@ -18,6 +19,7 @@ class MetroCrawler(BaseCrawler):
 
     CHAIN = "metro"
     BASE_URL = "https://metrocjenik.com.hr"
+    STORE_WORKERS = 8
 
     # Regex to parse store information from the filename
     # Format: <store_type>_METRO_YYYYMMDDTHHMM_<store_id>_<address>,<city>.csv
@@ -174,6 +176,27 @@ class MetroCrawler(BaseCrawler):
 
         return matching_urls
 
+    def _process_store_url(self, url: str) -> Store | None:
+        try:
+            store = self.parse_store_info(url)
+            products = self.get_store_prices(url)
+        except ValueError as ve:
+            logger.error(
+                f"Skipping store due to parsing error from URL {url}: {ve}",
+                exc_info=False,
+            )
+            return None
+        except Exception as e:
+            logger.error(f"Error processing Metro store from {url}: {e}", exc_info=True)
+            return None
+
+        if not products:
+            logger.warning(f"No products found for Metro store at {url}, skipping.")
+            return None
+
+        store.items = products
+        return store
+
     def get_all_products(self, date: datetime.date) -> list[Store]:
         """
         Main method to fetch and parse all Metro store, product, and price info for a given date.
@@ -191,28 +214,25 @@ class MetroCrawler(BaseCrawler):
             return []
 
         stores = []
-        for url in csv_links:
-            try:
-                store = self.parse_store_info(url)
-                products = self.get_store_prices(url)
-            except ValueError as ve:  # Catch specific error from parse_store_info
-                logger.error(
-                    f"Skipping store due to parsing error from URL {url}: {ve}",
-                    exc_info=False,
-                )  # exc_info=False to reduce noise for expected parsing errors
-                continue
-            except Exception as e:
-                logger.error(
-                    f"Error processing Metro store from {url}: {e}", exc_info=True
-                )
-                continue  # Skip to the next URL on error
 
-            if not products:
-                logger.warning(f"No products found for Metro store at {url}, skipping.")
-                continue
+        n_workers = min(self.STORE_WORKERS, len(csv_links))
+        if n_workers <= 1:
+            for url in csv_links:
+                store = self._process_store_url(url)
+                if store:
+                    stores.append(store)
+            return stores
 
-            store.items = products
-            stores.append(store)
+        logger.info(
+            "Processing %s Metro stores with %s workers",
+            len(csv_links),
+            n_workers,
+        )
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for store in executor.map(self._process_store_url, csv_links):
+                if store:
+                    stores.append(store)
 
         return stores
 

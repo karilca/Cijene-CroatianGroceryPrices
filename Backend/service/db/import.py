@@ -113,6 +113,7 @@ async def process_products(
     chain_id: int,
     chain_code: str,
     barcodes: dict[str, int],
+    barcode_lock: asyncio.Lock | None = None,
 ) -> Dict[str, int]:
     """
     Process products CSV and import to database.
@@ -168,16 +169,26 @@ async def process_products(
     )
 
     n_new_barcodes = 0
-    missing_barcodes = []
-    for product in new_products:
-        barcode = product["barcode"]
-        if barcode not in barcodes:
-            missing_barcodes.append(barcode)
 
-    if missing_barcodes:
+    async def sync_missing_barcodes() -> int:
+        missing_barcodes = []
+        for product in new_products:
+            barcode = product["barcode"]
+            if barcode not in barcodes:
+                missing_barcodes.append(barcode)
+
+        if not missing_barcodes:
+            return 0
+
         barcode_map = await db.add_many_eans(missing_barcodes)
         barcodes.update(barcode_map)
-        n_new_barcodes = len(barcode_map)
+        return len(barcode_map)
+
+    if barcode_lock is None:
+        n_new_barcodes = await sync_missing_barcodes()
+    else:
+        async with barcode_lock:
+            n_new_barcodes = await sync_missing_barcodes()
 
     if n_new_barcodes:
         logger.debug(f"Added {n_new_barcodes} new barcodes to global products")
@@ -285,6 +296,7 @@ async def process_chain(
     price_date: date,
     chain_dir: Path,
     barcodes: dict[str, int],
+    barcode_lock: asyncio.Lock | None = None,
 ) -> None:
     """
     Process a single retail chain and import its data.
@@ -324,7 +336,13 @@ async def process_chain(
     chain_id = await db.add_chain(chain)
 
     store_map = await process_stores(stores_path, chain_id, code)
-    chain_product_map = await process_products(products_path, chain_id, code, barcodes)
+    chain_product_map = await process_products(
+        products_path,
+        chain_id,
+        code,
+        barcodes,
+        barcode_lock=barcode_lock,
+    )
 
     n_new_prices = await process_prices(
         price_date,
@@ -337,7 +355,11 @@ async def process_chain(
     logger.info(f"Imported {n_new_prices} new prices for {code}")
 
 
-async def import_archive(path: Path, compute_stats_flag: bool = True):
+async def import_archive(
+    path: Path,
+    compute_stats_flag: bool = True,
+    workers: int | None = None,
+):
     """Import data from all chain directories in the given zip archive."""
     try:
         price_date = datetime.strptime(path.stem, "%Y-%m-%d")
@@ -349,10 +371,14 @@ async def import_archive(path: Path, compute_stats_flag: bool = True):
         logger.debug(f"Extracting archive {path} to {temp_dir}")
         with zipfile.ZipFile(path, "r") as zip_ref:
             zip_ref.extractall(temp_dir)
-        await _import(Path(temp_dir), price_date, compute_stats_flag)
+        await _import(Path(temp_dir), price_date, compute_stats_flag, workers=workers)
 
 
-async def import_directory(path: Path, compute_stats_flag: bool = True) -> None:
+async def import_directory(
+    path: Path,
+    compute_stats_flag: bool = True,
+    workers: int | None = None,
+) -> None:
     """Import data from all chain directories in the given directory."""
     if not path.is_dir():
         logger.error(f"`{path}` does not exist or is not a directory")
@@ -366,11 +392,14 @@ async def import_directory(path: Path, compute_stats_flag: bool = True) -> None:
         )
         return
 
-    await _import(path, price_date, compute_stats_flag)
+    await _import(path, price_date, compute_stats_flag, workers=workers)
 
 
 async def _import(
-    path: Path, price_date: datetime, compute_stats_flag: bool = True
+    path: Path,
+    price_date: datetime,
+    compute_stats_flag: bool = True,
+    workers: int | None = None,
 ) -> None:
     chain_dirs = [d.resolve() for d in path.iterdir() if d.is_dir()]
     if not chain_dirs:
@@ -382,8 +411,28 @@ async def _import(
     t0 = time()
 
     barcodes = await db.get_product_barcodes()
-    for chain_dir in chain_dirs:
-        await process_chain(price_date, chain_dir, barcodes)
+    barcode_lock = asyncio.Lock()
+
+    # Default behavior: use one worker per chain unless a max is provided.
+    max_parallel_chains = len(chain_dirs) if workers is None else min(workers, len(chain_dirs))
+
+    logger.info(
+        "Importing chains with up to %s parallel workers",
+        max_parallel_chains,
+    )
+
+    semaphore = asyncio.Semaphore(max_parallel_chains)
+
+    async def run_chain(chain_dir: Path) -> None:
+        async with semaphore:
+            await process_chain(
+                price_date,
+                chain_dir,
+                barcodes,
+                barcode_lock=barcode_lock,
+            )
+
+    await asyncio.gather(*(run_chain(chain_dir) for chain_dir in chain_dirs))
 
     dt = int(time() - t0)
     logger.info(f"Imported {len(chain_dirs)} chains in {dt} seconds")
@@ -442,7 +491,17 @@ async def main():
         action="store_true",
         help="Enable debug logging",
     )
+    parser.add_argument(
+        "-w",
+        "--workers",
+        type=int,
+        default=None,
+        help="Maximum number of parallel chain workers (default: number of chains)",
+    )
     args = parser.parse_args()
+
+    if args.workers is not None and args.workers < 1:
+        parser.error("workers must be at least 1")
 
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
@@ -451,6 +510,8 @@ async def main():
 
     compute_stats_flag = not args.skip_stats
 
+    print(f"Import started at {datetime.now()}", flush=True)
+
     await db.connect()
 
     try:
@@ -458,9 +519,17 @@ async def main():
 
         for path in args.paths:
             if path.is_dir():
-                await import_directory(path, compute_stats_flag)
+                await import_directory(
+                    path,
+                    compute_stats_flag,
+                    workers=args.workers,
+                )
             elif path.suffix.lower() == ".zip":
-                await import_archive(path, compute_stats_flag)
+                await import_archive(
+                    path,
+                    compute_stats_flag,
+                    workers=args.workers,
+                )
             else:
                 logger.error(f"Path `{path}` is neither a directory nor a zip archive.")
 
@@ -472,6 +541,10 @@ async def main():
                 deleted["chain_prices"],
                 deleted["chain_stats"],
             )
+        print(f"Import completed successfully at {datetime.now()}", flush=True)
+    except Exception:
+        print(f"Import failed at {datetime.now()}", flush=True)
+        raise
     finally:
         await db.close()
 

@@ -125,6 +125,7 @@ def main():
 
     # Run the crawler
     try:
+        print(f"Crawler started at {datetime.now()}", flush=True)
         # Ensure date is None if not provided, so crawl() uses its default
         crawl_date = args.date  # parse_date already handles empty string to None
 
@@ -140,9 +141,11 @@ def main():
             chains_to_crawl,
             workers=args.workers,
         )
+        print(f"Crawler completed successfully at {datetime.now()}", flush=True)
         print(f"Archive created: {zip_path}")
         return 0
     except Exception as e:
+        print(f"Crawler failed at {datetime.now()}", flush=True)
         print(f"Error during crawling: {e}")
         return 1
 

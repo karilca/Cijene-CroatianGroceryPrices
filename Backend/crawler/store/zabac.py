@@ -3,6 +3,7 @@ import io
 import logging
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from csv import reader, writer
 from urllib.parse import unquote
 
@@ -19,6 +20,7 @@ class ZabacCrawler(BaseCrawler):
 
     CHAIN = "zabac"
     BASE_URL = "https://zabacfoodoutlet.hr/cjenik/"
+    STORE_WORKERS = 8
 
     # Regex to parse store information from the filename
     # Format: Cjenik-Zabac-Food-Outlet-PJ-<store_id>-<address>.csv
@@ -262,6 +264,27 @@ class ZabacCrawler(BaseCrawler):
 
         return all_urls
 
+    def _process_store_url(self, url: str) -> Store | None:
+        try:
+            store = self.parse_store_info(url)
+            products = self.get_store_prices(url)
+        except ValueError as ve:
+            logger.error(
+                f"Skipping store due to parsing error from URL {url}: {ve}",
+                exc_info=False,
+            )
+            return None
+        except Exception as e:
+            logger.error(f"Error processing Žabac store from {url}: {e}", exc_info=True)
+            return None
+
+        if not products:
+            logger.warning(f"No products found for Žabac store at {url}, skipping.")
+            return None
+
+        store.items = products
+        return store
+
     def get_all_products(self, date: datetime.date) -> list[Store]:
         """
         Main method to fetch and parse all Žabac store, product, and price info.
@@ -281,28 +304,25 @@ class ZabacCrawler(BaseCrawler):
             return []
 
         stores = []
-        for url in csv_links:
-            try:
-                store = self.parse_store_info(url)
-                products = self.get_store_prices(url)
-            except ValueError as ve:
-                logger.error(
-                    f"Skipping store due to parsing error from URL {url}: {ve}",
-                    exc_info=False,
-                )
-                continue
-            except Exception as e:
-                logger.error(
-                    f"Error processing Žabac store from {url}: {e}", exc_info=True
-                )
-                continue
 
-            if not products:
-                logger.warning(f"No products found for Žabac store at {url}, skipping.")
-                continue
+        n_workers = min(self.STORE_WORKERS, len(csv_links))
+        if n_workers <= 1:
+            for url in csv_links:
+                store = self._process_store_url(url)
+                if store:
+                    stores.append(store)
+            return stores
 
-            store.items = products
-            stores.append(store)
+        logger.info(
+            "Processing %s Žabac stores with %s workers",
+            len(csv_links),
+            n_workers,
+        )
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for store in executor.map(self._process_store_url, csv_links):
+                if store:
+                    stores.append(store)
 
         return stores
 

@@ -2,6 +2,8 @@ import json
 import httpx
 from logging import getLogger
 from fastapi import FastAPI, Depends, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 from uuid import UUID
@@ -15,8 +17,9 @@ from service.cart_optimize_cache import (
     build_cart_optimize_cache_key,
     cart_optimize_cache,
 )
-from service.auth_utils import get_current_user, get_user_payload
+from service.auth_utils import get_user_payload
 from service.db import set_db
+from service.routers import v0, v1
 from service.text_utils import normalize_product_text
 
 db = settings.get_db()
@@ -222,73 +225,94 @@ async def get_user_with_role(u_id: UUID, payload: dict):
             detail="Session has expired.",
         )
 
-    query = """
-        SELECT u.id, u.name, u.email, u.is_active, u.supabase_uid, u.role_id, r.name as role_name 
-        FROM users u
-        LEFT JOIN roles r ON u.role_id = r.id
-        WHERE u.supabase_uid = $1
-    """
-    user = await target_db.fetchrow(query, u_id)
     email = _extract_email(payload)
     extracted_name = _extract_name(payload, email)
 
-    if user is None:
-        hard_deleted_user = await target_db.fetchrow(
-            """
+    user_sync_query = """
+        WITH hard_deleted AS (
             SELECT supabase_uid, email, deleted_at
             FROM hard_deleted_users
             WHERE supabase_uid = $1
-            """,
-            u_id,
-        )
-        if hard_deleted_user is not None:
-            try:
-                await _log_admin_action(
-                    target_db,
-                    admin={"supabase_uid": u_id, "email": email},
-                    action="user.access_after_hard_delete_denied",
-                    target_user={
-                        "supabase_uid": hard_deleted_user["supabase_uid"],
-                        "email": hard_deleted_user.get("email"),
-                    },
-                    before={"deleted_at": str(hard_deleted_user["deleted_at"])},
-                    after={"allowed": False},
-                )
-            except Exception:
-                # Reject access even if audit persistence fails.
-                pass
-            _raise_api_error(
-                status_code=403,
-                detail_code="AUTH_ACCOUNT_DISABLED",
-                detail="Account is disabled.",
-            )
-
-        deleted_user = await target_db.fetchrow(
-            """
+            LIMIT 1
+        ),
+        soft_deleted AS (
             SELECT supabase_uid, email, deleted_at
             FROM users
             WHERE supabase_uid = $1
               AND deleted_at IS NOT NULL
             ORDER BY deleted_at DESC
             LIMIT 1
-            """,
-            u_id,
+        ),
+        user_role AS (
+            SELECT id
+            FROM roles
+            WHERE name = 'USER'
+            LIMIT 1
+        ),
+        inserted_user AS (
+            INSERT INTO users (name, email, supabase_uid, is_active, role_id, created_at)
+            SELECT $2, $3, $1, true, ur.id, NOW()
+            FROM user_role ur
+            WHERE NOT EXISTS (SELECT 1 FROM hard_deleted)
+              AND NOT EXISTS (SELECT 1 FROM soft_deleted)
+              AND NOT EXISTS (SELECT 1 FROM users u WHERE u.supabase_uid = $1)
+            ON CONFLICT (supabase_uid) DO NOTHING
+            RETURNING id
+        ),
+        synced_user AS (
+            UPDATE users u
+            SET
+                email = CASE
+                    WHEN ($3 IS NOT NULL AND $3 <> '' AND (u.email IS NULL OR u.email = '')) THEN $3
+                    ELSE u.email
+                END,
+                name = CASE
+                    WHEN ($2 IS NOT NULL AND $2 <> '' AND lower(coalesce(u.name, '')) = lower(coalesce(u.email, ''))) THEN $2
+                    ELSE u.name
+                END
+            WHERE u.supabase_uid = $1
+              AND NOT EXISTS (SELECT 1 FROM hard_deleted)
+              AND NOT EXISTS (SELECT 1 FROM soft_deleted)
+            RETURNING u.id
         )
-        if deleted_user is not None:
+        SELECT
+            u.id,
+            u.name,
+            u.email,
+            u.is_active,
+            u.supabase_uid,
+            u.role_id,
+            r.name AS role_name,
+            hd.supabase_uid AS hard_deleted_supabase_uid,
+            hd.email AS hard_deleted_email,
+            hd.deleted_at AS hard_deleted_at,
+            sd.supabase_uid AS soft_deleted_supabase_uid,
+            sd.email AS soft_deleted_email,
+            sd.deleted_at AS soft_deleted_at
+        FROM (SELECT 1) seed
+        LEFT JOIN users u ON u.supabase_uid = $1
+        LEFT JOIN roles r ON u.role_id = r.id
+        LEFT JOIN hard_deleted hd ON true
+        LEFT JOIN soft_deleted sd ON true
+    """
+
+    row = await target_db.fetchrow(user_sync_query, u_id, extracted_name, email)
+
+    if row is None or row.get("id") is None:
+        if row and row.get("hard_deleted_supabase_uid") is not None:
             try:
                 await _log_admin_action(
                     target_db,
                     admin={"supabase_uid": u_id, "email": email},
-                    action="user.access_after_delete_denied",
+                    action="user.access_after_hard_delete_denied",
                     target_user={
-                        "supabase_uid": deleted_user["supabase_uid"],
-                        "email": deleted_user.get("email"),
+                        "supabase_uid": row["hard_deleted_supabase_uid"],
+                        "email": row.get("hard_deleted_email"),
                     },
-                    before={"deleted_at": str(deleted_user["deleted_at"])},
+                    before={"deleted_at": str(row["hard_deleted_at"])},
                     after={"allowed": False},
                 )
             except Exception:
-                # Reject access even if audit persistence fails.
                 pass
             _raise_api_error(
                 status_code=403,
@@ -296,33 +320,42 @@ async def get_user_with_role(u_id: UUID, payload: dict):
                 detail="Account is disabled.",
             )
 
-        user_role_id = await target_db.fetchval("SELECT id FROM roles WHERE name = 'USER'")
-        await target_db.execute(
-            """INSERT INTO users (name, email, supabase_uid, is_active, role_id, created_at)
-               VALUES ($1, $2, $3, true, $4, NOW())
-               ON CONFLICT (supabase_uid) DO NOTHING""",
-            extracted_name, email, u_id, user_role_id
-        )
-        user = await target_db.fetchrow(query, u_id)
-    elif not user.get("email") and email:
-        await target_db.execute(
-            "UPDATE users SET email = $1 WHERE supabase_uid = $2",
-            email,
-            u_id,
-        )
-        user = await target_db.fetchrow(query, u_id)
+        if row and row.get("soft_deleted_supabase_uid") is not None:
+            try:
+                await _log_admin_action(
+                    target_db,
+                    admin={"supabase_uid": u_id, "email": email},
+                    action="user.access_after_delete_denied",
+                    target_user={
+                        "supabase_uid": row["soft_deleted_supabase_uid"],
+                        "email": row.get("soft_deleted_email"),
+                    },
+                    before={"deleted_at": str(row["soft_deleted_at"])},
+                    after={"allowed": False},
+                )
+            except Exception:
+                pass
+            _raise_api_error(
+                status_code=403,
+                detail_code="AUTH_ACCOUNT_DISABLED",
+                detail="Account is disabled.",
+            )
 
-    current_name = _normalize_name(user.get("name") if user else None)
-    current_email = _normalize_email(user.get("email") if user else None)
-    if user and extracted_name and current_name.lower() == current_email:
-        await target_db.execute(
-            "UPDATE users SET name = $1 WHERE supabase_uid = $2",
-            extracted_name,
-            u_id,
+        _raise_api_error(
+            status_code=500,
+            detail_code="AUTH_USER_SYNC_FAILED",
+            detail="Unable to synchronize user account.",
         )
-        user = await target_db.fetchrow(query, u_id)
 
-    return user
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "is_active": row["is_active"],
+        "supabase_uid": row["supabase_uid"],
+        "role_id": row["role_id"],
+        "role_name": row["role_name"],
+    }
 
 async def get_current_active_user(payload: dict = Depends(get_user_payload)):
     u_id_str = payload.get("sub")
@@ -376,7 +409,6 @@ app = FastAPI(
     },
 )
 
-from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allow_origins,
@@ -384,9 +416,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-
-
-from fastapi.responses import RedirectResponse
 
 @app.get("/", include_in_schema=False)
 async def root():
@@ -1924,8 +1953,6 @@ async def admin_create_role(role: RoleBase, admin = Depends(require_role("ADMIN"
         raise HTTPException(status_code=400, detail="Uloga već postoji.")
 
 # --- ROUTERI ---
-
-from service.routers import v0, v1
 app.include_router(v0.router, prefix="/v0")
 app.include_router(v1.router, prefix="/v1")
 

@@ -2,6 +2,7 @@ import datetime
 import logging
 import urllib.parse
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 from bs4 import BeautifulSoup
@@ -18,6 +19,7 @@ class KonzumCrawler(BaseCrawler):
     CHAIN = "konzum"
     BASE_URL = "https://www.konzum.hr"
     INDEX_URL = f"{BASE_URL}/cjenici"
+    STORE_WORKERS = 8
 
     # Mapping for price fields
     PRICE_MAP = {
@@ -155,6 +157,21 @@ class KonzumCrawler(BaseCrawler):
             )
             return []
 
+    def _process_store_url(self, url: str) -> Store | None:
+        try:
+            store = self.parse_store_info(url)
+            products = self.get_store_prices(url)
+        except Exception as e:
+            logger.error(f"Error processing store from {url}: {e}", exc_info=True)
+            return None
+
+        if not products:
+            logger.warning(f"Error getting prices from {url}, skipping")
+            return None
+
+        store.items = products
+        return store
+
     def get_all_products(self, date: datetime.date) -> list[Store]:
         """
         Main method to fetch and parse all store, product and price info.
@@ -170,21 +187,29 @@ class KonzumCrawler(BaseCrawler):
         """
 
         csv_links = self.get_index(date)
+        if not csv_links:
+            return []
+
         stores = []
 
-        for url in csv_links:
-            try:
-                store = self.parse_store_info(url)
-                products = self.get_store_prices(url)
-            except Exception as e:
-                logger.error(f"Error processing store from {url}: {e}", exc_info=True)
-                continue
+        n_workers = min(self.STORE_WORKERS, len(csv_links))
+        if n_workers <= 1:
+            for url in csv_links:
+                store = self._process_store_url(url)
+                if store:
+                    stores.append(store)
+            return stores
 
-            if not products:
-                logger.warning(f"Error getting prices from {url}, skipping")
-                continue
-            store.items = products
-            stores.append(store)
+        logger.info(
+            "Processing %s Konzum stores with %s workers",
+            len(csv_links),
+            n_workers,
+        )
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for store in executor.map(self._process_store_url, csv_links):
+                if store:
+                    stores.append(store)
 
         return stores
 
