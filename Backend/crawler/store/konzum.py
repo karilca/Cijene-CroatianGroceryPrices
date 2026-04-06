@@ -168,7 +168,7 @@ class KonzumCrawler(BaseCrawler):
     def get_store_prices(self, csv_url: str) -> List[Product]:
         try:
             content = self.fetch_text(csv_url)
-            return self.parse_csv(content)
+            return list(self.parse_csv(content))
         except Exception as e:
             logger.error(
                 "Failed to get store prices from %s: %s",

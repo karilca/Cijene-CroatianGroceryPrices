@@ -229,7 +229,7 @@ class ZabacCrawler(BaseCrawler):
 
             delimiter = self._detect_delimiter(content)
             normalized_content = self._canonicalize_headers(content, delimiter)
-            return self.parse_csv(normalized_content, delimiter=delimiter)
+            return list(self.parse_csv(normalized_content, delimiter=delimiter))
         except Exception as e:
             logger.error(
                 "Failed to get Žabac store prices from %s: %s",

@@ -388,7 +388,7 @@ class BaseCrawler:
         data = self.fix_product_data(data)
         return Product(**data)  # type: ignore
 
-    def parse_csv(self, content: str, delimiter: str = ",") -> list[Product]:
+    def parse_csv(self, content: str, delimiter: str = ",") -> Generator[Product, None, None]:
         """
         Parses CSV content into Product objects.
 
@@ -397,7 +397,7 @@ class BaseCrawler:
             delimiter: Delimiter used in the CSV file (default: ",")
 
         Returns:
-            List of Product objects
+            Generator of Product objects
         """
         logger.debug("Parsing CSV content")
 
@@ -420,7 +420,7 @@ class BaseCrawler:
                     f'Column "{column}" not found in CSV file. CSV columns: {available}'
                 )
 
-        products = []
+        parsed_products = 0
         failed_rows = 0
         first_failed_row_idx: int | None = None
         first_failed_error: Exception | None = None
@@ -437,7 +437,8 @@ class BaseCrawler:
                     first_failed_error = err
                     first_failed_row = row
                 continue
-            products.append(product)
+            parsed_products += 1
+            yield product
 
         if failed_rows > 0 and first_failed_row_idx is not None and first_failed_error is not None:
             logger.warning(
@@ -449,8 +450,7 @@ class BaseCrawler:
             if first_failed_row is not None:
                 logger.debug("First problematic CSV row %s: %s", first_failed_row_idx, first_failed_row, exc_info=True)
 
-        logger.debug("Parsed %s products from CSV", len(products))
-        return products
+        logger.debug("Parsed %s products from CSV", parsed_products)
 
     def parse_index_for_zip(self, html_content: str) -> dict[datetime.date, str]:
         """

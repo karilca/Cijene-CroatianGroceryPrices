@@ -160,7 +160,7 @@ class LidlCrawler(BaseCrawler):
                 logger.warning("Unknown delimiter in CSV: %s; ignoring", filename)
                 return None
 
-            products = self.parse_csv(text, delimiter=delimiter)
+            products = list(self.parse_csv(text, delimiter=delimiter))
             store.items = products
             return store
 

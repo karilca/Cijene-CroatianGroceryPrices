@@ -137,7 +137,7 @@ class PlodineCrawler(BaseCrawler):
                 logger.warning("Skipping CSV %s due to store parsing failure", filename)
                 return None
 
-            products = self.parse_csv(content.decode("utf-8"), delimiter=";")
+            products = list(self.parse_csv(content.decode("utf-8"), delimiter=";"))
             store.items = products
             return store
 

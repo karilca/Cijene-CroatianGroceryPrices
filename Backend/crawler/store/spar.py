@@ -195,7 +195,7 @@ class SparCrawler(BaseCrawler):
                 logger.warning("Skipping CSV from %s due to download failure", url)
                 return None
 
-            products = self.parse_csv(csv_content, ";")
+            products = list(self.parse_csv(csv_content, ";"))
         except Exception as e:
             logger.error("Error processing CSV from %s: %s", url, e, exc_info=True)
             return None

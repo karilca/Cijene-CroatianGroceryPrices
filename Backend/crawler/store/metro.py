@@ -140,7 +140,7 @@ class MetroCrawler(BaseCrawler):
             # fetch_text handles potential HTTP errors. CSV is UTF-8 by default from response.text.
             content = self.fetch_text(csv_url)
             # Metro CSVs are comma-delimited
-            return self.parse_csv(content, delimiter=",")
+            return list(self.parse_csv(content, delimiter=","))
         except Exception as e:
             logger.error(
                 "Failed to get Metro store prices from %s: %s",

@@ -232,7 +232,7 @@ class KauflandCrawler(BaseCrawler):
                 lines[0] = re.sub(r'\tWG(\r?)$', r'\tkategorija proizvoda\1', lines[0])
                 content = "\n".join(lines)
 
-            return self.parse_csv(content, delimiter="\t")
+            return list(self.parse_csv(content, delimiter="\t"))
         except Exception as e:
             logger.error(
                 "Failed to get store prices from %s: %s",

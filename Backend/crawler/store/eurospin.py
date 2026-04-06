@@ -169,7 +169,7 @@ class EurospinCrawler(BaseCrawler):
             List of Product objects
         """
         try:
-            return self.parse_csv(content.decode("windows-1250"), delimiter=";")
+            return list(self.parse_csv(content.decode("windows-1250"), delimiter=";"))
         except Exception as e:
             logger.error("Failed to get store prices: %s", e, exc_info=True)
             return []

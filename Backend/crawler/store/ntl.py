@@ -212,7 +212,7 @@ class NtlCrawler(BaseCrawler):
         """
         try:
             content = self.fetch_text(csv_url, encodings=["windows-1250"])
-            return self.parse_csv(content, delimiter=";")
+            return list(self.parse_csv(content, delimiter=";"))
         except Exception as e:
             logger.error(
                 "Failed to get NTL store prices from %s: %s",
