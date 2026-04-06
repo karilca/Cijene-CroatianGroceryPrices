@@ -1,7 +1,7 @@
 import datetime
 import logging
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from typing import Optional, Tuple
 from json import loads
 
@@ -137,18 +137,19 @@ class SparCrawler(BaseCrawler):
         Returns:
             Store object with parsed store information, or None if parsing fails
         """
-        logger.debug(f"Parsing store information from filename: {filename}")
+        logger.debug("Parsing store information from filename: %s", filename)
 
         match = self.ADDRESS_PATTERN.match(filename)
 
         if not match:
-            logger.warning(f"Failed to match filename pattern: {filename}")
+            logger.warning("Failed to match filename pattern: %s", filename)
             return None
 
         store_type, city_and_address, store_id, store_name = match.groups()
+        city_and_address_lc = city_and_address.lower()
 
         for city in self.CITIES:
-            if city_and_address.lower().startswith(city):
+            if city_and_address_lc.startswith(city):
                 store_city = city
                 store_address = city_and_address[len(city) + 1 :]
                 break
@@ -167,7 +168,12 @@ class SparCrawler(BaseCrawler):
         )
 
         logger.debug(
-            f"Parsed store: {store.name} ({store.store_id}), {store.store_type}, {store.city}, {store.street_address}"
+            "Parsed store: %s (%s), %s, %s, %s",
+            store.name,
+            store.store_id,
+            store.store_type,
+            store.city,
+            store.street_address,
         )
         return store
 
@@ -176,7 +182,7 @@ class SparCrawler(BaseCrawler):
 
         store = self.parse_store_from_filename(filename)
         if not store:
-            logger.warning(f"Skipping CSV from {url} due to store parsing failure")
+            logger.warning("Skipping CSV from %s due to store parsing failure", url)
             return None
 
         try:
@@ -186,12 +192,12 @@ class SparCrawler(BaseCrawler):
                 self.CSV_PREFIX,
             )
             if not csv_content:
-                logger.warning(f"Skipping CSV from {url} due to download failure")
+                logger.warning("Skipping CSV from %s due to download failure", url)
                 return None
 
             products = self.parse_csv(csv_content, ";")
         except Exception as e:
-            logger.error(f"Error processing CSV from {url}: {e}", exc_info=True)
+            logger.error("Error processing CSV from %s: %s", url, e, exc_info=True)
             return None
 
         store.items = products
@@ -214,7 +220,7 @@ class SparCrawler(BaseCrawler):
         # Fetch the price list index
         csv_files = self.fetch_price_list_index(date)
 
-        logger.info(f"Found {len(csv_files)} CSV files in the price list index")
+        logger.info("Found %s CSV files in the price list index", len(csv_files))
         if not csv_files:
             return []
 
@@ -236,7 +242,20 @@ class SparCrawler(BaseCrawler):
         )
 
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            for store in executor.map(self._process_store_file, file_items):
+            inflight: set[Future[Store | None]] = set()
+
+            for file_info in file_items:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(self._process_store_file, file_info))
+
+            for future in as_completed(inflight):
+                store = future.result()
                 if store:
                     stores.append(store)
 

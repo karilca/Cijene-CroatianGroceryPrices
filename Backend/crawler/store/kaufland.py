@@ -1,7 +1,7 @@
 import datetime
 import logging
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from typing import List
 from json import loads
 
@@ -123,7 +123,7 @@ class KauflandCrawler(BaseCrawler):
             raise ValueError("Failed to find JSON URL in Kaufland index page")
 
         # 3. Fetch the JSON data from the URL
-        logger.debug(f"Fetching JSON data from {json_url}")
+        logger.debug("Fetching JSON data from %s", json_url)
         json_content = self.fetch_text(json_url)
         if not json_content:
             raise ValueError("Failed to fetch JSON data from Kaufland index page")
@@ -178,10 +178,11 @@ class KauflandCrawler(BaseCrawler):
         store_type = store_type.lower()
         street_address = address_part.replace("_", " ").title()
         city = ""
+        normalized_street = self.strip_diacritics(street_address)
 
         # Look for cities in the address
         for city_name in self.CITIES:
-            if self.strip_diacritics(street_address).endswith(city_name):
+            if normalized_street.endswith(self.strip_diacritics(city_name)):
                 city = city_name
                 street_address = street_address[: -len(city_name)].strip()
                 break
@@ -199,7 +200,11 @@ class KauflandCrawler(BaseCrawler):
         )
 
         logger.info(
-            f"Parsed store: {store.store_type} ({store.store_id}), {store.street_address}, {store.city}"
+            "Parsed store: %s (%s), %s, %s",
+            store.store_type,
+            store.store_id,
+            store.street_address,
+            store.city,
         )
         return store
 
@@ -215,7 +220,7 @@ class KauflandCrawler(BaseCrawler):
         """
         try:
             content = self.fetch_text(csv_url, encodings=["windows-1250", "utf-8-sig"])
-            
+
             # Normalize column names - some stores use "WG" instead of "kategorija proizvoda"
             # Replace only in the header line (first line)
             lines = content.split("\n", 1)
@@ -226,11 +231,13 @@ class KauflandCrawler(BaseCrawler):
                 # Note: split('\n') removes \n, but \r might remain
                 lines[0] = re.sub(r'\tWG(\r?)$', r'\tkategorija proizvoda\1', lines[0])
                 content = "\n".join(lines)
-            
+
             return self.parse_csv(content, delimiter="\t")
         except Exception as e:
             logger.error(
-                f"Failed to get store prices from {csv_url}: {e}",
+                "Failed to get store prices from %s: %s",
+                csv_url,
+                e,
                 exc_info=True,
             )
             return []
@@ -241,11 +248,11 @@ class KauflandCrawler(BaseCrawler):
             store = self.parse_store_info(title)
             products = self.get_store_prices(url)
         except Exception as e:
-            logger.error(f"Error processing store from {url}: {e}", exc_info=True)
+            logger.error("Error processing store from %s: %s", url, e, exc_info=True)
             return None
 
         if not products:
-            logger.warning(f"No products found for {url}, skipping")
+            logger.warning("No products found for %s, skipping", url)
             return None
 
         store.items = products
@@ -259,53 +266,46 @@ class KauflandCrawler(BaseCrawler):
             match = self.ANCHOR_PRICE_PATTERN.search(anchor_price)
             if match:
                 date_str, price_str = match.groups()
+                date_match = re.fullmatch(r"\s*(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s*", date_str)
+                if date_match:
+                    day_txt, month_txt, year_txt = date_match.groups()
+                    year: int | None = None
 
-                try:
-                    # Try full year format first (e.g., 2.5.2025)
-                    row["Datum sidrenja"] = (
-                        datetime.datetime.strptime(
+                    if len(year_txt) == 4:
+                        year = int(year_txt)
+                    elif len(year_txt) == 2:
+                        year = 2000 + int(year_txt)
+                    elif len(year_txt) == 3:
+                        # Handle typo in year (missing digit, e.g., 26.09.205 instead of 26.09.2025)
+                        year = 2020 + int(year_txt[-1])
+                        logger.debug(
+                            "Fixed typo in anchor price date: %s -> %s.%s.%s",
                             date_str,
-                            "%d.%m.%Y",
+                            day_txt,
+                            month_txt,
+                            year,
                         )
-                        .date()
-                        .strftime("%Y-%m-%d")
-                    )
-                    row["Sidrena cijena"] = price_str
-                except ValueError:
-                    try:
-                        # Fallback to short year format (e.g., 2.5.25)
-                        row["Datum sidrenja"] = (
-                            datetime.datetime.strptime(
-                                date_str,
-                                "%d.%m.%y",
-                            )
-                            .date()
-                            .strftime("%Y-%m-%d")
-                        )
-                        row["Sidrena cijena"] = price_str
-                    except (ValueError, IndexError):
+
+                    if year is not None:
                         try:
-                            # Handle typo in year (missing digit, e.g., 26.09.205 instead of 26.09.2025)
-                            # Try to fix by assuming it's 202X or 203X
-                            parts = date_str.split(".")
-                            if len(parts) == 3 and len(parts[2]) == 3:
-                                # Missing last digit - assume it's 2020s decade
-                                fixed_date_str = f"{parts[0]}.{parts[1]}.202{parts[2][-1]}"
-                                row["Datum sidrenja"] = (
-                                    datetime.datetime.strptime(
-                                        fixed_date_str,
-                                        "%d.%m.%Y",
-                                    )
-                                    .date()
-                                    .strftime("%Y-%m-%d")
-                                )
-                                row["Sidrena cijena"] = price_str
-                                logger.debug(f"Fixed typo in anchor price date: {date_str} → {fixed_date_str}")
-                            else:
-                                raise ValueError(f"Cannot fix date format: {date_str}")
-                        except (ValueError, IndexError) as e:
-                            logger.warning(f"Error parsing anchor price {anchor_price}: {e}")
+                            parsed_date = datetime.date(
+                                year,
+                                int(month_txt),
+                                int(day_txt),
+                            )
+                            row["Datum sidrenja"] = parsed_date.isoformat()
+                            row["Sidrena cijena"] = price_str
+                        except ValueError as err:
+                            logger.warning(
+                                "Error parsing anchor price %s: %s",
+                                anchor_price,
+                                err,
+                            )
                             row["Sidrena cijena"] = ""
+                    else:
+                        row["Sidrena cijena"] = ""
+                else:
+                    row["Sidrena cijena"] = ""
             else:
                 row["Sidrena cijena"] = ""
 
@@ -343,7 +343,20 @@ class KauflandCrawler(BaseCrawler):
         )
 
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            for store in executor.map(self._process_store_file, file_items):
+            inflight: set[Future[Store | None]] = set()
+
+            for file_info in file_items:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(self._process_store_file, file_info))
+
+            for future in as_completed(inflight):
+                store = future.result()
                 if store:
                     stores.append(store)
 

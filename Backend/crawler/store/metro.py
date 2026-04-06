@@ -2,7 +2,7 @@ import datetime
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from typing import List
 from urllib.parse import unquote
 
@@ -71,7 +71,7 @@ class MetroCrawler(BaseCrawler):
                 full_url = f"{self.BASE_URL}/{href.lstrip('/')}"
                 urls.append(full_url)
 
-        return list(set(urls))  # Return unique URLs
+        return list(dict.fromkeys(urls))  # Return unique URLs
 
     def parse_store_info(self, url: str) -> Store:
         """
@@ -86,7 +86,7 @@ class MetroCrawler(BaseCrawler):
         Returns:
             Store object with parsed store information
         """
-        logger.debug(f"Parsing store information from Metro URL: {url}")
+        logger.debug("Parsing store information from Metro URL: %s", url)
 
         filename = unquote(os.path.basename(url))
 
@@ -117,7 +117,11 @@ class MetroCrawler(BaseCrawler):
         )
 
         logger.info(
-            f"Parsed Metro store: {store.name}, Type: {store.store_type}, Address: {store.street_address}, City: {store.city}"
+            "Parsed Metro store: %s, Type: %s, Address: %s, City: %s",
+            store.name,
+            store.store_type,
+            store.street_address,
+            store.city,
         )
         return store
 
@@ -139,7 +143,9 @@ class MetroCrawler(BaseCrawler):
             return self.parse_csv(content, delimiter=",")
         except Exception as e:
             logger.error(
-                f"Failed to get Metro store prices from {csv_url}: {e}",
+                "Failed to get Metro store prices from %s: %s",
+                csv_url,
+                e,
                 exc_info=True,
             )
             return []
@@ -157,7 +163,7 @@ class MetroCrawler(BaseCrawler):
         content = self.fetch_text(self.BASE_URL)
 
         if not content:
-            logger.warning(f"No content found at Metro index URL: {self.BASE_URL}")
+            logger.warning("No content found at Metro index URL: %s", self.BASE_URL)
             return []
 
         all_urls = self.parse_index(content)
@@ -172,7 +178,7 @@ class MetroCrawler(BaseCrawler):
                 matching_urls.append(url)
 
         if not matching_urls:
-            logger.warning(f"No Metro URLs found matching date {date:%Y-%m-%d}")
+            logger.warning("No Metro URLs found matching date %s", f"{date:%Y-%m-%d}")
 
         return matching_urls
 
@@ -187,11 +193,11 @@ class MetroCrawler(BaseCrawler):
             )
             return None
         except Exception as e:
-            logger.error(f"Error processing Metro store from {url}: {e}", exc_info=True)
+            logger.error("Error processing Metro store from %s: %s", url, e, exc_info=True)
             return None
 
         if not products:
-            logger.warning(f"No products found for Metro store at {url}, skipping.")
+            logger.warning("No products found for Metro store at %s, skipping.", url)
             return None
 
         store.items = products
@@ -210,7 +216,7 @@ class MetroCrawler(BaseCrawler):
         csv_links = self.get_index(date)
 
         if not csv_links:
-            logger.warning(f"No Metro CSV links found for date {date.isoformat()}")
+            logger.warning("No Metro CSV links found for date %s", date.isoformat())
             return []
 
         stores = []
@@ -230,7 +236,20 @@ class MetroCrawler(BaseCrawler):
         )
 
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            for store in executor.map(self._process_store_url, csv_links):
+            inflight: set[Future[Store | None]] = set()
+
+            for url in csv_links:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(self._process_store_url, url))
+
+            for future in as_completed(inflight):
+                store = future.result()
                 if store:
                     stores.append(store)
 

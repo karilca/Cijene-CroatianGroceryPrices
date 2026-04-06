@@ -1,4 +1,5 @@
 import datetime
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 import logging
 import os
 from typing import List
@@ -17,6 +18,7 @@ class EurospinCrawler(BaseCrawler):
     CHAIN = "eurospin"
     BASE_URL = "https://www.eurospin.hr"
     INDEX_URL = f"{BASE_URL}/cjenik/"
+    STORE_WORKERS = 4
 
     # Mapping for price fields
     PRICE_MAP = {
@@ -94,7 +96,7 @@ class EurospinCrawler(BaseCrawler):
             else:
                 urls.append(f"{self.BASE_URL}{href}")
 
-        return list(set(urls))
+        return list(dict.fromkeys(urls))
 
     def parse_store_info(self, url: str) -> Store:
         """
@@ -110,7 +112,7 @@ class EurospinCrawler(BaseCrawler):
         Returns:
             Store object with parsed store information
         """
-        logger.debug(f"Parsing store information from URL: {url}")
+        logger.debug("Parsing store information from URL: %s", url)
 
         filename = os.path.basename(url)
         parts = filename.split("-")
@@ -122,7 +124,9 @@ class EurospinCrawler(BaseCrawler):
             addr = parts[1].replace("_", " ")
             store_id = self.STORE_ID_MAP.get(addr, addr)
             logger.debug(
-                f"Store ID missing, assuming '{store_id}' based on address '{addr}'"
+                "Store ID missing, assuming '%s' based on address '%s'",
+                store_id,
+                addr,
             )
             parts.insert(1, store_id)
 
@@ -146,7 +150,11 @@ class EurospinCrawler(BaseCrawler):
         )
 
         logger.info(
-            f"Parsed store: {store.store_type}, {store.street_address}, {store.zipcode}, {store.city}"
+            "Parsed store: %s, %s, %s, %s",
+            store.store_type,
+            store.street_address,
+            store.zipcode,
+            store.city,
         )
         return store
 
@@ -163,7 +171,7 @@ class EurospinCrawler(BaseCrawler):
         try:
             return self.parse_csv(content.decode("windows-1250"), delimiter=";")
         except Exception as e:
-            logger.error(f"Failed to get store prices: {e}", exc_info=True)
+            logger.error("Failed to get store prices: %s", e, exc_info=True)
             return []
 
     def get_index(self, date: datetime.date) -> str | None:
@@ -179,7 +187,7 @@ class EurospinCrawler(BaseCrawler):
         content = self.fetch_text(self.INDEX_URL)
 
         if not content:
-            logger.warning(f"No content found at {self.INDEX_URL}")
+            logger.warning("No content found at %s", self.INDEX_URL)
             return None
 
         all_urls = self.parse_index(content)
@@ -190,7 +198,7 @@ class EurospinCrawler(BaseCrawler):
             if date_str in filename:
                 return url
         else:
-            logger.warning(f"No URLs found matching date {date_str}")
+            logger.warning("No URLs found matching date %s", date_str)
             return None
 
     def get_all_products(self, date: datetime.date) -> list[Store]:
@@ -209,27 +217,60 @@ class EurospinCrawler(BaseCrawler):
         zip_url = self.get_index(date)
 
         if not zip_url:
-            logger.warning(f"ZIP archive URL not found for date {date}")
+            logger.warning("ZIP archive URL not found for date %s", date)
             return []
 
         stores = []
 
-        for filename, content in self.get_zip_contents(zip_url, ".csv"):
+        def process_store_file(filename: str, content: bytes) -> Store | None:
             try:
                 store = self.parse_store_info(filename)
                 products = self.get_store_prices(content)
             except Exception as e:
                 logger.error(
-                    f"Error processing store from {filename}: {e}", exc_info=True
+                    "Error processing store from %s: %s",
+                    filename,
+                    e,
+                    exc_info=True,
                 )
-                continue
+                return None
 
             if not products:
-                logger.warning(f"No products found in {filename}, skipping")
-                continue
+                logger.warning("No products found in %s, skipping", filename)
+                return None
 
             store.items = products
-            stores.append(store)
+            return store
+
+        zip_entries = self.get_zip_contents(zip_url, ".csv")
+        n_workers = self.STORE_WORKERS
+
+        if n_workers <= 1:
+            for filename, content in zip_entries:
+                store = process_store_file(filename, content)
+                if store:
+                    stores.append(store)
+            return stores
+
+        logger.info("Processing Eurospin ZIP entries with %s workers", n_workers)
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            inflight: set[Future[Store | None]] = set()
+
+            for filename, content in zip_entries:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(process_store_file, filename, content))
+
+            for future in as_completed(inflight):
+                store = future.result()
+                if store:
+                    stores.append(store)
 
         return stores
 

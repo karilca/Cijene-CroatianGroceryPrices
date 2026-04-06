@@ -107,7 +107,7 @@ def save_csv(path: Path, data: list[dict], columns: list[str]):
         columns: List of column names for the CSV file.
     """
     if not data:
-        logger.warning(f"No data to save at {path}, skipping")
+        logger.warning("No data to save at %s, skipping", path)
         return
 
     if set(columns) != set(data[0].keys()):
@@ -141,7 +141,7 @@ def save_chain(chain_path: Path, stores: list[Store]):
 
     makedirs(chain_path, exist_ok=True)
 
-    products_by_key: dict[str, dict] = {}
+    seen_product_keys: set[str] = set()
 
     with (
         open(chain_path / "stores.csv", "w", newline="") as stores_file,
@@ -169,16 +169,19 @@ def save_chain(chain_path: Path, stores: list[Store]):
 
             for product in store.items:
                 product_key = f"{store.chain}:{product.product_id}"
-                if product_key not in products_by_key:
-                    products_by_key[product_key] = {
-                        "barcode": str(product.barcode or product_key),
-                        "product_id": str(product.product_id),
-                        "name": str(product.product),
-                        "brand": str(product.brand),
-                        "category": str(product.category),
-                        "unit": str(product.unit),
-                        "quantity": str(product.quantity),
-                    }
+                if product_key not in seen_product_keys:
+                    seen_product_keys.add(product_key)
+                    products_writer.writerow(
+                        {
+                            "barcode": str(product.barcode or product_key),
+                            "product_id": str(product.product_id),
+                            "name": str(product.product),
+                            "brand": str(product.brand),
+                            "category": str(product.category),
+                            "unit": str(product.unit),
+                            "quantity": str(product.quantity),
+                        }
+                    )
 
                 prices_writer.writerow(
                     {
@@ -192,14 +195,11 @@ def save_chain(chain_path: Path, stores: list[Store]):
                     }
                 )
 
-        for product_row in products_by_key.values():
-            products_writer.writerow(product_row)
-
-
 def copy_archive_info(path: Path):
-    archive_info = open(Path(__file__).parent / "archive-info.txt", "r").read()
-    with open(path / "archive-info.txt", "w") as f:
-        f.write(archive_info)
+    with open(Path(__file__).parent / "archive-info.txt", "r") as src:
+        archive_info = src.read()
+    with open(path / "archive-info.txt", "w") as dst:
+        dst.write(archive_info)
 
 
 def create_archive(path: Path, output: Path):

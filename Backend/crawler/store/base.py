@@ -1,6 +1,7 @@
 from csv import DictReader
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from functools import lru_cache
+from io import StringIO
 from logging import getLogger
 from random import uniform
 from tempfile import NamedTemporaryFile
@@ -34,6 +35,10 @@ class BaseCrawler:
     MAX_RETRIES = 3
     RETRY_BACKOFF_SECONDS = 0.5
     RETRY_MAX_BACKOFF_SECONDS = 4.0
+    HTTP2 = False
+    MAX_CONNECTIONS = 20
+    MAX_KEEPALIVE_CONNECTIONS = 10
+    KEEPALIVE_EXPIRY_SECONDS = 30.0
 
     ZIP_DATE_PATTERN: Pattern | None = None
 
@@ -44,10 +49,17 @@ class BaseCrawler:
     """Mapping from CSV column names to non-price fields and whether they are required."""
 
     def __init__(self):
+        limits = httpx.Limits(
+            max_connections=self.MAX_CONNECTIONS,
+            max_keepalive_connections=self.MAX_KEEPALIVE_CONNECTIONS,
+            keepalive_expiry=self.KEEPALIVE_EXPIRY_SECONDS,
+        )
         self.client = httpx.Client(
             timeout=self.TIMEOUT,
             follow_redirects=True,
             verify=self.VERIFY_TLS_CERT,
+            limits=limits,
+            http2=self.HTTP2,
         )
 
     @staticmethod
@@ -83,6 +95,13 @@ class BaseCrawler:
         def try_decode(content: bytes) -> str:
             for encoding in encodings:  # type: ignore
                 try:
+                    if prefix:
+                        try:
+                            if not content.startswith(prefix.encode(encoding)):
+                                continue
+                        except UnicodeEncodeError:
+                            continue
+
                     text = content.decode(encoding)
                     if not prefix or text.startswith(prefix):
                         return text
@@ -90,7 +109,7 @@ class BaseCrawler:
                     continue
             raise ValueError(f"Error decoding {url} - tried: {encodings}")
 
-        logger.debug(f"Fetching {url}")
+        logger.debug("Fetching %s", url)
         for attempt in range(1, self.MAX_RETRIES + 1):
             try:
                 response = self.client.get(url)
@@ -101,7 +120,7 @@ class BaseCrawler:
             except (httpx.RequestError, httpx.HTTPStatusError) as err:
                 is_last_attempt = attempt == self.MAX_RETRIES
                 if is_last_attempt or not self._can_retry(err):
-                    logger.error(f"Download from {url} failed: {err}", exc_info=True)
+                    logger.error("Download from %s failed: %s", url, err, exc_info=True)
                     raise
 
                 wait_seconds = self._retry_wait_seconds(attempt)
@@ -130,7 +149,7 @@ class BaseCrawler:
             Path to the downloaded ZIP file
         """
 
-        logger.info(f"Downloading binary file from {url}")
+        logger.info("Downloading binary file from %s", url)
 
         MB = 1024 * 1024
 
@@ -140,19 +159,19 @@ class BaseCrawler:
                 with self.client.stream("GET", url) as response:
                     response.raise_for_status()
                     total_mb = int(response.headers.get("content-length", 0)) // MB
-                    logger.debug(f"File size: {total_mb} MB")
+                    logger.debug("File size: %s MB", total_mb)
 
                     for chunk in response.iter_bytes(chunk_size=1 * MB):
                         fp.write(chunk)
 
                 t1 = time()
                 dt = int(t1 - t0)
-                logger.debug(f"Downloaded {total_mb} MB in {dt}s")
+                logger.debug("Downloaded %s MB in %ss", total_mb, dt)
                 return
             except (httpx.RequestError, httpx.HTTPStatusError) as err:
                 is_last_attempt = attempt == self.MAX_RETRIES
                 if is_last_attempt or not self._can_retry(err):
-                    logger.error(f"Download from {url} failed: {err}", exc_info=True)
+                    logger.error("Download from %s failed: %s", url, err, exc_info=True)
                     raise
 
                 wait_seconds = self._retry_wait_seconds(attempt)
@@ -167,7 +186,8 @@ class BaseCrawler:
                 sleep(wait_seconds)
 
     def read_csv(self, text: str, delimiter: str = ",") -> DictReader:
-        return DictReader(text.splitlines(), delimiter=delimiter)  # type: ignore
+        # Avoid materializing every line as a list; DictReader can stream from a file-like object.
+        return DictReader(StringIO(text), delimiter=delimiter)  # type: ignore
 
     def get_zip_contents(
         self, url: str, suffix: str
@@ -181,15 +201,16 @@ class BaseCrawler:
                     if not file_info.filename.endswith(suffix):
                         continue
 
-                    logger.debug(f"Processing file: {file_info.filename}")
+                    logger.debug("Processing file: %s", file_info.filename)
 
                     try:
                         with zip_fp.open(file_info) as file:
-                            xml_content = file.read()
-                            yield (file_info.filename, xml_content)
+                            yield (file_info.filename, file.read())
                     except Exception as e:
                         logger.error(
-                            f"Error processing file {file_info.filename}: {e}",
+                            "Error processing file %s: %s",
+                            file_info.filename,
+                            e,
                             exc_info=True,
                         )
 
@@ -249,7 +270,7 @@ class BaseCrawler:
             # Convert to Decimal and round to 2 decimal places
             return Decimal(price_str).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         except (ValueError, TypeError, InvalidOperation):
-            logger.warning(f"Failed to parse price: {price_str}")
+            logger.warning("Failed to parse price: %s", price_str)
             if required:
                 raise ValueError(f"Invalid price format: {price_str}")
             else:
@@ -381,7 +402,8 @@ class BaseCrawler:
         logger.debug("Parsing CSV content")
 
         # Strip BOM (Byte Order Mark) if present
-        content = content.lstrip("\ufeff")
+        if content.startswith("\ufeff"):
+            content = content[1:]
 
         reader = self.read_csv(content, delimiter=delimiter)
         if not reader.fieldnames:
@@ -389,7 +411,7 @@ class BaseCrawler:
 
         # Make sure all defined columns exist in the CSV
         csv_columns = list(reader.fieldnames)
-        
+
         all_maps = list(self.PRICE_MAP.values()) + list(self.FIELD_MAP.values())
         for column, is_required in all_maps:
             if is_required and column not in csv_columns:
@@ -399,15 +421,35 @@ class BaseCrawler:
                 )
 
         products = []
+        failed_rows = 0
+        first_failed_row_idx: int | None = None
+        first_failed_error: Exception | None = None
+        first_failed_row: dict | None = None
+        row_idx = 1  # account for header row
         for row in reader:
+            row_idx += 1
             try:
                 product = self.parse_csv_row(row)
-            except Exception:
-                logger.exception(f"Failed to parse row: {row}")
+            except Exception as err:
+                failed_rows += 1
+                if first_failed_row_idx is None:
+                    first_failed_row_idx = row_idx
+                    first_failed_error = err
+                    first_failed_row = row
                 continue
             products.append(product)
 
-        logger.debug(f"Parsed {len(products)} products from CSV")
+        if failed_rows > 0 and first_failed_row_idx is not None and first_failed_error is not None:
+            logger.warning(
+                "Failed to parse %s CSV rows (first at row %s: %s)",
+                failed_rows,
+                first_failed_row_idx,
+                first_failed_error,
+            )
+            if first_failed_row is not None:
+                logger.debug("First problematic CSV row %s: %s", first_failed_row_idx, first_failed_row, exc_info=True)
+
+        logger.debug("Parsed %s products from CSV", len(products))
         return products
 
     def parse_index_for_zip(self, html_content: str) -> dict[datetime.date, str]:
@@ -449,7 +491,7 @@ class BaseCrawler:
 
     def crawl(self, date: datetime.date) -> list[Store]:
         name = self.CHAIN.capitalize()
-        logger.info(f"Starting {name} crawl for date: {date}")
+        logger.info("Starting %s crawl for date: %s", name, date)
         t0 = time()
 
         try:
@@ -460,11 +502,15 @@ class BaseCrawler:
             dt = int(t1 - t0)
 
             logger.info(
-                f"Completed {name} crawl for {date} in {dt}s, "
-                f"found {len(stores)} stores with {n_prices} total prices"
+                "Completed %s crawl for %s in %ss, found %s stores with %s total prices",
+                name,
+                date,
+                dt,
+                len(stores),
+                n_prices,
             )
             return stores
 
         except Exception as e:
-            logger.error(f"Error crawling {name} price list: {e}", exc_info=True)
+            logger.error("Error crawling %s price list: %s", name, e, exc_info=True)
             raise

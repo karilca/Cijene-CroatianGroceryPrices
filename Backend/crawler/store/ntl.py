@@ -2,7 +2,7 @@ import datetime
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from urllib.parse import unquote, quote_plus
 
 from bs4 import BeautifulSoup
@@ -64,7 +64,7 @@ class NtlCrawler(BaseCrawler):
             href = str(link_tag.get("href"))
             urls.append(href)
 
-        return list(set(urls))  # Return unique URLs
+        return list(dict.fromkeys(urls))  # Return unique URLs
 
     def get_store_list(self) -> list[str]:
         """
@@ -75,7 +75,7 @@ class NtlCrawler(BaseCrawler):
         """
         content = self.fetch_text(self.BASE_URL)
         if not content:
-            logger.warning(f"No content found at NTL index URL: {self.BASE_URL}")
+            logger.warning("No content found at NTL index URL: %s", self.BASE_URL)
             return []
 
         soup = BeautifulSoup(content, "html.parser")
@@ -92,7 +92,7 @@ class NtlCrawler(BaseCrawler):
             if store_value and not store_value.startswith("Odaberi"):
                 stores.append(store_value)
 
-        logger.info(f"Found {len(stores)} stores: {'; '.join(stores)}")
+        logger.info("Found %s stores in NTL dropdown", len(stores))
         return stores
 
     def get_historical_csv_for_date(
@@ -111,12 +111,12 @@ class NtlCrawler(BaseCrawler):
             CSV URL if found, None if not available
         """
         archive_url = f"{self.BASE_URL}?pageName=archeive&archive_file_name={quote_plus(store_name)}"
-        logger.debug(f"Fetching archive page for {store_name}: {archive_url}")
+        logger.debug("Fetching archive page for %s: %s", store_name, archive_url)
 
         try:
             content = self.fetch_text(archive_url)
             if not content:
-                logger.warning(f"No content found at archive URL: {archive_url}")
+                logger.warning("No content found at archive URL: %s", archive_url)
                 return None
 
             soup = BeautifulSoup(content, "html.parser")
@@ -133,18 +133,22 @@ class NtlCrawler(BaseCrawler):
                         if download_link:
                             csv_url = download_link.get("href")
                             logger.info(
-                                f"Found historical CSV for {store_name} on {target_date_str}: {csv_url}"
+                                "Found historical CSV for %s on %s: %s",
+                                store_name,
+                                target_date_str,
+                                csv_url,
                             )
                             return csv_url
 
-            logger.debug(
-                f"No historical data found for {store_name} on {target_date_str}"
-            )
+            logger.debug("No historical data found for %s on %s", store_name, target_date_str)
             return None
 
         except Exception as e:
             logger.error(
-                f"Error fetching historical data for {store_name}: {e}", exc_info=True
+                "Error fetching historical data for %s: %s",
+                store_name,
+                e,
+                exc_info=True,
             )
             return None
 
@@ -161,7 +165,7 @@ class NtlCrawler(BaseCrawler):
         Returns:
             Store object with parsed store information
         """
-        logger.debug(f"Parsing store information from NTL URL: {url}")
+        logger.debug("Parsing store information from NTL URL: %s", url)
 
         filename = unquote(os.path.basename(url))
 
@@ -188,7 +192,10 @@ class NtlCrawler(BaseCrawler):
         )
 
         logger.info(
-            f"Parsed NTL store: {store.name}, Address: {store.street_address}, City: {store.city}"
+            "Parsed NTL store: %s, Address: %s, City: %s",
+            store.name,
+            store.street_address,
+            store.city,
         )
         return store
 
@@ -208,7 +215,9 @@ class NtlCrawler(BaseCrawler):
             return self.parse_csv(content, delimiter=";")
         except Exception as e:
             logger.error(
-                f"Failed to get NTL store prices from {csv_url}: {e}",
+                "Failed to get NTL store prices from %s: %s",
+                csv_url,
+                e,
                 exc_info=True,
             )
             return []
@@ -226,11 +235,11 @@ class NtlCrawler(BaseCrawler):
         today = datetime.date.today()
 
         if date == today:
-            logger.info(f"Fetching current CSV files for today ({date:%Y-%m-%d})")
+            logger.info("Fetching current CSV files for today (%s)", f"{date:%Y-%m-%d}")
 
             content = self.fetch_text(self.BASE_URL)
             if not content:
-                logger.warning(f"No content found at NTL index URL: {self.BASE_URL}")
+                logger.warning("No content found at NTL index URL: %s", self.BASE_URL)
                 return []
 
             all_urls = self.parse_index(content)
@@ -239,7 +248,7 @@ class NtlCrawler(BaseCrawler):
 
             return all_urls
         else:
-            logger.info(f"Fetching historical CSV files for date ({date:%Y-%m-%d})")
+            logger.info("Fetching historical CSV files for date (%s)", f"{date:%Y-%m-%d}")
 
             stores = self.get_store_list()
             if not stores:
@@ -264,7 +273,20 @@ class NtlCrawler(BaseCrawler):
                     return self.get_historical_csv_for_date(store_name, date)
 
                 with ThreadPoolExecutor(max_workers=n_workers) as executor:
-                    for csv_url in executor.map(lookup_store, stores):
+                    inflight: set[Future[str | None]] = set()
+
+                    for store_name in stores:
+                        if len(inflight) >= n_workers:
+                            done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                            for future in done:
+                                csv_url = future.result()
+                                if csv_url:
+                                    historical_urls.append(csv_url)
+
+                        inflight.add(executor.submit(lookup_store, store_name))
+
+                    for future in as_completed(inflight):
+                        csv_url = future.result()
                         if csv_url:
                             historical_urls.append(csv_url)
 
@@ -272,7 +294,9 @@ class NtlCrawler(BaseCrawler):
                 raise ValueError(f"No stores found for date {date:%Y-%m-%d}")
 
             logger.info(
-                f"Found {len(historical_urls)} historical CSV files for {date:%Y-%m-%d}"
+                "Found %s historical CSV files for %s",
+                len(historical_urls),
+                f"{date:%Y-%m-%d}",
             )
             return historical_urls
 
@@ -287,11 +311,11 @@ class NtlCrawler(BaseCrawler):
             )
             return None
         except Exception as e:
-            logger.error(f"Error processing NTL store from {url}: {e}", exc_info=True)
+            logger.error("Error processing NTL store from %s: %s", url, e, exc_info=True)
             return None
 
         if not products:
-            logger.warning(f"No products found for NTL store at {url}, skipping.")
+            logger.warning("No products found for NTL store at %s, skipping.", url)
             return None
 
         store.items = products
@@ -310,7 +334,7 @@ class NtlCrawler(BaseCrawler):
         csv_links = self.get_index(date)
 
         if not csv_links:
-            logger.warning(f"No NTL CSV links found for date {date:%Y-%m-%d}")
+            logger.warning("No NTL CSV links found for date %s", f"{date:%Y-%m-%d}")
             return []
 
         stores = []
@@ -330,7 +354,20 @@ class NtlCrawler(BaseCrawler):
         )
 
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            for store in executor.map(self._process_store_url, csv_links):
+            inflight: set[Future[Store | None]] = set()
+
+            for url in csv_links:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(self._process_store_url, url))
+
+            for future in as_completed(inflight):
+                store = future.result()
                 if store:
                     stores.append(store)
 

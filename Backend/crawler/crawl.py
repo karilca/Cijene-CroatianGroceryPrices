@@ -1,11 +1,12 @@
 from dataclasses import dataclass
+import multiprocessing as mp
 import os
 import datetime
 from typing import List
 import logging
 from pathlib import Path
 from time import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 from crawler.store.konzum import KonzumCrawler
@@ -82,19 +83,25 @@ def crawl_chain(chain: str, date: datetime.date, path: Path) -> CrawlResult:
         stores = crawler.get_all_products(date)
     except Exception as err:
         logger.error(
-            f"Error crawling {chain} for {date:%Y-%m-%d}: {err}", exc_info=True
+            "Error crawling %s for %s: %s",
+            chain,
+            f"{date:%Y-%m-%d}",
+            err,
+            exc_info=True,
         )
         return CrawlResult()
 
     if not stores:
-        logger.error(f"No stores imported for {chain} on {date}")
+        logger.error("No stores imported for %s on %s", chain, date)
         return CrawlResult()
 
     save_chain(path, stores)
     t1 = time()
 
     all_products = set()
+    n_prices = 0
     for store in stores:
+        n_prices += len(store.items)
         for product in store.items:
             all_products.add(product.product_id)
 
@@ -102,7 +109,7 @@ def crawl_chain(chain: str, date: datetime.date, path: Path) -> CrawlResult:
         elapsed_time=t1 - t0,
         n_stores=len(stores),
         n_products=len(all_products),
-        n_prices=sum(len(store.items) for store in stores),
+        n_prices=n_prices,
     )
 
 
@@ -141,7 +148,7 @@ def crawl(
 
     if workers <= 1 or len(chains) <= 1:
         for chain in chains:
-            logger.info(f"Starting crawl for {chain} on {date:%Y-%m-%d}")
+            logger.info("Starting crawl for %s on %s", chain, f"{date:%Y-%m-%d}")
             r = crawl_chain(chain, date, path / chain)
             results[chain] = r
     else:
@@ -152,7 +159,11 @@ def crawl(
             len(chains),
         )
 
-        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        spawn_context = mp.get_context("spawn")
+        with ProcessPoolExecutor(
+            max_workers=n_workers,
+            mp_context=spawn_context,
+        ) as executor:
             future_to_chain = {
                 executor.submit(crawl_chain, chain, date, path / chain): chain
                 for chain in chains
@@ -173,14 +184,24 @@ def crawl(
                     results[chain] = CrawlResult()
     t1 = time()
 
-    logger.info(f"Crawled {','.join(chains)} for {date:%Y-%m-%d} in {t1 - t0:.2f}s")
+    logger.info(
+        "Crawled %s for %s in %.2fs",
+        ",".join(chains),
+        f"{date:%Y-%m-%d}",
+        t1 - t0,
+    )
     for chain, r in results.items():
         logger.info(
-            f"  * {chain}: {r.n_stores} stores, {r.n_products} products, {r.n_prices} prices in {r.elapsed_time:.2f}s"
+            "  * %s: %s stores, %s products, %s prices in %.2fs",
+            chain,
+            r.n_stores,
+            r.n_products,
+            r.n_prices,
+            r.elapsed_time,
         )
 
     copy_archive_info(path)
     create_archive(path, zip_path)
 
-    logger.info(f"Created archive {zip_path} with data for {date:%Y-%m-%d}")
+    logger.info("Created archive %s with data for %s", zip_path, f"{date:%Y-%m-%d}")
     return zip_path

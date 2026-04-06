@@ -1,4 +1,5 @@
 import datetime
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 import logging
 import re
 from typing import Optional
@@ -22,6 +23,7 @@ class PlodineCrawler(BaseCrawler):
     CHAIN = "plodine"
     BASE_URL = "https://www.plodine.hr"
     INDEX_URL = f"{BASE_URL}/info-o-cijenama"
+    STORE_WORKERS = 4
     ZIP_DATE_PATTERN = re.compile(r".*/cjenici/cjenici_(\d{2})_(\d{2})_(\d{4})_.*\.zip")
     VERIFY_TLS_CERT = False  # Plodine uses a root CA unsupported by httpx on Debian 12
 
@@ -50,7 +52,7 @@ class PlodineCrawler(BaseCrawler):
         content = self.fetch_text(self.INDEX_URL)
         zip_urls_by_date = self.parse_index_for_zip(content)
         others = ", ".join(f"{d:%Y-%m-%d}" for d in zip_urls_by_date)
-        logger.debug(f"Available price lists: {others}")
+        logger.debug("Available price lists: %s", others)
         if date not in zip_urls_by_date:
             raise ValueError(f"No price list found for {date}")
         return zip_urls_by_date[date]
@@ -69,7 +71,7 @@ class PlodineCrawler(BaseCrawler):
         Returns:
             Store object with parsed store information, or None if parsing fails
         """
-        logger.debug(f"Parsing store information from filename: {filename}")
+        logger.debug("Parsing store information from filename: %s", filename)
 
         try:
             pattern = (
@@ -78,7 +80,7 @@ class PlodineCrawler(BaseCrawler):
             match = re.match(pattern, filename)
 
             if not match:
-                logger.warning(f"Failed to match filename pattern: {filename}")
+                logger.warning("Failed to match filename pattern: %s", filename)
                 return None
 
             store_type, street_address, zipcode, city, store_id = match.groups()
@@ -97,12 +99,18 @@ class PlodineCrawler(BaseCrawler):
             )
 
             logger.info(
-                f"Parsed store: {store.name} ({store.store_id}), {store.store_type}, {store.city}, {store.street_address}, {store.zipcode}"
+                "Parsed store: %s (%s), %s, %s, %s, %s",
+                store.name,
+                store.store_id,
+                store.store_type,
+                store.city,
+                store.street_address,
+                store.zipcode,
             )
             return store
 
         except Exception as e:
-            logger.error(f"Failed to parse store from filename {filename}: {str(e)}")
+            logger.error("Failed to parse store from filename %s: %s", filename, e)
             return None
 
     def get_all_products(self, date: datetime.date) -> list[Store]:
@@ -122,17 +130,46 @@ class PlodineCrawler(BaseCrawler):
         zip_url = self.get_index(date)
         stores = []
 
-        for filename, content in self.get_zip_contents(zip_url, ".csv"):
-            logger.debug(f"Processing file: {filename}")
+        def process_store_file(filename: str, content: bytes) -> Store | None:
+            logger.debug("Processing file: %s", filename)
             store = self.parse_store_from_filename(filename)
             if not store:
-                logger.warning(f"Skipping CSV {filename} due to store parsing failure")
-                continue
+                logger.warning("Skipping CSV %s due to store parsing failure", filename)
+                return None
 
-            # Parse CSV and add products to the store
             products = self.parse_csv(content.decode("utf-8"), delimiter=";")
             store.items = products
-            stores.append(store)
+            return store
+
+        zip_entries = self.get_zip_contents(zip_url, ".csv")
+        n_workers = self.STORE_WORKERS
+
+        if n_workers <= 1:
+            for filename, content in zip_entries:
+                store = process_store_file(filename, content)
+                if store:
+                    stores.append(store)
+            return stores
+
+        logger.info("Processing Plodine ZIP entries with %s workers", n_workers)
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            inflight: set[Future[Store | None]] = set()
+
+            for filename, content in zip_entries:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(process_store_file, filename, content))
+
+            for future in as_completed(inflight):
+                store = future.result()
+                if store:
+                    stores.append(store)
 
         return stores
 

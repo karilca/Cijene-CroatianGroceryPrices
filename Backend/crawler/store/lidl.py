@@ -1,4 +1,5 @@
 import datetime
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 import logging
 from typing import Optional
 import re
@@ -22,6 +23,7 @@ class LidlCrawler(BaseCrawler):
     CHAIN = "lidl"
     BASE_URL = "https://tvrtka.lidl.hr"
     INDEX_URL = f"{BASE_URL}/cijene"
+    STORE_WORKERS = 4
     TIMEOUT = 180.0  # Longer timeout for ZIP download
     ZIP_DATE_PATTERN = re.compile(
         r".*/Popis_cijena_po_trgovinama_na_dan_(\d{1,2})_(\d{1,2})_(\d{4})\.zip"
@@ -65,12 +67,12 @@ class LidlCrawler(BaseCrawler):
         Returns:
             Store object with parsed store information, or None if parsing fails
         """
-        logger.debug(f"Parsing store information from filename: {filename}")
+        logger.debug("Parsing store information from filename: %s", filename)
 
         try:
             m = self.ADDRESS_PATTERN.match(filename)
             if not m:
-                logger.warning(f"Filename doesn't match expected pattern: {filename}")
+                logger.warning("Filename doesn't match expected pattern: %s", filename)
                 return None
 
             store_type, store_id, address, zipcode, city = m.groups()
@@ -93,12 +95,17 @@ class LidlCrawler(BaseCrawler):
             )
 
             logger.info(
-                f"Parsed store: {store.name}, {store.store_type}, {store.city}, {store.street_address}, {store.zipcode}"
+                "Parsed store: %s, %s, %s, %s, %s",
+                store.name,
+                store.store_type,
+                store.city,
+                store.street_address,
+                store.zipcode,
             )
             return store
 
         except Exception as e:
-            logger.error(f"Failed to parse store from filename {filename}: {str(e)}")
+            logger.error("Failed to parse store from filename %s: %s", filename, e)
             return None
 
     def parse_csv_row(self, row: dict) -> Product:
@@ -112,7 +119,7 @@ class LidlCrawler(BaseCrawler):
         content = self.fetch_text(self.INDEX_URL)
         zip_urls_by_date = self.parse_index_for_zip(content)
         others = ", ".join(f"{d:%Y-%m-%d}" for d in zip_urls_by_date)
-        logger.debug(f"Available price lists: {others}")
+        logger.debug("Available price lists: %s", others)
         if date not in zip_urls_by_date:
             raise ValueError(f"No price list found for {date}")
         return zip_urls_by_date[date]
@@ -134,14 +141,13 @@ class LidlCrawler(BaseCrawler):
         zip_url = self.get_index(date)
         stores = []
 
-        for filename, content in self.get_zip_contents(zip_url, ".csv"):
-            logger.debug(f"Processing file: {filename}")
+        def process_store_file(filename: str, content: bytes) -> Store | None:
+            logger.debug("Processing file: %s", filename)
             store = self.parse_store_from_filename(filename)
             if not store:
-                logger.warning(f"Skipping CSV {filename} due to store parsing failure")
-                continue
+                logger.warning("Skipping CSV %s due to store parsing failure", filename)
+                return None
 
-            # Parse CSV and add products to the store
             text = content.decode("windows-1250")
             headers = text.splitlines()[0]
             if "\t" in headers:
@@ -151,11 +157,42 @@ class LidlCrawler(BaseCrawler):
             elif "," in headers:
                 delimiter = ","
             else:
-                logger.warning(f"Unknown delimiter in CSV: {filename}; ignoring")
-                continue
+                logger.warning("Unknown delimiter in CSV: %s; ignoring", filename)
+                return None
+
             products = self.parse_csv(text, delimiter=delimiter)
             store.items = products
-            stores.append(store)
+            return store
+
+        zip_entries = self.get_zip_contents(zip_url, ".csv")
+        n_workers = self.STORE_WORKERS
+
+        if n_workers <= 1:
+            for filename, content in zip_entries:
+                store = process_store_file(filename, content)
+                if store:
+                    stores.append(store)
+            return stores
+
+        logger.info("Processing Lidl ZIP entries with %s workers", n_workers)
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            inflight: set[Future[Store | None]] = set()
+
+            for filename, content in zip_entries:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(process_store_file, filename, content))
+
+            for future in as_completed(inflight):
+                store = future.result()
+                if store:
+                    stores.append(store)
 
         return stores
 

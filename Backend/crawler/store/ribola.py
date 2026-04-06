@@ -1,6 +1,7 @@
 import datetime
+from io import BytesIO
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -98,7 +99,7 @@ class RibolaCrawler(BaseCrawler):
             full_url = urljoin(self.INDEX_URL, href)
             urls.append(full_url)
 
-        return list(set(urls))
+        return list(dict.fromkeys(urls))
 
     def parse_address_city(self, address_raw: str) -> tuple[str, str]:
         """
@@ -111,10 +112,10 @@ class RibolaCrawler(BaseCrawler):
             Tuple of (street_address, city)
         """
         address = address_raw.strip()
+        addr_norm = self.strip_diacritics(address.lower())
 
         # Check if it ends with any known city
         for city in self.CITIES:
-            addr_norm = self.strip_diacritics(address.lower())
             city_norm = self.strip_diacritics(city.lower())
 
             if addr_norm.endswith(city_norm):
@@ -174,8 +175,11 @@ class RibolaCrawler(BaseCrawler):
         )
 
         logger.info(
-            f"Parsed Ribola store: {store.name}, Type: {store.store_type}, "
-            f"Address: {store.street_address}, City: {store.city}"
+            "Parsed Ribola store: %s, Type: %s, Address: %s, City: %s",
+            store.name,
+            store.store_type,
+            store.street_address,
+            store.city,
         )
         return store
 
@@ -203,16 +207,18 @@ class RibolaCrawler(BaseCrawler):
                     products.append(product)
                 except Exception as e:
                     logger.warning(
-                        f"Failed to parse product: {etree.tostring(product_elem)}: {e}",
+                        "Failed to parse product: %s: %s",
+                        etree.tostring(product_elem),
+                        e,
                         exc_info=True,
                     )
                     continue
 
-            logger.debug(f"Parsed {len(products)} products from XML")
+            logger.debug("Parsed %s products from XML", len(products))
             return store, products
 
         except Exception as e:
-            logger.error(f"Failed to parse XML: {e}", exc_info=True)
+            logger.error("Failed to parse XML: %s", e, exc_info=True)
             raise
 
     def get_store_data(self, xml_url: str) -> Store:
@@ -226,15 +232,19 @@ class RibolaCrawler(BaseCrawler):
             Store populated with Products
         """
         try:
-            logger.debug(f"Fetching Ribola store data from: {xml_url}")
+            logger.debug("Fetching Ribola store data from: %s", xml_url)
 
-            xml_content = self.fetch_text(xml_url).encode("utf-8")
+            with BytesIO() as xml_buffer:
+                self.fetch_binary(xml_url, xml_buffer)
+                xml_content = xml_buffer.getvalue()
             store, products = self.parse_xml(xml_content)
             store.items = products
             return store
         except Exception as e:
             logger.error(
-                f"Failed to get Ribola store data from {xml_url}: {e}",
+                "Failed to get Ribola store data from %s: %s",
+                xml_url,
+                e,
                 exc_info=True,
             )
             raise
@@ -251,17 +261,17 @@ class RibolaCrawler(BaseCrawler):
         """
         index_url = f"{self.INDEX_URL}?date={date:%d.%m.%Y}"
 
-        logger.debug(f"Fetching Ribola index page: {index_url}")
+        logger.debug("Fetching Ribola index page: %s", index_url)
 
         content = self.fetch_text(index_url)
         if not content:
-            logger.warning(f"No content found at Ribola index URL: {index_url}")
+            logger.warning("No content found at Ribola index URL: %s", index_url)
             return []
 
-        xml_urls = list(set(self.parse_index(content)))
+        xml_urls = list(dict.fromkeys(self.parse_index(content)))
 
         if not xml_urls:
-            logger.warning(f"No Ribola XML URLs found for date {date:%Y-%m-%d}")
+            logger.warning("No Ribola XML URLs found for date %s", f"{date:%Y-%m-%d}")
 
         return xml_urls
 
@@ -269,11 +279,11 @@ class RibolaCrawler(BaseCrawler):
         try:
             store = self.get_store_data(url)
         except Exception as e:
-            logger.error(f"Error processing Ribola store from {url}: {e}", exc_info=True)
+            logger.error("Error processing Ribola store from %s: %s", url, e, exc_info=True)
             return None
 
         if not store.items:
-            logger.warning(f"No products found for Ribola store at {url}, skipping.")
+            logger.warning("No products found for Ribola store at %s, skipping.", url)
             return None
 
         return store
@@ -291,7 +301,7 @@ class RibolaCrawler(BaseCrawler):
         xml_urls = self.get_index_urls_for_date(date)
 
         if not xml_urls:
-            logger.warning(f"No Ribola XML URLs found for date {date.isoformat()}")
+            logger.warning("No Ribola XML URLs found for date %s", date.isoformat())
             return []
 
         stores = []
@@ -311,7 +321,20 @@ class RibolaCrawler(BaseCrawler):
         )
 
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            for store in executor.map(self._process_store_url, xml_urls):
+            inflight: set[Future[Store | None]] = set()
+
+            for url in xml_urls:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(self._process_store_url, url))
+
+            for future in as_completed(inflight):
+                store = future.result()
                 if store:
                     stores.append(store)
 

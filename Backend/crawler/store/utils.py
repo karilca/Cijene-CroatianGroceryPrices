@@ -70,7 +70,7 @@ def parse_price(price_str: str | None, required: bool = False) -> Decimal | None
         # Convert to Decimal and round to 2 decimal places
         return Decimal(price_str).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     except (ValueError, TypeError, InvalidOperation):
-        logger.warning(f"Failed to parse price: {price_str}")
+        logger.warning("Failed to parse price: %s", price_str)
         if required:
             raise ValueError(f"Invalid price format: {price_str}")
         else:
@@ -100,8 +100,13 @@ def log_operation_timing(
     """
     dt = int(end_time - start_time)
     logger.info(
-        f"Completed {store_name} {operation_name} for {date} in {dt}s, "
-        f"found {store_count} stores with {total_products} total products"
+        "Completed %s %s for %s in %ss, found %s stores with %s total products",
+        store_name,
+        operation_name,
+        date,
+        dt,
+        store_count,
+        total_products,
     )
 
 

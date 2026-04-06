@@ -3,7 +3,7 @@ import io
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from csv import reader, writer
 from urllib.parse import unquote
 
@@ -89,8 +89,8 @@ class ZabacCrawler(BaseCrawler):
         header_buffer = io.StringIO()
         csv_writer = writer(header_buffer, delimiter=delimiter, lineterminator="")
         csv_writer.writerow(canonical_headers)
-
-        return "\n".join([header_buffer.getvalue(), *lines[1:]])
+        lines[0] = header_buffer.getvalue()
+        return "\n".join(lines)
 
     def parse_index(self, content: str) -> list[str]:
         """
@@ -109,7 +109,7 @@ class ZabacCrawler(BaseCrawler):
             href = str(link_tag.get("href"))
             urls.append(href)
 
-        return list(set(urls))  # Return unique URLs
+        return list(dict.fromkeys(urls))  # Return unique URLs
 
     def parse_store_info(self, url: str) -> Store:
         """
@@ -125,7 +125,7 @@ class ZabacCrawler(BaseCrawler):
         Returns:
             Store object with parsed store information
         """
-        logger.debug(f"Parsing store information from Zabac URL: {url}")
+        logger.debug("Parsing store information from Zabac URL: %s", url)
 
         filename = unquote(os.path.basename(url))
 
@@ -147,9 +147,7 @@ class ZabacCrawler(BaseCrawler):
                 city="",
                 items=[],
             )
-            logger.info(
-                f"Parsed Žabac store: {store.name}, Address: {store.street_address}"
-            )
+            logger.info("Parsed Žabac store: %s, Address: %s", store.name, store.street_address)
             return store
 
         match_new = self.NEW_FILENAME_PATTERN.match(filename)
@@ -174,7 +172,9 @@ class ZabacCrawler(BaseCrawler):
                  items=[]
             )
             logger.info(
-                f"Parsed Žabac store (new format): {store.name}, Address: {store.street_address}"
+                "Parsed Žabac store (new format): %s, Address: %s",
+                store.name,
+                store.street_address,
             )
             return store
 
@@ -197,7 +197,9 @@ class ZabacCrawler(BaseCrawler):
                 items=[],
             )
             logger.info(
-                f"Parsed Žabac store (legacy format): {store.name}, Address: {store.street_address}"
+                "Parsed Žabac store (legacy format): %s, Address: %s",
+                store.name,
+                store.street_address,
             )
             return store
 
@@ -220,7 +222,8 @@ class ZabacCrawler(BaseCrawler):
             content_lc = content[:200].lower()
             if "<html" in content_lc or "<!doctype" in content_lc:
                 logger.warning(
-                    f"Žabac response does not look like CSV (possibly blocked/challenge): {csv_url}"
+                    "Žabac response does not look like CSV (possibly blocked/challenge): %s",
+                    csv_url,
                 )
                 return []
 
@@ -229,7 +232,9 @@ class ZabacCrawler(BaseCrawler):
             return self.parse_csv(normalized_content, delimiter=delimiter)
         except Exception as e:
             logger.error(
-                f"Failed to get Žabac store prices from {csv_url}: {e}",
+                "Failed to get Žabac store prices from %s: %s",
+                csv_url,
+                e,
                 exc_info=True,
             )
             return []
@@ -247,14 +252,16 @@ class ZabacCrawler(BaseCrawler):
             List of all CSV URLs available on the index page.
         """
         logger.warning(
-            f"Žabac crawler ignores date parameter ({date:%Y-%m-%d}) - "
+            "Žabac crawler ignores date parameter (%s) - "
             "only current CSV files are available"
+            ,
+            f"{date:%Y-%m-%d}",
         )
 
         content = self.fetch_text(self.BASE_URL)
 
         if not content:
-            logger.warning(f"No content found at Žabac index URL: {self.BASE_URL}")
+            logger.warning("No content found at Žabac index URL: %s", self.BASE_URL)
             return []
 
         all_urls = self.parse_index(content)
@@ -270,16 +277,18 @@ class ZabacCrawler(BaseCrawler):
             products = self.get_store_prices(url)
         except ValueError as ve:
             logger.error(
-                f"Skipping store due to parsing error from URL {url}: {ve}",
+                "Skipping store due to parsing error from URL %s: %s",
+                url,
+                ve,
                 exc_info=False,
             )
             return None
         except Exception as e:
-            logger.error(f"Error processing Žabac store from {url}: {e}", exc_info=True)
+            logger.error("Error processing Žabac store from %s: %s", url, e, exc_info=True)
             return None
 
         if not products:
-            logger.warning(f"No products found for Žabac store at {url}, skipping.")
+            logger.warning("No products found for Žabac store at %s, skipping.", url)
             return None
 
         store.items = products
@@ -320,7 +329,20 @@ class ZabacCrawler(BaseCrawler):
         )
 
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            for store in executor.map(self._process_store_url, csv_links):
+            inflight: set[Future[Store | None]] = set()
+
+            for url in csv_links:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(self._process_store_url, url))
+
+            for future in as_completed(inflight):
+                store = future.result()
                 if store:
                     stores.append(store)
 

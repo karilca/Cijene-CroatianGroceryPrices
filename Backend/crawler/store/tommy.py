@@ -1,7 +1,7 @@
 import csv
 import datetime
 import io
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from json import loads
 import logging
 import re
@@ -57,7 +57,8 @@ class TommyCrawler(BaseCrawler):
             filename = store.get("fileName", "Unknown")
             if not csv_id or not filename:
                 logger.warning(
-                    f"Skipping store with missing CSV ID or filename: {store}"
+                    "Skipping store with missing CSV ID or filename: %s",
+                    store,
                 )
                 continue
             if csv_id.startswith("/api/v2"):
@@ -89,11 +90,11 @@ class TommyCrawler(BaseCrawler):
                 day, month, year = map(int, match.groups())
                 return datetime.date(year, month, day)
             else:
-                logger.warning(f"Date string format not recognized: {date_str}")
+                logger.warning("Date string format not recognized: %s", date_str)
                 return None
 
         except (ValueError, IndexError) as e:
-            logger.warning(f"Failed to parse date string '{date_str}': {e}")
+            logger.warning("Failed to parse date string '%s': %s", date_str, e)
             return None
 
     def parse_csv(self, csv_content: str) -> List[Product]:
@@ -116,6 +117,7 @@ class TommyCrawler(BaseCrawler):
         products = []
         success_count = 0
         error_count = 0
+        missing_required_count = 0
 
         try:
             # Read CSV content using StringIO and DictReader
@@ -126,7 +128,7 @@ class TommyCrawler(BaseCrawler):
                 logger.warning("CSV file has no header row")
                 return products
 
-            logger.debug(f"CSV header: {reader.fieldnames}")
+            logger.debug("CSV header: %s", reader.fieldnames)
 
             # Define expected field names
             field_map = {
@@ -160,19 +162,13 @@ class TommyCrawler(BaseCrawler):
                     unit = row.get(field_map["unit"], "").strip()
                     quantity = row.get(field_map["quantity"], "").strip()
 
-                    # Parse price fields with proper error handling
-                    try:
-                        price = parse_price(row.get(field_map["price"], "0"))
-                    except Exception as e:
-                        logger.warning(f"Failed to parse price in row {row_count}: {e}")
+                    # parse_price is non-throwing by default and returns None on invalid values.
+                    price = parse_price(row.get(field_map["price"], "0"))
+                    if price is None:
                         price = Decimal("0.00")
 
-                    try:
-                        unit_price = parse_price(row.get(field_map["unit_price"], "0"))
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to parse unit_price in row {row_count}: {e}"
-                        )
+                    unit_price = parse_price(row.get(field_map["unit_price"], "0"))
+                    if unit_price is None:
                         unit_price = Decimal("0.00")
 
                     # Parse optional price fields
@@ -184,26 +180,17 @@ class TommyCrawler(BaseCrawler):
 
                     special_price_str = row.get(field_map["special_price"], "")
                     if special_price_str.strip():
-                        try:
-                            special_price = parse_price(special_price_str)
-                        except Exception:
-                            pass
+                        special_price = parse_price(special_price_str)
 
                     lowest_price_30days_str = row.get(
                         field_map["lowest_price_30days"], ""
                     )
                     if lowest_price_30days_str.strip():
-                        try:
-                            lowest_price_30days = parse_price(lowest_price_30days_str)
-                        except Exception:
-                            pass
+                        lowest_price_30days = parse_price(lowest_price_30days_str)
 
                     anchor_price_str = row.get(field_map["anchor_price"], "")
                     if anchor_price_str.strip():
-                        try:
-                            anchor_price = parse_price(anchor_price_str)
-                        except Exception:
-                            pass
+                        anchor_price = parse_price(anchor_price_str)
 
                     date_added_str = row.get(field_map["date_added"], "")
                     if date_added_str.strip():
@@ -211,10 +198,7 @@ class TommyCrawler(BaseCrawler):
 
                     initial_price_str = row.get(field_map["initial_price"], "")
                     if initial_price_str.strip():
-                        try:
-                            initial_price = parse_price(initial_price_str)
-                        except Exception:
-                            pass
+                        initial_price = parse_price(initial_price_str)
 
                     # Create product if we have the minimum required fields
                     if product_name and (price or unit_price):
@@ -243,23 +227,30 @@ class TommyCrawler(BaseCrawler):
                         products.append(product)
                         success_count += 1
                     else:
-                        logger.warning(
-                            f"Skipping product in row {row_count} with missing required fields: {row}"
+                        logger.debug(
+                            "Skipping product in row %s with missing required fields",
+                            row_count,
                         )
+                        logger.debug("Problematic row %s: %s", row_count, row)
+                        missing_required_count += 1
                         error_count += 1
 
                 except Exception as e:
-                    logger.error(f"Error parsing product row {row_count}: {e}")
-                    logger.debug(f"Problematic row: {row}")
+                    logger.error("Error parsing product row %s: %s", row_count, e)
+                    logger.debug("Problematic row %s: %s", row_count, row)
                     error_count += 1
 
             logger.info(
-                f"Parsed {len(products)} products from CSV (total rows: {row_count}, errors: {error_count})"
+                "Parsed %s products from CSV (total rows: %s, errors: %s, missing-required: %s)",
+                len(products),
+                row_count,
+                error_count,
+                missing_required_count,
             )
             return products
 
         except Exception as e:
-            logger.error(f"Error parsing CSV: {e}")
+            logger.error("Error parsing CSV: %s", e)
             return []
 
     def parse_store_from_filename(
@@ -284,7 +275,7 @@ class TommyCrawler(BaseCrawler):
             parts = filename.split(",")
 
             if len(parts) < 3:
-                logger.warning(f"Filename doesn't have enough parts: {filename}")
+                logger.warning("Filename doesn't have enough parts: %s", filename)
                 raise ValueError(f"Unparseable filename: {filename}")
 
             # Extract store type (first part)
@@ -305,7 +296,8 @@ class TommyCrawler(BaseCrawler):
                 city = to_camel_case(match.group(2))
             else:
                 logger.warning(
-                    f"Could not extract zipcode and city from: {location_part}"
+                    "Could not extract zipcode and city from: %s",
+                    location_part,
                 )
                 zipcode = ""
                 # Try to extract just the city if no zipcode pattern found
@@ -314,13 +306,17 @@ class TommyCrawler(BaseCrawler):
             store_id = parts[3].strip()
 
             logger.debug(
-                f"Parsed store info: type={store_type}, address={address}, zipcode={zipcode}, city={city}"
+                "Parsed store info: type=%s, address=%s, zipcode=%s, city=%s",
+                store_type,
+                address,
+                zipcode,
+                city,
             )
 
             return (store_type, store_id, address, zipcode, city)
 
         except Exception as e:
-            logger.error(f"Error parsing store from filename {filename}: {e}")
+            logger.error("Error parsing store from filename %s: %s", filename, e)
             raise
 
     def get_all_products(self, date: datetime.date) -> list[Store]:
@@ -340,14 +336,16 @@ class TommyCrawler(BaseCrawler):
 
         store_map = self.fetch_stores_list(date)
         if not store_map:
-            logger.warning(f"No stores found for date {date}")
+            logger.warning("No stores found for date %s", date)
             return []
 
         def process_store_entry(entry: Tuple[str, str]) -> Store | None:
             filename, url = entry
 
             try:
-                store_type, store_id, address, zipcode, city = self.parse_store_from_filename(filename)
+                store_type, store_id, address, zipcode, city = self.parse_store_from_filename(
+                    filename
+                )
 
                 store = Store(
                     chain="tommy",
@@ -363,11 +361,11 @@ class TommyCrawler(BaseCrawler):
                 csv_content = self.fetch_text(url)
                 products = self.parse_csv(csv_content)
             except Exception as e:
-                logger.error(f"Error processing Tommy store from {url}: {e}", exc_info=True)
+                logger.error("Error processing Tommy store from %s: %s", url, e, exc_info=True)
                 return None
 
             if not products:
-                logger.warning(f"No products found for Tommy store at {url}, skipping")
+                logger.warning("No products found for Tommy store at %s, skipping", url)
                 return None
 
             store.items = products
@@ -391,7 +389,20 @@ class TommyCrawler(BaseCrawler):
         )
 
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            for store in executor.map(process_store_entry, store_items):
+            inflight: set[Future[Store | None]] = set()
+
+            for entry in store_items:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(process_store_entry, entry))
+
+            for future in as_completed(inflight):
+                store = future.result()
                 if store:
                     stores.append(store)
 

@@ -1,7 +1,8 @@
 import datetime
+from io import BytesIO
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, as_completed, wait
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -103,7 +104,7 @@ class VrutakCrawler(BaseCrawler):
         Returns:
             Store object with parsed store information
         """
-        logger.debug(f"Parsing store information from Vrutak URL: {xml_url}")
+        logger.debug("Parsing store information from Vrutak URL: %s", xml_url)
 
         filename = os.path.basename(xml_url)
         # Remove .xml extension and split by dashes
@@ -129,8 +130,11 @@ class VrutakCrawler(BaseCrawler):
         )
 
         logger.info(
-            f"Parsed Vrutak store: {store.name}, Type: {store.store_type}, "
-            f"Address: {store.street_address}, City: {store.city}"
+            "Parsed Vrutak store: %s, Type: %s, Address: %s, City: %s",
+            store.name,
+            store.store_type,
+            store.street_address,
+            store.city,
         )
         return store
 
@@ -159,11 +163,11 @@ class VrutakCrawler(BaseCrawler):
                     )
                     continue
 
-            logger.debug(f"Parsed {len(products)} products from XML")
+            logger.debug("Parsed %s products from XML", len(products))
             return products
 
         except Exception as e:
-            logger.error(f"Failed to parse XML: {e}", exc_info=True)
+            logger.error("Failed to parse XML: %s", e, exc_info=True)
             return []
 
     def get_store_data(self, xml_url: str) -> Store:
@@ -179,13 +183,17 @@ class VrutakCrawler(BaseCrawler):
         try:
             store = self.parse_store_info(xml_url)
 
-            xml_content = self.fetch_text(xml_url).encode("utf-8")
+            with BytesIO() as xml_buffer:
+                self.fetch_binary(xml_url, xml_buffer)
+                xml_content = xml_buffer.getvalue()
             products = self.parse_xml(xml_content)
             store.items = products
             return store
         except Exception as e:
             logger.error(
-                f"Failed to get Vrutak store data from {xml_url}: {e}",
+                "Failed to get Vrutak store data from %s: %s",
+                xml_url,
+                e,
                 exc_info=True,
             )
             raise
@@ -203,14 +211,14 @@ class VrutakCrawler(BaseCrawler):
         content = self.fetch_text(self.INDEX_URL)
 
         if not content:
-            logger.warning(f"No content found at Vrutak index URL: {self.INDEX_URL}")
+            logger.warning("No content found at Vrutak index URL: %s", self.INDEX_URL)
             return []
 
         urls_by_date = self.parse_index(content)
         matching_urls = urls_by_date.get(date, [])
 
         if not matching_urls:
-            logger.warning(f"No Vrutak URLs found matching date {date:%Y-%m-%d}")
+            logger.warning("No Vrutak URLs found matching date %s", f"{date:%Y-%m-%d}")
 
         return matching_urls
 
@@ -218,11 +226,11 @@ class VrutakCrawler(BaseCrawler):
         try:
             store = self.get_store_data(url)
         except Exception as e:
-            logger.error(f"Error processing Vrutak store from {url}: {e}", exc_info=True)
+            logger.error("Error processing Vrutak store from %s: %s", url, e, exc_info=True)
             return None
 
         if not store.items:
-            logger.warning(f"No products found for Vrutak store at {url}, skipping.")
+            logger.warning("No products found for Vrutak store at %s, skipping.", url)
             return None
 
         return store
@@ -240,7 +248,7 @@ class VrutakCrawler(BaseCrawler):
         xml_urls = self.get_index_urls_for_date(date)
 
         if not xml_urls:
-            logger.warning(f"No Vrutak XML URLs found for date {date.isoformat()}")
+            logger.warning("No Vrutak XML URLs found for date %s", date.isoformat())
             return []
 
         stores = []
@@ -260,7 +268,20 @@ class VrutakCrawler(BaseCrawler):
         )
 
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
-            for store in executor.map(self._process_store_url, xml_urls):
+            inflight: set[Future[Store | None]] = set()
+
+            for url in xml_urls:
+                if len(inflight) >= n_workers:
+                    done, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        store = future.result()
+                        if store:
+                            stores.append(store)
+
+                inflight.add(executor.submit(self._process_store_url, url))
+
+            for future in as_completed(inflight):
+                store = future.result()
                 if store:
                     stores.append(store)
 
