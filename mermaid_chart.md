@@ -1,4 +1,4 @@
-flowchart TB
+﻿flowchart TB
 %% --- Trgovine ---
 subgraph SRC[Trgovine]
   direction TB
@@ -8,10 +8,17 @@ subgraph SRC[Trgovine]
   kaufland[Kaufland]:::src
   plodine[Plodine]:::src
   eurospin[Eurospin]:::src
+  metro[Metro]:::src
+  ntl[NTL]:::src
+  ribola[Ribola]:::src
+  studenac[Studenac]:::src
+  tommy[Tommy]:::src
+  vrutak[Vrutak]:::src
+  zabac[Zabac]:::src
 end
 
-%% --- Docker Compose okruženje ---
-subgraph DC[Docker Compose okruženje]
+%% --- Docker Compose okruzenje ---
+subgraph DC[Docker Compose okruzenje]
   direction TB
 
   subgraph CR[Crawler servis]
@@ -23,8 +30,9 @@ subgraph DC[Docker Compose okruženje]
 
   subgraph ST[Pohrana podataka]
     direction TB
-    fs["Datotečni sustav: CSV/ZIP<br/>datoteke"]:::storage
+    fs["Datotecni sustav: CSV/ZIP<br/>datoteke"]:::storage
     db[(PostgreSQL 17 baza)]:::db
+    redis[(Redis cache)]:::db
   end
 
   norm --> fs
@@ -32,8 +40,8 @@ subgraph DC[Docker Compose okruženje]
   subgraph ETL[ETL procesi - CLI]
     direction TB
     uvoz["Uvoz podataka (import)"]:::etl
-    ciscenje["Obogaćivanje (enrich)"]:::etl
-    statistika["Statistička obrada (stats)"]:::etl
+    ciscenje["Obogacivanje (enrich)"]:::etl
+    statistika["Statisticka obrada (stats)"]:::etl
     uvoz --> statistika
   end
 
@@ -47,11 +55,15 @@ subgraph DC[Docker Compose okruženje]
     direction TB
     v0["v0: ZIP arhive"]:::api
     v1["v1: lanci/proizvodi/trgovine"]:::api
-    auth["Bearer autentifikacija"]:::api
+    cart["Optimizacija kosarice"]:::api
+    auth["Supabase JWT autentifikacija"]:::api
     v1 --> auth
+    cart --> auth
   end
 
   db --> v1
+  db --> cart
+  redis -.-> cart
   fs --> v0
 end
 
@@ -62,12 +74,21 @@ sched --> CR
 %% --- Frontend ---
 subgraph FE["Frontend - React/Vite"]
   direction TB
-  ui["Korisničko sučelje"]:::front
-  client["API klijent (statički Bearer token)"]:::front
+  ui["Korisnicko sucelje"]:::front
+  client["API klijent (Supabase Bearer token)"]:::front
   ui --> client
 end
 
-client -- "REST API pozivi" --> API
+%% --- Supabase Auth ---
+subgraph SA["Eksterni servisi"]
+  direction TB
+  supaAuth["Supabase (Autentifikacija)"]:::storage
+end
+
+ui -- "Prijava i dohvaćanje tokena" --> supaAuth
+auth -. "Dohvaćanje JWKS za validaciju ključa" .-> supaAuth
+
+client -- "REST API pozivi (JWT)" --> API
 
 %% --- Povezivanja: crawler -> trgovine (HTTP zahtjev) ---
 extract -- "HTTP zahtjevi" --> konzum
@@ -76,6 +97,13 @@ extract -- "HTTP zahtjevi" --> lidl
 extract -- "HTTP zahtjevi" --> kaufland
 extract -- "HTTP zahtjevi" --> plodine
 extract -- "HTTP zahtjevi" --> eurospin
+extract -- "HTTP zahtjevi" --> metro
+extract -- "HTTP zahtjevi" --> ntl
+extract -- "HTTP zahtjevi" --> ribola
+extract -- "HTTP zahtjevi" --> studenac
+extract -- "HTTP zahtjevi" --> tommy
+extract -- "HTTP zahtjevi" --> vrutak
+extract -- "HTTP zahtjevi" --> zabac
 
 %% --- Stilovi ---
 classDef src fill:#f6b6b6,stroke:#b03a3a,stroke-width:2px,color:#111;
