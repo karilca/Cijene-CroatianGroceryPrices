@@ -26,6 +26,7 @@ services:
     volumes:
       - ./output:/app/data
       - ./enrichment:/app/enrichment
+      - ./firebase-credentials.json:/app/firebase-credentials.json
     ports:
       - "${PORT:-8080}:8080"
     depends_on:
@@ -48,6 +49,7 @@ services:
       - .env
     volumes:
       - ./output:/app/data
+      - ./firebase-credentials.json:/app/firebase-credentials.json
     profiles:
       - crawler
     restart: "no"

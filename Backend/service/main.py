@@ -1,5 +1,8 @@
 import json
 import httpx
+import os
+import firebase_admin
+from firebase_admin import credentials, firestore
 from logging import getLogger
 from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -108,12 +111,26 @@ class FavoriteStoreRequest(BaseModel):
 
 class UserProfileUpdateRequest(BaseModel):
     name: str
+    connection_id: Optional[str] = None
 
 
 class SelfDeleteAccountRequest(BaseModel):
     confirm_email: str
     reason: Optional[str] = None
 
+
+class SaveExpenseItem(BaseModel):
+    productId: str
+    productName: Optional[str] = None
+    quantity: float
+    unitPrice: float
+    lineTotal: float
+    storeName: str
+    storeAddress: Optional[str] = None
+
+class SaveExpenseRequest(BaseModel):
+    totalAmount: float
+    items: list[SaveExpenseItem]
 
 def _extract_email(payload: dict) -> str:
     return (
@@ -282,6 +299,7 @@ async def get_user_with_role(u_id: UUID, payload: dict):
             u.is_active,
             u.supabase_uid,
             u.role_id,
+            u.connection_id,
             r.name AS role_name,
             hd.supabase_uid AS hard_deleted_supabase_uid,
             hd.email AS hard_deleted_email,
@@ -354,6 +372,7 @@ async def get_user_with_role(u_id: UUID, payload: dict):
         "is_active": row["is_active"],
         "supabase_uid": row["supabase_uid"],
         "role_id": row["role_id"],
+        "connection_id": row.get("connection_id"),
         "role_name": row["role_name"],
     }
 
@@ -392,6 +411,23 @@ async def lifespan(app: FastAPI):
     await db.connect()
     set_db(db)
     await cart_optimize_cache.initialize()
+    
+    if settings.firebase_credentials:
+        if not firebase_admin._apps:
+            try:
+                # Assuming settings.firebase_credentials is a path to JSON file
+                # If it's a JSON string, we would need to parse it or use dict as credentials
+                if os.path.exists(settings.firebase_credentials):
+                    cred = credentials.Certificate(settings.firebase_credentials)
+                else:
+                    # In case it's passed as a JSON string via env 
+                    cred_dict = json.loads(settings.firebase_credentials)
+                    cred = credentials.Certificate(cred_dict)
+                firebase_admin.initialize_app(cred)
+                logger.info("Firebase Admin initialized successfully.")
+            except Exception as e:
+                logger.error(f"Failed to initialize Firebase Admin: {e}")
+
     try:
         yield
     finally:
@@ -930,6 +966,71 @@ async def optimize_cart(payload: CartOptimizeRequest, user = Depends(get_current
     return result
 
 
+@app.post("/v1/cart/save-expense")
+async def submit_cart_expense_to_firebase(
+    payload: SaveExpenseRequest,
+    user = Depends(get_current_active_user),
+):
+    target_db = getattr(db, '_db', getattr(db, 'pool', None))
+    connection_id = user.get("connection_id")
+    
+    if not connection_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Korisnik nema definiran Connection ID."
+        )
+        
+    if not firebase_admin._apps:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Firebase integracija nije aktivna na poslužitelju."
+        )
+
+    # Fetch brands for products
+    product_ids = [item.productId for item in payload.items]
+    brands_map: dict[str, str | None] = {}
+    if product_ids:
+        rows = await target_db.fetch(
+            "SELECT ean as product_id, brand FROM products WHERE ean = ANY($1)", 
+            product_ids
+        )
+        brands_map = {row["product_id"]: row["brand"] for row in rows}
+
+    try:
+        from firebase_admin import firestore
+        db_fs = firestore.client()
+        expense_ref = db_fs.collection("korisnici").document(connection_id).collection("incoming_expenses").document()
+        
+        firebase_items = []
+        for item in payload.items:
+            f_item = {
+                "p": item.productName or "Nepoznat proizvod",
+                "c": item.lineTotal,
+                "t": item.storeName,
+                "a": item.storeAddress or "",
+                "b": brands_map.get(item.productId) or ""
+            }
+            firebase_items.append(f_item)
+            
+        doc_data = {
+            "total_amount": payload.totalAmount,
+            "source": "Cijene_Web",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "items": firebase_items
+        }
+        
+        expense_ref.set(doc_data)
+        
+    except Exception as e:
+        logger.error(f"Error saving expense to Firebase: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Poteškoće sa spremanjem troška u vanjsku bazu."
+        )
+        
+    return {"status": "success", "expenseId": expense_ref.id}
+
+
 @app.post("/v1/cart/optimize/feedback")
 async def submit_cart_optimization_feedback(
     payload: CartOptimizeFeedbackRequest,
@@ -1078,6 +1179,7 @@ async def get_user_profile(user = Depends(get_current_active_user)):
         "email": user["email"],
         "role_id": user["role_id"],
         "role_name": user["role_name"],
+        "connection_id": user.get("connection_id"),
         "is_active": user["is_active"],
     }
 
@@ -1093,15 +1195,40 @@ async def update_user_profile(payload: UserProfileUpdateRequest, user = Depends(
     if len(cleaned_name) > 80:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ime može imati maksimalno 80 znakova.")
 
+    if payload.connection_id:
+        if len(payload.connection_id) > 255:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connection ID je predug.")
+        
+        try:
+            import firebase_admin
+            if firebase_admin._apps:
+                from firebase_admin import firestore
+                db_fs = firestore.client()
+                doc_ref = db_fs.collection("korisnici").document(payload.connection_id)
+                if not doc_ref.get().exists:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Navedeni Connection ID ne postoji. Provjerite u aplikaciji."
+                    )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error validating Connection ID: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Poteškoće sa spajanjem na Firebase bazu. Pokušajte ponovno."
+            )
+
     await target_db.execute(
-        "UPDATE users SET name = $1 WHERE supabase_uid = $2",
+        "UPDATE users SET name = $1, connection_id = $2 WHERE supabase_uid = $3",
         cleaned_name,
+        payload.connection_id,
         user["supabase_uid"],
     )
 
     updated_user = await target_db.fetchrow(
         """
-        SELECT u.id, u.name, u.email, u.is_active, u.supabase_uid, u.role_id, r.name as role_name
+        SELECT u.id, u.name, u.email, u.is_active, u.supabase_uid, u.role_id, u.connection_id, r.name as role_name
         FROM users u
         LEFT JOIN roles r ON u.role_id = r.id
         WHERE u.supabase_uid = $1
@@ -1118,6 +1245,7 @@ async def update_user_profile(payload: UserProfileUpdateRequest, user = Depends(
             "email": updated_user["email"],
             "role_id": updated_user["role_id"],
             "role_name": updated_user["role_name"],
+            "connection_id": updated_user.get("connection_id"),
             "is_active": updated_user["is_active"],
         },
     }

@@ -78,7 +78,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Allow mobile device connections
     port: 5173,
-    allowedHosts: ['localhost', '127.0.0.1', '0.0.0.0'], // or put true if you want to allow all hosts
+    allowedHosts: true//['localhost', '127.0.0.1', '0.0.0.0'], // or put true if you want to allow all hosts
   },
   // Performance optimizations
   optimizeDeps: {

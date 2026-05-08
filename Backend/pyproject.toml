@@ -19,6 +19,7 @@ dependencies = [
     "setuptools>=82.0.1",
     "sqlalchemy>=2.0.48",
     "uvicorn>=0.34.2",
+    "firebase-admin>=6.6.0",
 ]
 
 [tool.uv]

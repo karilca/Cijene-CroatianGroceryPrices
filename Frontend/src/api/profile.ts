@@ -9,6 +9,7 @@ export interface UserProfile {
   email: string;
   role_id: number;
   role_name: string;
+  connection_id?: string;
   is_active: boolean;
 }
 
@@ -19,6 +20,7 @@ interface UserProfileResponse {
   email: string;
   role_id: number;
   role_name: string;
+  connection_id?: string;
   is_active: boolean;
 }
 
@@ -58,13 +60,15 @@ export const getUserProfile = async (supabase: SupabaseClient): Promise<UserProf
     email: payload.email,
     role_id: payload.role_id,
     role_name: payload.role_name,
+    connection_id: payload.connection_id,
     is_active: payload.is_active,
   };
 };
 
-export const updateUserProfileName = async (
+export const updateUserProfile = async (
   supabase: SupabaseClient,
   name: string,
+  connection_id?: string,
 ): Promise<UserProfile> => {
   const accessToken = await getAccessToken(supabase);
   const response = await fetch(apiUrl('/v1/user/profile'), {
@@ -73,7 +77,7 @@ export const updateUserProfileName = async (
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, connection_id }),
   });
 
   if (!response.ok) {

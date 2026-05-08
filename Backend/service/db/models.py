@@ -11,6 +11,7 @@ class User:
     name: str
     api_key: str
     is_active: bool
+    connection_id: Optional[str] = None
     created_at: datetime
 
 

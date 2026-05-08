@@ -8,7 +8,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../components/common/NotificationContext';
 import { supabase } from '../lib/supabase';
-import { deleteOwnAccount, getUserProfile, updateUserProfileName } from '../api/profile';
+import { deleteOwnAccount, getUserProfile, updateUserProfile } from '../api/profile';
 import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 export const SettingsPage = () => {
@@ -20,6 +20,7 @@ export const SettingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [profileEmail, setProfileEmail] = useState('');
   const [profileName, setProfileName] = useState('');
+  const [connectionId, setConnectionId] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
 
   const [newPassword, setNewPassword] = useState('');
@@ -39,9 +40,11 @@ export const SettingsPage = () => {
         const profile = await getUserProfile(supabase);
         setProfileEmail(profile.email || user?.email || '');
         setProfileName(profile.name || '');
+        setConnectionId(profile.connection_id || '');
       } catch {
         setProfileEmail(user?.email || '');
         setProfileName('');
+        setConnectionId('');
         notifyError(t('settings.profileLoadFailed'), t('common.error'));
       } finally {
         setLoading(false);
@@ -66,7 +69,7 @@ export const SettingsPage = () => {
 
     try {
       setIsSavingName(true);
-      await updateUserProfileName(supabase, cleanedName);
+      await updateUserProfile(supabase, cleanedName, connectionId.trim() || undefined);
       await supabase.auth.updateUser({
         data: {
           full_name: cleanedName,
@@ -161,6 +164,17 @@ export const SettingsPage = () => {
             maxLength={80}
             className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-colors"
           />
+
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-4">Connection ID (Firebase)</label>
+          <input
+            type="text"
+            value={connectionId}
+            onChange={(event) => setConnectionId(event.target.value)}
+            placeholder="Unesite Connection ID..."
+            maxLength={255}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-colors"
+          />
+
           <Button onClick={() => void saveName()} isLoading={isSavingName}>{t('settings.saveName')}</Button>
         </div>
       </Card>

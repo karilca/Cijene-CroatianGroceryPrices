@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CartProductCard } from '../components/cart/CartProductCard';
-import { ThumbsDown, ThumbsUp } from 'lucide-react';
+import { ThumbsDown, ThumbsUp, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCartStore } from '../stores/cartStore';
@@ -13,6 +13,10 @@ import { Button } from '../components/ui/Button';
 import { resolveApiErrorMessage } from '../utils/apiErrors';
 import type { OptimizationMode } from '../types';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { saveCartExpense } from '../api/cart';
+import { supabase } from '../lib/supabase';
+import { getUserProfile, type UserProfile } from '../api/profile';
+import { useAuth } from '../hooks/useAuth';
 
 export const CartPage = () => {
     const { t } = useLanguage();
@@ -38,11 +42,20 @@ export const CartPage = () => {
     const defaultLocation = useAppStore((state) => state.defaultLocation);
     const searchRadius = useAppStore((state) => state.searchRadius);
     const { supported: isGeolocationSupported, getCurrentPosition } = useGeolocation();
+    const { user } = useAuth();
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
     const [isRemoving, setIsRemoving] = useState(false);
     const [updatingQuantityId, setUpdatingQuantityId] = useState<string | null>(null);
     const [lastOptimizationFeedback, setLastOptimizationFeedback] = useState<null | boolean>(null);
+    const [isSavingExpense, setIsSavingExpense] = useState(false);
+
+    useEffect(() => {
+        if (user) {
+            getUserProfile(supabase).then(setUserProfile).catch(console.error);
+        }
+    }, [user]);
 
     const reloadCart = useCallback(async () => {
         clearError();
@@ -126,6 +139,34 @@ export const CartPage = () => {
             );
         } catch {
             notifyError(t('cart.feedbackFailed'), t('common.error'));
+        }
+    };
+
+    const handleSaveExpense = async () => {
+        if (!optimization?.recommendation) return;
+        try {
+            setIsSavingExpense(true);
+            const { totalCost, assignments } = optimization.recommendation;
+            
+            const payloadItems = assignments.map(a => ({
+                productId: a.productId,
+                productName: a.productName,
+                quantity: a.quantity,
+                unitPrice: a.unitPrice,
+                lineTotal: a.lineTotal,
+                storeName: a.store.name || a.store.chain,
+                storeAddress: a.store.address,
+            }));
+
+            await saveCartExpense(supabase, {
+                totalAmount: totalCost,
+                items: payloadItems
+            });
+            notifySuccess('Trošak uspješno spremljen u Firebase!');
+        } catch (err: unknown) {
+            notifyError(resolveApiErrorMessage(err, t, 'Spremanje troška nije uspjelo'), t('common.error'));
+        } finally {
+            setIsSavingExpense(false);
         }
     };
 
@@ -335,6 +376,20 @@ export const CartPage = () => {
                                     {t('cart.feedbackReject')}
                                 </button>
                             </div>
+                            
+                            {userProfile?.connection_id && (
+                                <div className="mt-4 pt-4 border-t border-emerald-100/50 flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleSaveExpense()}
+                                        disabled={isSavingExpense}
+                                        className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <Wallet size={16} />
+                                        Spremi trošak
+                                    </button>
+                                </div>
+                            )}
 
                             {(optimization.recommendation.unavailableProducts || []).length > 0 && (
                                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

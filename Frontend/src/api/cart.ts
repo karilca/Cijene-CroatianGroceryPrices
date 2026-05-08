@@ -217,6 +217,28 @@ export const submitCartOptimizationFeedback = async (
     return (await response.json()) as CartOptimizeFeedbackResponse;
 };
 
+export const saveCartExpense = async (
+    supabase: SupabaseClient,
+    request: any, // using any here for quick typed payload or we can import from API
+): Promise<any> => {
+    const accessToken = await getAccessToken(supabase);
+    const response = await fetch(apiUrl('/v1/cart/save-expense'), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw createLocalizedApiErrorFromPayload(payload, 'Spremanje troška nije uspjelo');
+    }
+
+    return await response.json();
+};
+
 /**
  * Count cart entries.
  */

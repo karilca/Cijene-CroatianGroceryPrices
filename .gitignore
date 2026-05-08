@@ -28,3 +28,4 @@ dist-ssr
 
 Backend/output/*
 !Backend/output/.gitkeep
+firebase-credentials.json
