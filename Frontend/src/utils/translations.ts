@@ -490,6 +490,9 @@ export const translations = {
         'cart.feedbackAcceptedSuccess': 'Thanks for the feedback!',
         'cart.feedbackRejectedSuccess': 'Thanks, we will adjust recommendations.',
         'cart.feedbackFailed': 'Failed to submit feedback',
+        'cart.expenseSaved': 'Expense saved successfully!',
+        'cart.expenseSaveFailed': 'Failed to save expense',
+        'cart.saveExpenseButton': 'Save expense',
         'cart.locationPermissionNotice': 'Enable location access for more accurate nearby store recommendations in cart optimization.',
 
 
@@ -1148,6 +1151,9 @@ export const translations = {
         'cart.feedbackAcceptedSuccess': 'Hvala na povratnoj informaciji!',
         'cart.feedbackRejectedSuccess': 'Hvala, prilagodit ćemo preporuke.',
         'cart.feedbackFailed': 'Slanje povratne informacije nije uspjelo',
+        'cart.expenseSaved': 'Trošak uspješno spremljen!',
+        'cart.expenseSaveFailed': 'Spremanje troška nije uspjelo',
+        'cart.saveExpenseButton': 'Spremi trošak',
         'cart.locationPermissionNotice': 'Uključite pristup lokaciji za točnije preporuke obližnjih trgovina pri optimizaciji košarice.',
 
 

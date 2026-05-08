@@ -148,7 +148,7 @@ export const CartPage = () => {
             setIsSavingExpense(true);
             const { totalCost, assignments } = optimization.recommendation;
             
-            const payloadItems = assignments.map(a => ({
+            const payloadItems = (assignments ?? []).map(a => ({
                 productId: a.productId,
                 productName: a.productName,
                 quantity: a.quantity,
@@ -162,9 +162,9 @@ export const CartPage = () => {
                 totalAmount: totalCost,
                 items: payloadItems
             });
-            notifySuccess('Trošak uspješno spremljen u Firebase!');
+            notifySuccess(t('cart.expenseSaved'));
         } catch (err: unknown) {
-            notifyError(resolveApiErrorMessage(err, t, 'Spremanje troška nije uspjelo'), t('common.error'));
+            notifyError(resolveApiErrorMessage(err, t, 'cart.expenseSaveFailed'), t('common.error'));
         } finally {
             setIsSavingExpense(false);
         }
@@ -386,7 +386,7 @@ export const CartPage = () => {
                                         className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <Wallet size={16} />
-                                        Spremi trošak
+                                        {t('cart.saveExpenseButton')}
                                     </button>
                                 </div>
                             )}
