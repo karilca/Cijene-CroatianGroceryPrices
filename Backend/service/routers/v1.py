@@ -1,13 +1,13 @@
 from decimal import Decimal
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 import datetime
 from uuid import UUID
 
 from service.config import settings
 from service.db.models import ChainStats, ProductWithId, StorePrice
-from service.auth_utils import get_current_user, get_user_payload
+from service.auth_utils import get_user_payload
 from service.text_utils import normalize_product_text
 
 
