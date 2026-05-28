@@ -78,7 +78,7 @@ const isDeactivatedAccountError = (payload: unknown): boolean => {
 };
 
 export class ApiClient {
-  private client: AxiosInstance;
+  public client: import("axios").AxiosInstance;
   private retryCount = 0;
   private manualAuthToken: string | null = null;
 
@@ -440,3 +440,20 @@ export class RequestValidator {
 
 // Create default instance
 export const apiClient = new ApiClient();
+
+// Add convenience methods to ApiClient prototype
+ApiClient.prototype.get = async function<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  return this.client.get<T>(url, config).then(res => res.data as unknown as T);
+};
+ApiClient.prototype.post = async function<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  return this.client.post<T>(url, data, config).then(res => res.data as unknown as T);
+};
+ApiClient.prototype.put = async function<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  return this.client.put<T>(url, data, config).then(res => res.data as unknown as T);
+};
+ApiClient.prototype.patch = async function<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  return this.client.patch<T>(url, data, config).then(res => res.data as unknown as T);
+};
+ApiClient.prototype.delete = async function<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  return this.client.delete<T>(url, config).then(res => res.data as unknown as T);
+};
