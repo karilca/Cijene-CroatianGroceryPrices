@@ -2,7 +2,7 @@ import json
 import httpx
 import os
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials
 from logging import getLogger
 from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
