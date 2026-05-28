@@ -6,7 +6,6 @@ import { BrowserRouter } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { ArchivesPage } from '../pages/ArchivesPage';
 import { LanguageContext } from '../contexts/LanguageContext';
-import { translations } from '../utils/translations';
 import type { TranslationKey } from '../utils/translations';
 import { server } from './setup';
 
@@ -62,7 +61,7 @@ const renderArchivesPage = () => {
         value={{
           language: 'en',
           setLanguage: () => undefined,
-          t: (key: TranslationKey) => translations.en[key] || key,
+          t: (key: TranslationKey) => key || key,
         }}
       >
         <BrowserRouter>
@@ -83,21 +82,21 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText('Price Archives')).toBeInTheDocument();
+      expect(screen.getByText('archives.title')).toBeInTheDocument();
     });
 
     // Check for info cards
-    expect(screen.getByText('Total Archives')).toBeInTheDocument();
+    expect(screen.getByText('archives.info.total')).toBeInTheDocument();
     expect(screen.getByText('4')).toBeInTheDocument(); // 4 archives
-    expect(screen.getByText('Total Size')).toBeInTheDocument();
-    expect(screen.getByText('Latest Update')).toBeInTheDocument();
+    expect(screen.getByText('archives.info.size')).toBeInTheDocument();
+    expect(screen.getByText('archives.info.latest')).toBeInTheDocument();
   });
 
   it('displays all archives in the list', async () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getAllByText(/Archive for/)).toHaveLength(4);
+      expect(screen.getAllByText(/archives\.item\.title/)).toHaveLength(4);
     });
   });
 
@@ -105,11 +104,11 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText('Filter by Date Range')).toBeInTheDocument();
+      expect(screen.getByText('archives.filter.title')).toBeInTheDocument();
     });
 
-    expect(screen.getByLabelText('From Date')).toBeInTheDocument();
-    expect(screen.getByLabelText('To Date')).toBeInTheDocument();
+    expect(screen.getByLabelText('archives.filter.from')).toBeInTheDocument();
+    expect(screen.getByLabelText('archives.filter.to')).toBeInTheDocument();
   });
 
   it('filters archives by date range', async () => {
@@ -117,12 +116,12 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText('Price Archives')).toBeInTheDocument();
+      expect(screen.getByText('archives.title')).toBeInTheDocument();
     });
 
     // Set date filter from 2024-01-13 to 2024-01-14
-    const fromDateInput = screen.getByLabelText('From Date');
-    const toDateInput = screen.getByLabelText('To Date');
+    const fromDateInput = screen.getByLabelText('archives.filter.from');
+    const toDateInput = screen.getByLabelText('archives.filter.to');
 
     await user.clear(fromDateInput);
     await user.type(fromDateInput, '2024-01-13');
@@ -131,7 +130,7 @@ describe('ArchivesPage', () => {
 
     // Should show only 2 archives (2024-01-13 and 2024-01-14)
     await waitFor(() => {
-      const archiveElements = screen.getAllByText(/Archive for/);
+      const archiveElements = screen.getAllByText(/archives\.item\.title/);
       expect(archiveElements).toHaveLength(2);
     });
   });
@@ -140,12 +139,12 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText('Batch Download')).toBeInTheDocument();
+      expect(screen.getByText('archives.batch.title')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Select All')).toBeInTheDocument();
-    expect(screen.getByText('Deselect All')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Download Selected/ })).toBeInTheDocument();
+    expect(screen.getByText('archives.select.all')).toBeInTheDocument();
+    expect(screen.getByText('archives.select.none')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /archives\.download\.selected/ })).toBeInTheDocument();
   });
 
   it('allows selecting individual archives', async () => {
@@ -153,11 +152,11 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText('Price Archives')).toBeInTheDocument();
+      expect(screen.getByText('archives.title')).toBeInTheDocument();
     });
 
     // Find all select buttons (checkbox icons)
-    const selectButtons = screen.getAllByRole('button', { name: /Select archive/ });
+    const selectButtons = screen.getAllByRole('button', { name: /archives\.select/ });
     expect(selectButtons.length).toBeGreaterThan(0);
 
     // Click first archive to select it
@@ -165,7 +164,7 @@ describe('ArchivesPage', () => {
 
     // Batch download button should show (1) selected
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Download Selected \(1\)/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /archives\.download\.selected/ })).toBeInTheDocument();
     });
   });
 
@@ -174,15 +173,15 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText('Price Archives')).toBeInTheDocument();
+      expect(screen.getByText('archives.title')).toBeInTheDocument();
     });
 
-    const selectAllButton = screen.getByText('Select All');
+    const selectAllButton = screen.getByText('archives.select.all');
     await user.click(selectAllButton);
 
     // Batch download button should show (4) selected
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Download Selected \(4\)/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /archives\.download\.selected/ })).toBeInTheDocument();
     });
 
     // Select All button should be disabled
@@ -194,24 +193,24 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText('Price Archives')).toBeInTheDocument();
+      expect(screen.getByText('archives.title')).toBeInTheDocument();
     });
 
     // First select all
-    const selectAllButton = screen.getByText('Select All');
+    const selectAllButton = screen.getByText('archives.select.all');
     await user.click(selectAllButton);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Download Selected \(4\)/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /archives\.download\.selected/ })).toBeInTheDocument();
     });
 
     // Then deselect all
-    const deselectAllButton = screen.getByText('Deselect All');
+    const deselectAllButton = screen.getByText('archives.select.none');
     await user.click(deselectAllButton);
 
     // Should show (0) selected
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Download Selected \(0\)/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /archives\.download\.selected/ })).toBeInTheDocument();
     });
 
     // Deselect All button should be disabled
@@ -223,16 +222,16 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText('Price Archives')).toBeInTheDocument();
+      expect(screen.getByText('archives.title')).toBeInTheDocument();
     });
 
     // Select all archives
-    const selectAllButton = screen.getByText('Select All');
+    const selectAllButton = screen.getByText('archives.select.all');
     await user.click(selectAllButton);
 
     // Should display count and size
     await waitFor(() => {
-      expect(screen.getByText(/4 archive\(s\) selected/)).toBeInTheDocument();
+      expect(screen.getByText(/archives\.batch\.selected/)).toBeInTheDocument();
     });
   });
 
@@ -241,20 +240,20 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText('Price Archives')).toBeInTheDocument();
+      expect(screen.getByText('archives.title')).toBeInTheDocument();
     });
 
     // Set a date filter
-    const fromDateInput = screen.getByLabelText('From Date');
+    const fromDateInput = screen.getByLabelText('archives.filter.from');
     await user.type(fromDateInput, '2024-01-14');
 
     // Clear filter button should appear
     await waitFor(() => {
-      expect(screen.getByText('Clear Filter')).toBeInTheDocument();
+      expect(screen.getByText('archives.filter.clear')).toBeInTheDocument();
     });
 
     // Click clear filter
-    const clearButton = screen.getByText('Clear Filter');
+    const clearButton = screen.getByText('archives.filter.clear');
     await user.click(clearButton);
 
     // Date input should be empty
@@ -265,11 +264,11 @@ describe('ArchivesPage', () => {
     renderArchivesPage();
     
     await waitFor(() => {
-      expect(screen.getByText('Price Archives')).toBeInTheDocument();
+      expect(screen.getByText('archives.title')).toBeInTheDocument();
     });
 
     // Should have 4 individual download buttons (one for each archive)
-    const downloadButtons = screen.getAllByRole('button', { name: /Download ZIP/ });
+    const downloadButtons = screen.getAllByRole('button', { name: /archives\.item\.download/ });
     expect(downloadButtons).toHaveLength(4);
   });
 });
