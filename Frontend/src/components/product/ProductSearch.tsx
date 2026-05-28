@@ -1,12 +1,13 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, Suspense } from 'react';
 import { Barcode, Camera } from 'lucide-react';
 import { BaseSearchComponent } from '../common/BaseSearchComponent';
 import { useBaseSearch } from '../../hooks/useBaseSearch';
 import { useProductSuggestions, useChains } from '../../hooks/useApiQueries';
 import { useAppStore } from '../../stores/appStore';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { BarcodeScanner } from '../common/BarcodeScanner';
 import type { ProductSearchRequest } from '../../types';
+
+const BarcodeScanner = React.lazy(() => import('../common/BarcodeScanner').then(module => ({ default: module.BarcodeScanner })));
 
 interface ProductSearchProps {
   onSearch: (params: ProductSearchRequest) => void;
@@ -189,10 +190,12 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
 
       {/* Scanner Overlay */}
       {showScanner && (
-        <BarcodeScanner
-          onScan={handleScan}
-          onClose={() => setShowScanner(false)}
-        />
+        <Suspense fallback={<div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center text-white">Loading...</div>}>
+          <BarcodeScanner
+            onScan={handleScan}
+            onClose={() => setShowScanner(false)}
+          />
+        </Suspense>
       )}
     </div>
   );
