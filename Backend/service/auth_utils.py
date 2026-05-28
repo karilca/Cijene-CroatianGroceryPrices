@@ -79,7 +79,7 @@ def _decode_token(token: str) -> dict:
         # Compatibility fallback for deployments still using legacy shared JWT secret.
         try:
             return _decode_with_legacy_shared_secret(token)
-        except InvalidTokenError as exc:
+        except InvalidTokenError:
             _raise_auth_error(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail_code="UNAUTHORIZED",
