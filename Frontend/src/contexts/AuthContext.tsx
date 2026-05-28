@@ -113,8 +113,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       hydrateAdminStatus(currentSession);
-      await syncFavorites(currentSession);
       setLoading(false);
+      void syncFavorites(currentSession);
       void checkAdminStatus(currentSession);
     };
 
@@ -125,7 +125,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       hydrateAdminStatus(currentSession);
-      void syncFavorites(currentSession).finally(() => setLoading(false));
+      setLoading(false);
+      void syncFavorites(currentSession);
       void checkAdminStatus(currentSession);
     });
 
