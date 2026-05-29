@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { UserData } from '../../services/admin.service';
 import { Button } from '../ui/Button';
@@ -14,6 +14,10 @@ interface UserDeleteModalProps {
 export const UserDeleteModal: React.FC<UserDeleteModalProps> = ({ user, onClose, onConfirm, isDeleting }) => {
   const { t } = useLanguage();
   const [confirmEmail, setConfirmEmail] = useState('');
+
+  useEffect(() => {
+    setConfirmEmail('');
+  }, [user]);
 
   if (!user) return null;
 

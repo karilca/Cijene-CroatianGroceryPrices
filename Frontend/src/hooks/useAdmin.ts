@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminService } from '../services/admin.service';
-import type { UserData } from '../services/admin.service';
 
 export const adminKeys = {
   all: ['admin'] as const,
@@ -31,7 +30,8 @@ export function useAdminRoles() {
 export function useUpdateUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<UserData> }) => adminService.updateUser(id, data),
+    mutationFn: ({ supabaseUid, data }: { supabaseUid: string; data: { name?: string; is_active: boolean; role_id: number } }) =>
+      adminService.updateUser(supabaseUid, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
       queryClient.invalidateQueries({ queryKey: adminKeys.auditLogs() });
@@ -42,7 +42,8 @@ export function useUpdateUser() {
 export function useDeleteUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => adminService.deleteUser(id),
+    mutationFn: ({ supabaseUid, confirmEmail, reason }: { supabaseUid: string; confirmEmail: string; reason?: string }) =>
+      adminService.deleteUser(supabaseUid, confirmEmail, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
       queryClient.invalidateQueries({ queryKey: adminKeys.auditLogs() });

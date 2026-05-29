@@ -69,22 +69,25 @@ export const adminService = {
     return await apiClient.get<Role[]>('/v1/admin/roles');
   },
 
-  updateUser: async (id: number, data: Partial<UserData>) => {
-    return await apiClient.patch<UserData>(`/v1/admin/users/${id}`, data);
+  updateUser: async (supabaseUid: string, data: { name?: string; is_active: boolean; role_id: number }) => {
+    return await apiClient.put<{ message: string }>(`/v1/admin/users/${supabaseUid}`, data);
   },
 
-  deleteUser: async (id: number) => {
-    return await apiClient.delete(`/v1/admin/users/${id}`);
+  deleteUser: async (supabaseUid: string, confirmEmail: string, reason?: string) => {
+    return await apiClient.post<{ message: string }>(`/v1/admin/users/${supabaseUid}/hard-delete`, {
+      confirm_email: confirmEmail,
+      reason: reason || 'Hard delete via admin panel',
+    });
   },
 
   bulkDeactivateUsers: async (userIds: string[]) => {
-    return await apiClient.post<BulkOperationResponse>('/v1/admin/users/bulk/deactivate', {
+    return await apiClient.post<BulkOperationResponse>('/v1/admin/users/bulk-deactivate', {
       user_ids: userIds,
     });
   },
 
   bulkUpdateRole: async (userIds: string[], roleId: number) => {
-    return await apiClient.post<BulkOperationResponse>('/v1/admin/users/bulk/role', {
+    return await apiClient.post<BulkOperationResponse>('/v1/admin/users/bulk-update-role', {
       user_ids: userIds,
       role_id: roleId,
     });

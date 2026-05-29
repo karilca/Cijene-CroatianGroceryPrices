@@ -104,15 +104,17 @@ fi
 
 # 9. Check package.json scripts
 print_info "Validating package.json scripts..."
-if npm run | grep -q "test"; then
+SCRIPTS=$(node -p "Object.keys(require('./package.json').scripts || {}).join(' ')")
+
+if echo "$SCRIPTS" | grep -q "test"; then
     print_status 0 "Test script available"
 fi
 
-if npm run | grep -q "build"; then
+if echo "$SCRIPTS" | grep -q "build"; then
     print_status 0 "Build script available"
 fi
 
-if npm run | grep -q "preview"; then
+if echo "$SCRIPTS" | grep -q "preview"; then
     print_status 0 "Preview script available"
 fi
 

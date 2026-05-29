@@ -91,7 +91,14 @@ const AdminDashboard: React.FC = () => {
     }
 
     try {
-      await updateUser.mutateAsync({ id: updatedUser.id, data: updatedUser });
+      await updateUser.mutateAsync({
+        supabaseUid: updatedUser.supabase_uid,
+        data: {
+          name: updatedUser.name,
+          is_active: updatedUser.is_active,
+          role_id: updatedUser.role_id,
+        },
+      });
       notifySuccess(t('admin.updateSuccess'));
       setEditingUser(null);
     } catch (err) {
@@ -103,7 +110,14 @@ const AdminDashboard: React.FC = () => {
   const handleDeactivateConfirm = async () => {
     if (!pendingDeactivateUser) return;
     try {
-      await updateUser.mutateAsync({ id: pendingDeactivateUser.id, data: { ...pendingDeactivateUser, is_active: false } });
+      await updateUser.mutateAsync({
+        supabaseUid: pendingDeactivateUser.supabase_uid,
+        data: {
+          name: pendingDeactivateUser.name,
+          is_active: false,
+          role_id: pendingDeactivateUser.role_id,
+        },
+      });
       notifySuccess(t('admin.updateSuccess'));
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('admin.updateFailed');
@@ -118,7 +132,11 @@ const AdminDashboard: React.FC = () => {
   const handleDeleteConfirm = async () => {
     if (!pendingDeleteUser) return;
     try {
-      await deleteUser.mutateAsync(pendingDeleteUser.id);
+      await deleteUser.mutateAsync({
+        supabaseUid: pendingDeleteUser.supabase_uid,
+        confirmEmail: pendingDeleteUser.email || '',
+        reason: 'Hard delete via admin panel',
+      });
       notifySuccess(t('admin.deleteSuccess'));
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('admin.deleteFailed');

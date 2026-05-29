@@ -132,10 +132,11 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
     }, [capture]);
 
     useEffect(() => {
+        const webcam = webcamRef.current;
         return () => {
             // Cleanup camera stream
-            if (webcamRef.current?.video?.srcObject) {
-                const stream = webcamRef.current.video.srcObject as MediaStream;
+            if (webcam?.video?.srcObject) {
+                const stream = webcam.video.srcObject as MediaStream;
                 stream.getTracks().forEach(track => track.stop());
             }
         };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { UserData, Role } from '../../services/admin.service';
 import { Button } from '../ui/Button';
@@ -15,6 +15,18 @@ interface UserEditModalProps {
 export const UserEditModal: React.FC<UserEditModalProps> = ({ user, roles, onClose, onSave, isUpdating }) => {
   const { t } = useLanguage();
 
+  const [name, setName] = useState('');
+  const [roleId, setRoleId] = useState(0);
+  const [isActive, setIsActive] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      setName(user.name);
+      setRoleId(user.role_id);
+      setIsActive(user.is_active);
+    }
+  }, [user]);
+
   if (!user) return null;
 
   return createPortal(
@@ -29,8 +41,8 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({ user, roles, onClo
               </label>
               <input
                 type="text"
-                value={user.name}
-                onChange={(e) => onSave({ ...user, name: e.target.value })}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="mt-1 w-full rounded-md border border-gray-200 p-2 text-sm outline-none focus:border-primary-600"
               />
             </div>
@@ -39,8 +51,8 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({ user, roles, onClo
                 {t('admin.role')}
               </label>
               <select
-                value={user.role_id}
-                onChange={(e) => onSave({ ...user, role_id: parseInt(e.target.value, 10) })}
+                value={roleId}
+                onChange={(e) => setRoleId(parseInt(e.target.value, 10))}
                 className="mt-1 w-full rounded-md border border-gray-200 p-2 text-sm outline-none focus:border-primary-600"
               >
                 {roles.map((r) => (
@@ -52,8 +64,8 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({ user, roles, onClo
               <input
                 type="checkbox"
                 id="edit-is-active"
-                checked={user.is_active}
-                onChange={(e) => onSave({ ...user, is_active: e.target.checked })}
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
                 className="mr-2"
               />
               <label htmlFor="edit-is-active" className="text-sm text-gray-700">
@@ -74,9 +86,9 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({ user, roles, onClo
           </Button>
           <Button
             type="button"
-            onClick={() => onSave(user)}
+            onClick={() => onSave({ ...user, name, role_id: roleId, is_active: isActive })}
             isLoading={isUpdating}
-            disabled={isUpdating || !user.name.trim()}
+            disabled={isUpdating || !name.trim()}
             className="flex-1"
           >
             {t('admin.save')}
