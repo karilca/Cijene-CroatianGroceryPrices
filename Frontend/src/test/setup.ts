@@ -1,6 +1,12 @@
+import { vi } from 'vitest';
+
+vi.stubEnv('VITE_SUPABASE_URL', 'https://mock-project.supabase.co');
+vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'mock-anon-key-value-12345');
+vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'mock-anon-key-value-12345');
+
 import '@testing-library/jest-dom'
 import { cleanup } from '@testing-library/react'
-import { afterEach, beforeAll, afterAll, vi } from 'vitest'
+import { afterEach, beforeAll, afterAll } from 'vitest'
 import { setupServer } from 'msw/node'
 import { handlers } from './mocks/handlers'
 
