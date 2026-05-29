@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, Suspense } from 'react';
-import { Barcode, Camera } from 'lucide-react';
+import { Barcode, Camera, X } from 'lucide-react';
 import { BaseSearchComponent } from '../common/BaseSearchComponent';
 import { useBaseSearch } from '../../hooks/useBaseSearch';
 import { useProductSuggestions, useChains } from '../../hooks/useApiQueries';
@@ -190,7 +190,22 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
 
       {/* Scanner Overlay */}
       {showScanner && (
-        <Suspense fallback={<div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center text-white">Loading...</div>}>
+        <Suspense fallback={
+          <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex flex-col items-center justify-center p-4">
+            <div className="relative w-full max-w-lg bg-black rounded-lg overflow-hidden shadow-2xl h-[75vh] flex flex-col items-center justify-center">
+              <div className="absolute top-0 left-0 right-0 z-10 flex justify-between items-center p-4 bg-gradient-to-b from-black/70 to-transparent">
+                <div className="text-white font-medium flex items-center gap-2">
+                  <Camera className="h-5 w-5" />
+                  <span>{t('scanner.title')}</span>
+                </div>
+                <button onClick={() => setShowScanner(false)} className="text-white p-2 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-colors">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="text-white mt-12">{t('common.loading')}</div>
+            </div>
+          </div>
+        }>
           <BarcodeScanner
             onScan={handleScan}
             onClose={() => setShowScanner(false)}
