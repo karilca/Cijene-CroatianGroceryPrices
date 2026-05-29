@@ -6,9 +6,9 @@ import { BrowserRouter } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { ArchivesPage } from '../pages/ArchivesPage';
 import { LanguageContext } from '../contexts/LanguageContext';
-import { translations } from '../utils/translations';
 import type { TranslationKey } from '../utils/translations';
 import { server } from './setup';
+import enTranslations from '../../public/locales/en/translation.json';
 
 // Create mock archives data
 const mockArchives = [
@@ -62,7 +62,7 @@ const renderArchivesPage = () => {
         value={{
           language: 'en',
           setLanguage: () => undefined,
-          t: (key: TranslationKey) => translations.en[key] || key,
+          t: (key: TranslationKey) => (enTranslations as Record<string, string>)[key] || key,
         }}
       >
         <BrowserRouter>
