@@ -9,7 +9,7 @@ i18n
     fallbackLng: 'en',
     supportedLngs: ['en', 'hr'],
     interpolation: {
-      escapeValue: false, // react already safes from xss
+      escapeValue: false, // react already protects from xss
     },
     backend: {
       loadPath: '/locales/{{lng}}/translation.json',

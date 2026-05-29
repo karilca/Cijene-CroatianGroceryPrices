@@ -219,7 +219,7 @@ export const submitCartOptimizationFeedback = async (
 
 export const saveCartExpense = async (
     supabase: SupabaseClient,
-    request: unknown, // using any here for quick typed payload or we can import from API
+    request: unknown,
 ): Promise<unknown> => {
     const accessToken = await getAccessToken(supabase);
     const response = await fetch(apiUrl('/v1/cart/save-expense'), {

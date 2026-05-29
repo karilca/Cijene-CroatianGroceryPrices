@@ -562,7 +562,7 @@
   "productSearch.eanError": "EAN mora imati 8-14 znamenki",
   "productSearch.retailChains": "Trgovački lanci",
   "productSearch.loadingChains": "Učitavanje lanaca...",
-  "productSearch.usingPreferred": "Trenutno se koriste preferani lanci: {chains}",
+  "productSearch.usingPreferred": "Trenutno se koriste preferirani lanci: {chains}",
   "productSearch.priceDate": "Datum cijene",
   "productSearch.clearFilters": "Očisti sve filtere",
   "productSearch.city": "Grad",

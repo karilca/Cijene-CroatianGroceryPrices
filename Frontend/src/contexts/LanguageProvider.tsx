@@ -7,18 +7,14 @@ import i18n from '../utils/i18n';
 // Inner component to actually provide the context, uses `useTranslation` hook
 const InnerProvider = ({ children }: { children: ReactNode }) => {
   const { t: i18nT, i18n: i18nInstance } = useTranslation();
-  const [language, setLanguageState] = useState<Language | null>(
-    (i18nInstance.language as Language) || 'en'
-  );
+  // We initialize to null if nothing in local storage so that we can show the popup.
+  const [language, setLanguageState] = useState<Language | null>(null);
 
   useEffect(() => {
     const savedLanguage = localStorage.getItem(LANGUAGE_KEY) as Language;
     if (savedLanguage && (savedLanguage === 'en' || savedLanguage === 'hr')) {
       i18nInstance.changeLanguage(savedLanguage);
       setLanguageState(savedLanguage);
-    } else {
-      // If no saved language, sync state with whatever i18n picked up (or fallback)
-      setLanguageState((i18nInstance.language as Language) || 'en');
     }
   }, [i18nInstance]);
 
