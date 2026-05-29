@@ -445,13 +445,13 @@ export const apiClient = new ApiClient();
 ApiClient.prototype.get = async function<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
   return this.client.get<T>(url, config).then(res => res.data as unknown as T);
 };
-ApiClient.prototype.post = async function<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+ApiClient.prototype.post = async function<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   return this.client.post<T>(url, data, config).then(res => res.data as unknown as T);
 };
-ApiClient.prototype.put = async function<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+ApiClient.prototype.put = async function<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   return this.client.put<T>(url, data, config).then(res => res.data as unknown as T);
 };
-ApiClient.prototype.patch = async function<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+ApiClient.prototype.patch = async function<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   return this.client.patch<T>(url, data, config).then(res => res.data as unknown as T);
 };
 ApiClient.prototype.delete = async function<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
