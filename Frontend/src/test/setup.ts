@@ -66,3 +66,16 @@ Object.defineProperty(global.navigator, 'geolocation', {
   value: mockGeolocation,
   writable: true,
 })
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => {
+    return {
+      t: (str: string) => str,
+      i18n: {
+        changeLanguage: () => new Promise(() => {}),
+        language: 'en',
+      },
+    };
+  },
+  I18nextProvider: ({ children }: { children: React.ReactNode }) => children,
+}));

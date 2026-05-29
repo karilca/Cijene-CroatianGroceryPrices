@@ -26,8 +26,8 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
     const codeReader = useRef(new BrowserMultiFormatReader());
 
     const videoConstraints = {
-        width: { min: 640, ideal: 1280, max: 1920 },
-        height: { min: 480, ideal: 720, max: 1080 },
+        width: { min: 320, ideal: 640, max: 1280 },
+        height: { min: 240, ideal: 480, max: 720 },
         facingMode: facingMode
     };
 
@@ -99,9 +99,47 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
     }, [onScan]);
 
     useEffect(() => {
-        const interval = setInterval(capture, 500); // Scan every 500ms
-        return () => clearInterval(interval);
+        let interval: ReturnType<typeof setInterval> | null = null;
+
+        const startScanning = () => {
+            if (!interval && !document.hidden) {
+                interval = setInterval(capture, 500);
+            }
+        };
+
+        const stopScanning = () => {
+            if (interval) {
+                clearInterval(interval);
+                interval = null;
+            }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                stopScanning();
+            } else {
+                startScanning();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        startScanning();
+
+        return () => {
+            stopScanning();
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, [capture]);
+
+    useEffect(() => {
+        return () => {
+            // Cleanup camera stream
+            if (webcamRef.current?.video?.srcObject) {
+                const stream = webcamRef.current.video.srcObject as MediaStream;
+                stream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, []);
 
     useEffect(() => {
         // Check for torch capability once the stream is ready
