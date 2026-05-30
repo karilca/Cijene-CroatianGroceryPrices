@@ -53,15 +53,15 @@ export const HomePage: React.FC = () => {
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-            <h3 className="text-xl sm:text-2xl font-bold text-primary-600 mb-2">10,000+</h3>
+            <h2 className="text-xl sm:text-2xl font-bold text-primary-600 mb-2">10,000+</h2>
             <p className="text-sm sm:text-base text-gray-600">{t('home.stats.products')}</p>
           </div>
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-            <h3 className="text-xl sm:text-2xl font-bold text-green-600 mb-2">500+</h3>
+            <h2 className="text-xl sm:text-2xl font-bold text-green-600 mb-2">500+</h2>
             <p className="text-sm sm:text-base text-gray-600">{t('home.stats.stores')}</p>
           </div>
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 sm:col-span-2 lg:col-span-1">
-            <h3 className="text-xl sm:text-2xl font-bold text-purple-600 mb-2">10+</h3>
+            <h2 className="text-xl sm:text-2xl font-bold text-purple-600 mb-2">10+</h2>
             <p className="text-sm sm:text-base text-gray-600">{t('home.stats.chains')}</p>
           </div>
         </div>
@@ -70,28 +70,28 @@ export const HomePage: React.FC = () => {
       {/* Features Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-8 sm:mb-12">
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-          <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">{t('home.features.comparison.title')}</h3>
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">{t('home.features.comparison.title')}</h2>
           <p className="text-sm sm:text-base text-gray-600">
             {t('home.features.comparison.text')}
           </p>
         </div>
 
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-          <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">{t('home.features.locator.title')}</h3>
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">{t('home.features.locator.title')}</h2>
           <p className="text-sm sm:text-base text-gray-600">
             {t('home.features.locator.text')}
           </p>
         </div>
 
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-          <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">{t('home.features.history.title')}</h3>
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">{t('home.features.history.title')}</h2>
           <p className="text-sm sm:text-base text-gray-600">
             {t('home.features.history.text')}
           </p>
         </div>
 
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-          <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">{t('home.features.mobile.title')}</h3>
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">{t('home.features.mobile.title')}</h2>
           <p className="text-sm sm:text-base text-gray-600">
             {t('home.features.mobile.text')}
           </p>
@@ -100,26 +100,26 @@ export const HomePage: React.FC = () => {
 
       {/* Example Usage */}
       <div className="bg-primary-50 p-8 rounded-lg mb-12">
-        <h3 className="text-2xl font-semibold mb-4">{t('home.usage.title')}</h3>
+        <h2 className="text-2xl font-semibold mb-4">{t('home.usage.title')}</h2>
         <div className="space-y-4">
           <div className="flex items-start">
             <div className="bg-primary-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-4 mt-1">1</div>
             <div>
-              <h4 className="font-semibold">{t('home.usage.step1.title')}</h4>
+              <h3 className="font-semibold text-lg">{t('home.usage.step1.title')}</h3>
               <p className="text-gray-600">{t('home.usage.step1.text')}</p>
             </div>
           </div>
           <div className="flex items-start">
             <div className="bg-primary-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-4 mt-1">2</div>
             <div>
-              <h4 className="font-semibold">{t('home.usage.step2.title')}</h4>
+              <h3 className="font-semibold text-lg">{t('home.usage.step2.title')}</h3>
               <p className="text-gray-600">{t('home.usage.step2.text')}</p>
             </div>
           </div>
           <div className="flex items-start">
             <div className="bg-primary-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-4 mt-1">3</div>
             <div>
-              <h4 className="font-semibold">{t('home.usage.step3.title')}</h4>
+              <h3 className="font-semibold text-lg">{t('home.usage.step3.title')}</h3>
               <p className="text-gray-600">{t('home.usage.step3.text')}</p>
             </div>
           </div>
