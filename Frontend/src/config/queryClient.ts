@@ -38,8 +38,6 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: true,
       // Enable background refetching when reconnecting
       refetchOnReconnect: true,
-      // Refetch after 5 minutes of being stale
-      refetchInterval: 5 * 60 * 1000,
     },
     mutations: {
       // Retry mutations up to 2 times with custom logic

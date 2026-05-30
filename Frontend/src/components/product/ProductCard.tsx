@@ -4,7 +4,12 @@ import { Eye, Scale, ShoppingCart } from 'lucide-react';
 import { BaseCard } from '../common/BaseCard';
 import { Button } from '../ui/Button';
 import { useProductFavorite } from '../../hooks/useFavorite';
-import { useCompareActions } from '../../stores/appStore';
+import {
+  useCompareProducts,
+  useAddCompareProduct,
+  useRemoveCompareProduct,
+  useIsProductInCompare
+} from '../../stores/appStore';
 import { useCartStore } from '../../stores/cartStore';
 import type { Product } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -18,14 +23,17 @@ interface ProductCardProps {
   className?: string;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({
+export const ProductCard: React.FC<ProductCardProps> = React.memo(({
   product,
   onViewDetails,
   showPricing = true,
   className = ''
 }) => {
   const { isFavorite, toggleFavorite } = useProductFavorite(product);
-  const { products: compareProducts, addProduct: addToCompare, removeProduct: removeFromCompare, isInCompare } = useCompareActions();
+  const compareProducts = useCompareProducts();
+  const addToCompare = useAddCompareProduct();
+  const removeFromCompare = useRemoveCompareProduct();
+  const isInCompare = useIsProductInCompare();
   const addItem = useCartStore((state) => state.addItem);
   const { notifyError, notifySuccess } = useNotifications();
   const { t } = useLanguage();
@@ -176,4 +184,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       </div>
     </BaseCard>
   );
-};
+});
+
+ProductCard.displayName = 'ProductCard';

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { useShallow } from 'zustand/shallow';
 import type { Product, Store } from '../types';
 
 // App state interface
@@ -324,18 +325,18 @@ export const useAppStore = create<AppState>()(
 
 // Selector hooks for better performance
 export const useAppTheme = () => useAppStore((state) => state.theme);
-export const useSidebarState = () => useAppStore((state) => ({
+export const useSidebarState = () => useAppStore(useShallow((state) => ({
   isOpen: state.sidebarOpen,
   toggle: state.toggleSidebar,
   setOpen: state.setSidebarOpen
-}));
-export const useUserLocation = () => useAppStore((state) => ({
+})));
+export const useUserLocation = () => useAppStore(useShallow((state) => ({
   location: state.defaultLocation,
   setLocation: state.setDefaultLocation,
   searchRadius: state.searchRadius,
   setSearchRadius: state.setSearchRadius
-}));
-export const useUserPreferences = () => useAppStore((state) => ({
+})));
+export const useUserPreferences = () => useAppStore(useShallow((state) => ({
   preferredChains: state.preferredChains,
   addChain: state.addPreferredChain,
   removeChain: state.removePreferredChain,
@@ -346,7 +347,7 @@ export const useUserPreferences = () => useAppStore((state) => ({
   setLanguage: state.setLanguage,
   optimizationMode: state.optimizationMode,
   setOptimizationMode: state.setOptimizationMode,
-}));
+})));
 // Individual selectors to avoid object creation on each render
 export const useFavoriteProducts = () => useAppStore((state) => state.favoriteProducts);
 export const useFavoriteStores = () => useAppStore((state) => state.favoriteStores);
@@ -399,21 +400,21 @@ export const useFavorites = () => {
     ...actions
   };
 };
-export const useSearchHistory = () => useAppStore((state) => ({
+export const useSearchHistory = () => useAppStore(useShallow((state) => ({
   history: state.searchHistory,
   addProductSearch: state.addProductSearch,
   addStoreSearch: state.addStoreSearch,
   clearAll: state.clearSearchHistory,
   clearProducts: state.clearProductSearchHistory,
   clearStores: state.clearStoreSearchHistory
-}));
-export const useRecentlyViewed = () => useAppStore((state) => ({
+})));
+export const useRecentlyViewed = () => useAppStore(useShallow((state) => ({
   products: state.recentlyViewedProducts,
   stores: state.recentlyViewedStores,
   addProduct: state.addRecentlyViewedProduct,
   addStore: state.addRecentlyViewedStore,
   clear: state.clearRecentlyViewed
-}));
+})));
 
 // Compare products selectors
 export const useCompareProducts = () => useAppStore((state) => state.compareProducts);

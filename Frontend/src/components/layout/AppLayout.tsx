@@ -1,11 +1,12 @@
 // Main application layout component
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Header } from './Header';
 import { Navigation } from './Navigation';
 import { Footer } from './Footer';
 import { Breadcrumb } from '../ui/Breadcrumb';
 import { OfflineIndicator } from '../common/OfflineIndicator';
+import { LoadingSpinner } from '../common/LoadingSpinner';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -27,7 +28,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             <Breadcrumb />
           </div>
         )}
-        {children}
+        <Suspense fallback={
+          <div className="flex h-64 items-center justify-center">
+            <LoadingSpinner size="lg" />
+          </div>
+        }>
+          {children}
+        </Suspense>
       </main>
       <Footer />
     </div>

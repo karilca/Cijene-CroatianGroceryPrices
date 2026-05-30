@@ -87,7 +87,15 @@ const router = createBrowserRouter([
   },
   {
     path: "/auth",
-    element: <AuthPage />,
+    element: (
+      <Suspense fallback={
+        <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
+          <LoadingSpinner size="lg" />
+        </div>
+      }>
+        <AuthPage />
+      </Suspense>
+    ),
   },
   {
     path: "*",
@@ -97,12 +105,6 @@ const router = createBrowserRouter([
 
 export function AppRouter() {
   return (
-    <Suspense fallback={
-      <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
-        <LoadingSpinner size="lg" />
-      </div>
-    }>
-      <RouterProvider router={router} />
-    </Suspense>
+    <RouterProvider router={router} />
   );
 }
