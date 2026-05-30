@@ -2,7 +2,7 @@ import React from 'react';
 import { Heart, Package, Barcode, MapPin, TrendingDown, TrendingUp, Star, ChevronLeft, ShoppingCart } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { LoadingSpinner } from '../common/LoadingSpinner';
+import { TextBlockSkeleton } from '../common';
 import { ErrorMessage } from '../common/ErrorMessage';
 import { resolveApiErrorMessage } from '../../utils/apiErrors';
 import { useProductFavorite } from '../../hooks/useFavorite';
@@ -301,9 +301,8 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
         </div>
 
         {pricesLoading && (
-          <div className="flex items-center justify-center py-8">
-            <LoadingSpinner size="lg" />
-            <span className="ml-3 text-gray-600">{t('productDetails.loadingPrices')}</span>
+          <div className="py-6 space-y-4">
+            <TextBlockSkeleton lines={5} />
           </div>
         )}
 

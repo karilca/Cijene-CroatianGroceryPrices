@@ -349,12 +349,12 @@ export const StoreSearch: React.FC<StoreSearchProps> = ({ onSearch, className = 
             onChange={(e) => setRadius(Number(e.target.value))}
             className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           >
-            <option value={1000}>1 km</option>
-            <option value={2000}>2 km</option>
-            <option value={5000}>5 km</option>
-            <option value={10000}>10 km</option>
-            <option value={25000}>25 km</option>
-            <option value={50000}>50 km</option>
+            <option value={1000}>{t('storeSearch.radius.1km')}</option>
+            <option value={2000}>{t('storeSearch.radius.2km')}</option>
+            <option value={5000}>{t('storeSearch.radius.5km')}</option>
+            <option value={10000}>{t('storeSearch.radius.10km')}</option>
+            <option value={25000}>{t('storeSearch.radius.25km')}</option>
+            <option value={50000}>{t('storeSearch.radius.50km')}</option>
           </select>
         </div>
 

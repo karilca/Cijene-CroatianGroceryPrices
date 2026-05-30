@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Scale, Trash2, Package, Barcode, AlertCircle, Plus } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { TextBlockSkeleton } from '../components/common';
 import { useCompareActions } from '../stores/appStore';
 import { useProductPrices } from '../hooks/useApiQueries';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -237,9 +237,8 @@ const ProductCompareCard: React.FC<ProductCompareCardProps> = ({ product, onRemo
           <h4 className="font-medium text-gray-700 mb-3">{t('compare.priceInfo')}</h4>
 
           {pricesLoading && (
-            <div className="flex items-center gap-2 text-gray-500">
-              <LoadingSpinner size="sm" />
-              <span className="text-sm">{t('common.loading')}</span>
+            <div className="py-2">
+              <TextBlockSkeleton lines={3} />
             </div>
           )}
 

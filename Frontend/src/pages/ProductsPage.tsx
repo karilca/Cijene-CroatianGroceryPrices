@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ProductSearch, ProductCard, ProductDetails } from '../components/product';
 import { CompareBar } from '../components/product/CompareBar';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorMessage } from '../components/common/ErrorMessage';
+import { LoadingGridSkeleton, ProductCardSkeleton } from '../components/common';
 import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 import { useProductSearch } from '../hooks/useApiQueries';
@@ -133,10 +133,7 @@ export const ProductsPage: React.FC = () => {
           </div>
 
           {searchLoading && (
-            <div className="flex items-center justify-center py-12">
-              <LoadingSpinner size="lg" />
-              <span className="ml-3 text-gray-600">{t('products.searching')}</span>
-            </div>
+            <LoadingGridSkeleton Component={ProductCardSkeleton} count={8} />
           )}
 
           {searchError && (

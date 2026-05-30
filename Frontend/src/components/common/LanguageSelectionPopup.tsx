@@ -46,7 +46,7 @@ export const LanguageSelectionPopup: React.FC = () => {
                         {t('popup.title')}
                     </h2>
                     <p className="text-gray-500 mb-8">
-                        Please select your preferred language
+                        {t('popup.subtitle')}
                     </p>
 
                     <div className="space-y-3">
@@ -55,7 +55,7 @@ export const LanguageSelectionPopup: React.FC = () => {
                             className="w-full py-3.5 px-4 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-primary-500/30 flex items-center justify-center gap-2 group"
                         >
                             <span>{t('popup.english')}</span>
-                            <span className="text-red-100 text-sm font-normal group-hover:text-white transition-colors">(Default)</span>
+                            <span className="text-red-100 text-sm font-normal group-hover:text-white transition-colors">{t('popup.default')}</span>
                         </button>
 
                         <button
@@ -68,7 +68,7 @@ export const LanguageSelectionPopup: React.FC = () => {
                 </div>
 
                 <div className="bg-gray-50 px-8 py-4 text-center text-xs text-gray-600">
-                    This setting will be saved for your next visit
+                    {t('popup.hint')}
                 </div>
             </div>
         </div>, document.body

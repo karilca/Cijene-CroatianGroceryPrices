@@ -6,7 +6,7 @@ import { useSearchParams } from 'react-router-dom';
 import { StoreSearch } from '../components/store/StoreSearch';
 import { StoreCard } from '../components/store/StoreCard';
 import { StoreDetails } from '../components/store/StoreDetails';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { LoadingGridSkeleton, StoreCardSkeleton } from '../components/common';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { useStoreSearch } from '../hooks/useApiQueries';
 import { useGeolocation } from '../hooks/useGeolocation';
@@ -193,9 +193,8 @@ export const StoresPage: React.FC = () => {
 
           {/* Loading State */}
           {isLoading && (
-            <div className="p-12 text-center">
-              <LoadingSpinner size="lg" />
-              <p className="text-gray-600 mt-4">{t('stores.searching')}</p>
+            <div className="p-6">
+              <LoadingGridSkeleton Component={StoreCardSkeleton} count={6} />
             </div>
           )}
 

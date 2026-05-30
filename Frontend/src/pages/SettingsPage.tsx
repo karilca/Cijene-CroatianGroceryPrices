@@ -165,12 +165,12 @@ export const SettingsPage = () => {
             className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-colors"
           />
 
-          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-4">Connection ID (Firebase)</label>
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-4">{t('settings.connectionId')}</label>
           <input
             type="text"
             value={connectionId}
             onChange={(event) => setConnectionId(event.target.value)}
-            placeholder="Unesite Connection ID..."
+            placeholder={t('settings.connectionIdPlaceholder')}
             maxLength={255}
             className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-colors"
           />

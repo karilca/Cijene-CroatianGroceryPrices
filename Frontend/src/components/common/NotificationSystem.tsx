@@ -1,6 +1,7 @@
 // Global notification system for errors and messages
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { NOTIFICATION_DURATION } from '../../constants';
 import { NotificationContext, useNotifications } from './NotificationContext';
 import type { Notification } from './NotificationContext';
@@ -111,6 +112,7 @@ interface NotificationCardProps {
 }
 
 const NotificationCard: React.FC<NotificationCardProps> = ({ notification, onClose }) => {
+  const { t } = useLanguage();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -206,7 +208,7 @@ const NotificationCard: React.FC<NotificationCardProps> = ({ notification, onClo
               onClick={handleClose}
               className="rounded-md inline-flex text-gray-400 hover:text-gray-600 focus:outline-none"
             >
-              <span className="sr-only">Close</span>
+              <span className="sr-only">{t('auth.close')}</span>
               <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>

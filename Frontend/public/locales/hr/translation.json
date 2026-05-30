@@ -584,5 +584,21 @@
   "scanner.title": "Skeniraj barkod",
   "scanner.hint": "Poravnajte barkod unutar okvira za automatsko skeniranje",
   "scanner.error.camera": "Pristup kameri odbijen ili nije dostupan.",
-  "scanner.error.torch": "Neuspjelo upravljanje bljeskalicom"
+  "scanner.error.torch": "Neuspjelo upravljanje bljeskalicom",
+  "popup.subtitle": "Molimo odaberite željeni jezik",
+  "popup.default": "(Zadano)",
+  "popup.hint": "Ova postavka bit će spremljena za vaš sljedeći posjet",
+  "common.failedToLoad": "Neuspjelo učitavanje",
+  "nav.openMenu": "Otvori glavni izbornik",
+  "storeSearch.radius.1km": "1 km",
+  "storeSearch.radius.2km": "2 km",
+  "storeSearch.radius.5km": "5 km",
+  "storeSearch.radius.10km": "10 km",
+  "storeSearch.radius.25km": "25 km",
+  "storeSearch.radius.50km": "50 km",
+  "contact.company.name": "Cijene d.o.o.",
+  "contact.company.address": "Savska cesta 32",
+  "contact.company.city": "10000 Zagreb, Hrvatska",
+  "settings.connectionId": "Connection ID (Firebase)",
+  "settings.connectionIdPlaceholder": "Unesite Connection ID..."
 }

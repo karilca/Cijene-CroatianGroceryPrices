@@ -50,7 +50,7 @@ export const Navigation: React.FC = () => {
             className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-primary-600 hover:bg-gray-100 focus:outline-none"
             aria-expanded={isMobileMenuOpen}
           >
-            <span className="sr-only">Open main menu</span>
+            <span className="sr-only">{t('nav.openMenu')}</span>
             {!isMobileMenuOpen ? (
               <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />

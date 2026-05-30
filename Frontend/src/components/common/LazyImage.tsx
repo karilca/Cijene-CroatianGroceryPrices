@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface LazyImageProps {
   src: string;
@@ -21,6 +22,7 @@ export const LazyImage: React.FC<LazyImageProps> = ({
   onLoad,
   onError,
 }) => {
+  const { t } = useLanguage();
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInView, setIsInView] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -103,7 +105,7 @@ export const LazyImage: React.FC<LazyImageProps> = ({
                 d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            <span className="text-xs">Failed to load</span>
+            <span className="text-xs">{t('common.failedToLoad')}</span>
           </div>
         </div>
       )}

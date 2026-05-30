@@ -178,7 +178,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
         <button
           onClick={() => setShowScanner(true)}
           className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 text-gray-500 hover:text-primary-600 hover:bg-gray-100 rounded-md transition-colors"
-          title="Scan Barcode"
+          title={t('scanner.title')}
           type="button"
         >
           <Camera className="h-5 w-5" />

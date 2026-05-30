@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { ChainCard } from './ChainCard';
 import { ChainSearch } from './ChainSearch';
-import { LoadingSpinner } from '../common/LoadingSpinner';
+import { LoadingGridSkeleton, ChainCardSkeleton } from '../common';
 import { ErrorMessage } from '../common/ErrorMessage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { Chain } from '../../types';
@@ -36,11 +36,12 @@ export const ChainList: React.FC<ChainListProps> = ({
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-8">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="text-gray-600 mt-4">{t('chainList.loadingChains')}</p>
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">{t('chainList.title')}</h2>
+          <p className="text-gray-600 mt-1">{t('chainList.loadingChains')}</p>
         </div>
+        <LoadingGridSkeleton Component={ChainCardSkeleton} count={3} />
       </div>
     );
   }

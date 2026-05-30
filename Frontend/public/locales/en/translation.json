@@ -584,5 +584,21 @@
   "scanner.title": "Scan Barcode",
   "scanner.hint": "Align barcode within the frame to scan automatically",
   "scanner.error.camera": "Camera access denied or not available.",
-  "scanner.error.torch": "Failed to toggle flashlight"
+  "scanner.error.torch": "Failed to toggle flashlight",
+  "popup.subtitle": "Please select your preferred language",
+  "popup.default": "(Default)",
+  "popup.hint": "This setting will be saved for your next visit",
+  "common.failedToLoad": "Failed to load",
+  "nav.openMenu": "Open main menu",
+  "storeSearch.radius.1km": "1 km",
+  "storeSearch.radius.2km": "2 km",
+  "storeSearch.radius.5km": "5 km",
+  "storeSearch.radius.10km": "10 km",
+  "storeSearch.radius.25km": "25 km",
+  "storeSearch.radius.50km": "50 km",
+  "contact.company.name": "Cijene d.o.o.",
+  "contact.company.address": "Savska cesta 32",
+  "contact.company.city": "10000 Zagreb, Croatia",
+  "settings.connectionId": "Connection ID (Firebase)",
+  "settings.connectionIdPlaceholder": "Enter Connection ID..."
 }

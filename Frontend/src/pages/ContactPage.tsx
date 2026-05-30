@@ -29,7 +29,7 @@ export const ContactPage: React.FC = () => {
         <div>
           <h2 className="text-xl font-semibold mb-2">{t('contact.company.title')}</h2>
           <p>
-            Cijene d.o.o.<br />Savska cesta 32<br />10000 Zagreb, Croatia
+            {t('contact.company.name')}<br />{t('contact.company.address')}<br />{t('contact.company.city')}
           </p>
         </div>
       </section>

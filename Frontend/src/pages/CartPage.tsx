@@ -7,6 +7,7 @@ import { useCartStore } from '../stores/cartStore';
 import { useAppStore } from '../stores/appStore';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorMessage } from '../components/common/ErrorMessage';
+import { LoadingGridSkeleton, ProductCardSkeleton } from '../components/common';
 import { useNotifications } from '../components/common/NotificationContext';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Button } from '../components/ui/Button';
@@ -215,9 +216,9 @@ export const CartPage = () => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-12">
-                <LoadingSpinner size="lg" />
-                <span className="ml-3 text-gray-600">{t('cart.loading')}</span>
+            <div className="max-w-6xl mx-auto space-y-8">
+                <h1 className="text-3xl font-bold mb-8">{t('cart.title')}</h1>
+                <LoadingGridSkeleton Component={ProductCardSkeleton} count={4} />
             </div>
         );
     }
