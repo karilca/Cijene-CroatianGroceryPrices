@@ -26,7 +26,7 @@ class LidlCrawler(BaseCrawler):
     STORE_WORKERS = 4
     TIMEOUT = 180.0  # Longer timeout for ZIP download
     ZIP_DATE_PATTERN = re.compile(
-        r".*/Popis_cijena_po_trgovinama_na_dan_(\d{1,2})[._](\d{1,2})[._](\d{4})\.zip"
+        r".*/Popis_cijena_po_trgovinama_na_dan_(\d{1,2})[._](\d{1,2})[._](\d{3,4})\.zip"
     )
 
     ANCHOR_PRICE_COLUMN = "Sidrena_cijena_na_02.05.2025"
@@ -114,6 +114,38 @@ class LidlCrawler(BaseCrawler):
             row[self.ANCHOR_PRICE_COLUMN] = None
 
         return super().parse_csv_row(row)
+
+    def parse_index_for_zip(self, html_content: str) -> dict[datetime.date, str]:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html_content, "html.parser")
+        zip_urls_by_date = {}
+
+        links = soup.select('a[href$=".zip"]')
+        for link in links:
+            url = str(link["href"])
+
+            m = self.ZIP_DATE_PATTERN.match(url)
+            if not m:
+                continue
+
+            day, month, year_str = m.groups()
+            
+            # Handle typo in year (e.g. "202" instead of "2026")
+            if len(year_str) == 3:
+                if year_str == "202":
+                    year = 2026
+                else:
+                    year = int(year_str + "6")
+            else:
+                year = int(year_str)
+
+            try:
+                url_date = datetime.date(year, int(month), int(day))
+                zip_urls_by_date[url_date] = url
+            except ValueError as err:
+                logger.warning("Failed to parse date from Lidl ZIP link %s: %s", url, err)
+
+        return zip_urls_by_date
 
     def get_index(self, date: datetime.date) -> str:
         content = self.fetch_text(self.INDEX_URL)

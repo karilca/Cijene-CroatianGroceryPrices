@@ -147,14 +147,33 @@ class KauflandCrawler(BaseCrawler):
             normalized_url = re.sub(r"\s+", "", url)
 
             if (
-                date_str not in normalized_label
-                and date_str2 not in normalized_label
-                and date_str not in normalized_url
-                and date_str2 not in normalized_url
+                date_str in normalized_label
+                or date_str2 in normalized_label
+                or date_str in normalized_url
+                or date_str2 in normalized_url
             ):
-                continue
+                urls[label] = f"{self.BASE_URL}{url.replace(' ', '%20')}"
 
-            urls[label] = f"{self.BASE_URL}{url.replace(' ', '%20')}"
+        # Typo Fallback for 31.05.2026 (they copy-pasted files from March 31st: 31032026)
+        if not urls and date == datetime.date(2026, 5, 31):
+            logger.warning("No Kaufland URLs found for 2026-05-31. Falling back to copy-paste typo of 31-03-2026 (March 31st)...")
+            typo_date = datetime.date(2026, 3, 31)
+            typo_str = typo_date.strftime("_%d_%m_%Y_")
+            typo_str2 = typo_date.strftime("_%d%m%Y_")
+            for item in json_data:
+                label = item.get("label")
+                url = item.get("path")
+                if not label or not url:
+                    continue
+                normalized_label = re.sub(r"\s+", "", label)
+                normalized_url = re.sub(r"\s+", "", url)
+                if (
+                    typo_str in normalized_label
+                    or typo_str2 in normalized_label
+                    or typo_str in normalized_url
+                    or typo_str2 in normalized_url
+                ):
+                    urls[label] = f"{self.BASE_URL}{url.replace(' ', '%20')}"
 
         return urls
 
