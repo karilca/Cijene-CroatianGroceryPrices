@@ -43,11 +43,21 @@ export const AuthModal = ({
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [isAnimateIn, setIsAnimateIn] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => setIsAnimateIn(true), 20);
+      return () => clearTimeout(timer);
+    } else {
+      setIsAnimateIn(false);
+    }
+  }, [isOpen]);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
@@ -163,7 +173,9 @@ export const AuthModal = ({
 
   return createPortal(
     <div
-      className="app-modal-overlay bg-black/30"
+      className={`app-modal-overlay transition-all duration-300 ${
+        isAnimateIn ? 'bg-black/35 backdrop-blur-[4px]' : 'bg-black/0 backdrop-blur-none'
+      }`}
       style={{ zIndex: 9999 }}
       onClick={closeOnOverlayClick ? onClose : undefined}
       aria-hidden={false}
@@ -175,7 +187,9 @@ export const AuthModal = ({
         aria-label={mode === 'signup' ? t('auth.signup') : t('auth.signin')}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={handlePanelKeyDown}
-        className="w-full max-w-md rounded-xl border border-gray-100 bg-white shadow-2xl overflow-hidden"
+        className={`w-full max-w-md rounded-xl border border-gray-100 bg-white shadow-2xl overflow-hidden
+          transition-all duration-300 transform
+          ${isAnimateIn ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-4'}`}
       >
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
           <h2 className="text-base font-semibold text-gray-900">

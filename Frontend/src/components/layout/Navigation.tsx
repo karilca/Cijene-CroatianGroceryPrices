@@ -64,26 +64,28 @@ export const Navigation: React.FC = () => {
         </div>
 
         {/* Mobile Menu Content */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1 bg-white border-t shadow-lg">
-              {navLinks.map((link) => (
-                <NavLink
-                  key={link.to}
-                  to={link.to as string}
-                  className={({ isActive }) =>
-                    `block px-3 py-2 rounded-md text-base font-medium transition-colors ${
-                      isActive ? 'text-primary-600 bg-primary-50' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50'
-                    }`
-                  }
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <span>{link.label}</span>
-                </NavLink>
-              ))}
-            </div>
+        <div 
+          className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+            isMobileMenuOpen ? 'max-h-96 opacity-100 border-t shadow-lg' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <div className="px-2 pt-2 pb-3 space-y-1 bg-white">
+            {navLinks.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to as string}
+                className={({ isActive }) =>
+                  `block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                    isActive ? 'text-primary-600 bg-primary-50' : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50'
+                  }`
+                }
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <span>{link.label}</span>
+              </NavLink>
+            ))}
           </div>
-        )}
+        </div>
       </div>
     </nav>
   );

@@ -46,6 +46,9 @@ export const CartPage = () => {
     const { user } = useAuth();
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
+    const [exitingItemId, setExitingItemId] = useState<string | null>(null);
+    const [loaderStep, setLoaderStep] = useState(0);
+
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
     const [isRemoving, setIsRemoving] = useState(false);
     const [updatingQuantityId, setUpdatingQuantityId] = useState<string | null>(null);
@@ -107,6 +110,29 @@ export const CartPage = () => {
         });
 
         setLastOptimizationFeedback(null);
+    };
+
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isOptimizing) {
+            setLoaderStep(0);
+            interval = setInterval(() => {
+                setLoaderStep((prev) => (prev + 1) % 4);
+            }, 1000);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [isOptimizing]);
+
+    const getOptimizingMessage = () => {
+        const stepsHr = [
+            t('cart.optimizing.step1') || "Analiziramo cijene u Konzum, Lidl i Plodine poslovnicama...",
+            t('cart.optimizing.step2') || "Uspoređujemo robne marke s premium artiklima...",
+            t('cart.optimizing.step3') || "Računamo najkraću geografsku rutu između trgovina...",
+            t('cart.optimizing.step4') || "Slažemo tvoju najjeftiniju košaricu..."
+        ];
+        return stepsHr[loaderStep];
     };
 
     const handleIncrement = async (productId: string) => {
@@ -176,6 +202,11 @@ export const CartPage = () => {
 
         try {
             setIsRemoving(true);
+            setExitingItemId(pendingDeleteId);
+            
+            // Odgoda brisanja iz statea kako bi se animacija stigla odvrtjeti
+            await new Promise((resolve) => setTimeout(resolve, 450));
+            
             await removeItem(pendingDeleteId);
             notifySuccess(t('cart.itemRemoved'));
         } catch {
@@ -183,6 +214,7 @@ export const CartPage = () => {
         } finally {
             setIsRemoving(false);
             setPendingDeleteId(null);
+            setExitingItemId(null);
         }
     };
 
@@ -262,9 +294,11 @@ export const CartPage = () => {
                     </div>
 
                     {isOptimizing && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <LoadingSpinner size="sm" />
-                            <span>{t('cart.optimizing')}</span>
+                        <div className="flex flex-col items-center justify-center p-6 bg-white rounded-xl border border-primary-100 shadow-sm animate-pulse w-full max-w-md mx-auto my-4">
+                            <LoadingSpinner size="lg" className="text-primary-600 mb-3" />
+                            <p className="text-sm font-semibold text-gray-900 text-center transition-all duration-300">
+                                {getOptimizingMessage()}
+                            </p>
                         </div>
                     )}
 
@@ -447,19 +481,26 @@ export const CartPage = () => {
                         const deleteId = item.ean || item.product_id;
                         const quantity = Number(item.cart_quantity || item.quantity || 1);
                         const isQuantityUpdating = updatingQuantityId === deleteId;
+                        const isExiting = exitingItemId === deleteId;
                         
                         return (
-                            <CartProductCard
+                            <div
                                 key={key}
-                                item={item}
-                                quantity={quantity}
-                                canEditQuantity={Boolean(deleteId) && !isQuantityUpdating}
-                                canDelete={Boolean(deleteId)}
-                                onDecrement={() => deleteId && void handleDecrement(deleteId)}
-                                onIncrement={() => deleteId && void handleIncrement(deleteId)}
-                                onDelete={() => deleteId && handleDelete(deleteId)}
-                                className="h-full"
-                            />
+                                className={`transition-all duration-300 ${
+                                    isExiting ? 'card-exit-active' : ''
+                                }`}
+                            >
+                                <CartProductCard
+                                    item={item}
+                                    quantity={quantity}
+                                    canEditQuantity={Boolean(deleteId) && !isQuantityUpdating}
+                                    canDelete={Boolean(deleteId)}
+                                    onDecrement={() => deleteId && void handleDecrement(deleteId)}
+                                    onIncrement={() => deleteId && void handleIncrement(deleteId)}
+                                    onDelete={() => deleteId && handleDelete(deleteId)}
+                                    className="h-full"
+                                />
+                            </div>
                         );
                     })}
                 </div>

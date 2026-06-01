@@ -24,17 +24,36 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   isLoading = false,
 }) => {
   const [mounted, setMounted] = useState(false);
+  const [isAnimateIn, setIsAnimateIn] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
 
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => setIsAnimateIn(true), 20);
+      return () => clearTimeout(timer);
+    } else {
+      setIsAnimateIn(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen || !mounted) return null;
 
   return createPortal(
-    <div className="app-modal-overlay bg-black/20" style={{ zIndex: 9999 }}>
-      <div className="w-full max-w-md rounded-xl border border-gray-100 bg-white shadow-2xl overflow-hidden">
+    <div
+      className={`app-modal-overlay transition-all duration-300 ${
+        isAnimateIn ? 'bg-black/35 backdrop-blur-[4px]' : 'bg-black/0 backdrop-blur-none'
+      }`}
+      style={{ zIndex: 9999 }}
+    >
+      <div
+        className={`w-full max-w-md rounded-xl border border-gray-100 bg-white shadow-2xl overflow-hidden
+          transition-all duration-300 transform
+          ${isAnimateIn ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-4'}`}
+      >
         <div className="p-6">
           <h2 className="text-lg font-bold text-gray-900">{title}</h2>
           <p className="mt-2 text-sm text-gray-600">{message}</p>

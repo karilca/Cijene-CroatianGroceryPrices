@@ -1,6 +1,6 @@
 // Base card component with common functionality
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Heart } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -35,6 +35,7 @@ export const BaseCard: React.FC<BaseCardProps> = ({
   actionsPosition = 'bottom'
 }) => {
   const { t } = useLanguage();
+  const [animateHeart, setAnimateHeart] = useState(false);
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't trigger card click if clicking on favorite or action buttons
@@ -46,6 +47,8 @@ export const BaseCard: React.FC<BaseCardProps> = ({
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setAnimateHeart(true);
+    setTimeout(() => setAnimateHeart(false), 450);
     onFavoriteToggle?.(e);
   };
 
@@ -64,9 +67,9 @@ export const BaseCard: React.FC<BaseCardProps> = ({
       aria-label={isFavorite ? t('favoritesList.removeFromFavorites') : t('favoritesList.addToFavorites')}
     >
       <Heart
-        className={`h-4 w-4 ${
+        className={`h-4 w-4 transition-transform ${
           isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400'
-        }`}
+        } ${animateHeart ? 'heart-pop-active' : ''}`}
       />
     </button>
   );

@@ -17,7 +17,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
 }) => {
   return (
     <div
-      className={`animate-pulse bg-gray-200 ${width} ${height} ${
+      className={`shimmer-skeleton ${width} ${height} ${
         rounded ? 'rounded-full' : 'rounded'
       } ${className}`}
     />
