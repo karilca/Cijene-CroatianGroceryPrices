@@ -27,8 +27,8 @@ export const Navigation: React.FC = () => {
   ];
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `text-gray-700 hover:text-primary-600 font-medium transition-colors ${
-      isActive ? 'text-primary-600 border-b-2 border-primary-600' : ''
+    `flex items-center h-full text-gray-700 hover:text-primary-600 font-medium transition-colors border-b-2 ${
+      isActive ? 'text-primary-600 border-primary-600' : 'border-transparent'
     }`;
 
   return (

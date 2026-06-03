@@ -22,10 +22,10 @@ export const StoresPage: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
 
   // Get user location for distance calculations
-  const { position } = useGeolocation();
+  const { position } = useGeolocation({ requestOnMount: true });
   const [urlSearchParams, setUrlSearchParams] = useSearchParams();
 
-  // Initialize from URL params
+  // Initialize from URL params or location
   React.useEffect(() => {
     const query = urlSearchParams.get('q');
     const cityParam = urlSearchParams.get('city');
@@ -35,8 +35,14 @@ export const StoresPage: React.FC = () => {
         query: query || undefined,
         city: cityParam || undefined
       });
+    } else if (position) {
+      setSearchParams({
+        latitude: position.latitude,
+        longitude: position.longitude,
+        radius: 5000 // default 5km
+      });
     }
-  }, [urlSearchParams]);
+  }, [urlSearchParams, position]);
 
   // Store search query
   const {

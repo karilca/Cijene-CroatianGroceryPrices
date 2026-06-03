@@ -46,7 +46,7 @@ export const CartPage = () => {
     const { user } = useAuth();
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-    const [exitingItemId, setExitingItemId] = useState<string | null>(null);
+
     const [loaderStep, setLoaderStep] = useState(0);
 
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -202,11 +202,6 @@ export const CartPage = () => {
 
         try {
             setIsRemoving(true);
-            setExitingItemId(pendingDeleteId);
-            
-            // Odgoda brisanja iz statea kako bi se animacija stigla odvrtjeti
-            await new Promise((resolve) => setTimeout(resolve, 450));
-            
             await removeItem(pendingDeleteId);
             notifySuccess(t('cart.itemRemoved'));
         } catch {
@@ -214,7 +209,6 @@ export const CartPage = () => {
         } finally {
             setIsRemoving(false);
             setPendingDeleteId(null);
-            setExitingItemId(null);
         }
     };
 
@@ -481,14 +475,11 @@ export const CartPage = () => {
                         const deleteId = item.ean || item.product_id;
                         const quantity = Number(item.cart_quantity || item.quantity || 1);
                         const isQuantityUpdating = updatingQuantityId === deleteId;
-                        const isExiting = exitingItemId === deleteId;
                         
                         return (
                             <div
                                 key={key}
-                                className={`transition-all duration-300 ${
-                                    isExiting ? 'card-exit-active' : ''
-                                }`}
+                                className="transition-all duration-300"
                             >
                                 <CartProductCard
                                     item={item}

@@ -261,7 +261,7 @@ const AdminDashboard: React.FC = () => {
                 <th className="px-4 py-3">{t('auth.email')}</th>
                 <th className="px-4 py-3">{t('admin.role')}</th>
                 <th className="px-4 py-3">{t('admin.accountStatus')}</th>
-                <th className="px-4 py-3">{t('admin.role')}</th>
+                <th className="px-4 py-3">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">

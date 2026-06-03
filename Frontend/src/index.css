@@ -37,13 +37,12 @@
   @keyframes heart-pop {
     0% { transform: scale(1); }
     15% { transform: scale(0.8); }
-    50% { transform: scale(1.35); }
-    70% { transform: scale(0.9); }
+    50% { transform: scale(1.25); }
     100% { transform: scale(1); }
   }
 
   .heart-pop-active {
-    animation: heart-pop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    animation: heart-pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
   }
 
   /* 2. Shimmer Skeleton tekuće učitavanje */
@@ -63,28 +62,15 @@
     0% {
       opacity: 1;
       transform: scale(1);
-      max-height: 350px;
-    }
-    40% {
-      opacity: 0;
-      transform: scale(0.95);
-      max-height: 350px;
     }
     100% {
       opacity: 0;
       transform: scale(0.9);
-      max-height: 0;
-      padding-top: 0;
-      padding-bottom: 0;
-      margin-top: 0;
-      margin-bottom: 0;
-      border-width: 0;
-      overflow: hidden;
     }
   }
 
   .card-exit-active {
-    animation: card-fade-out 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: card-fade-out 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 }
 

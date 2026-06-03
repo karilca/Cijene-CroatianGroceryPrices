@@ -77,6 +77,7 @@ export const BaseCard: React.FC<BaseCardProps> = ({
   return (
     <Card 
       className={cardClasses}
+      padding="none"
       onClick={variant === 'interactive' ? handleCardClick : undefined}
       onContextMenu={onLongPress ? (e) => { e.preventDefault(); onLongPress(); } : undefined}
     >

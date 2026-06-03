@@ -92,7 +92,7 @@ export const ArchivesPage: React.FC = () => {
       try {
         handleDownload(archive);
         // Small delay between downloads
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch (err) {
         console.error(`Failed to download archive ${archive.date}:`, err);
       }

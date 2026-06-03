@@ -62,7 +62,9 @@ export const StoreCard: React.FC<StoreCardProps> = ({
     }
   };
 
-  const cardActions = (
+  const hasActions = Boolean(store.latitude && store.longitude) || Boolean(store.phone);
+
+  const cardActions = hasActions ? (
     <>
       {store.latitude && store.longitude && (
         <Button
@@ -87,7 +89,7 @@ export const StoreCard: React.FC<StoreCardProps> = ({
         </Button>
       )}
     </>
-  );
+  ) : undefined;
 
   return (
     <BaseCard
