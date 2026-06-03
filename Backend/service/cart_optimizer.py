@@ -354,9 +354,11 @@ def _prune_dominated_stores(
     price_matrix: dict[str, dict[str, float]],
     stores_by_id: dict[str, StoreMeta],
 ) -> list[str]:
+    # Sort store_ids by distance so we can prune using early break
+    sorted_store_ids = sorted(store_ids, key=lambda sid: stores_by_id[sid].distance_km)
     dominated: set[str] = set()
 
-    for store_a in store_ids:
+    for store_a in sorted_store_ids:
         if store_a in dominated:
             continue
 
@@ -367,14 +369,18 @@ def _prune_dominated_stores(
             dominated.add(store_a)
             continue
 
-        for store_b in store_ids:
-            if store_a == store_b or store_b in dominated:
+        distance_a = stores_by_id[store_a].distance_km
+        for store_b in sorted_store_ids:
+            if store_a == store_b:
+                continue
+            if store_b in dominated:
                 continue
 
-            distance_a = stores_by_id[store_a].distance_km
             distance_b = stores_by_id[store_b].distance_km
             if distance_b > distance_a + EPSILON:
-                continue
+                # Since sorted_store_ids is sorted by distance_km, all subsequent stores
+                # will also have distance_b > distance_a + EPSILON.
+                break
 
             dominated_for_all_products = True
             for product_id in products_for_a:
@@ -399,53 +405,107 @@ def _enumerate_candidates(
     price_matrix: dict[str, dict[str, float]],
     max_stores: int,
 ) -> list[CandidateSolution]:
-    deduplicated: dict[tuple[tuple[str, str], ...], CandidateSolution] = {}
-    max_subset_size = min(max_stores, len(store_ids))
+    # Sort store_ids by their store name key to eliminate tie-breaker logic
+    sorted_store_ids = sorted(store_ids, key=lambda sid: _store_name_key(stores_by_id[sid]))
 
-    for subset_size in range(1, max_subset_size + 1):
-        for subset in combinations(store_ids, subset_size):
-            assignment: dict[str, str] = {}
-            unit_prices: dict[str, float] = {}
-            visited_stores: set[str] = set()
-            total_cost = 0.0
-            feasible = True
+    # Identify mandatory stores: stores that are the only option for some product
+    mandatory_stores = set()
+    for item in cart_items:
+        stocking_stores = [sid for sid in sorted_store_ids if sid in price_matrix.get(item.product_id, {})]
+        if len(stocking_stores) == 1:
+            mandatory_stores.add(stocking_stores[0])
 
-            for cart_item in cart_items:
-                product_prices = price_matrix.get(cart_item.product_id, {})
-                best_store_id: str | None = None
-                best_unit_price = float("inf")
+    num_mandatory = len(mandatory_stores)
+    if num_mandatory > max_stores:
+        return []
 
-                for store_id in subset:
-                    current_price = product_prices.get(store_id)
-                    if current_price is None:
-                        continue
+    non_mandatory_stores = [sid for sid in sorted_store_ids if sid not in mandatory_stores]
 
-                    if current_price < best_unit_price - EPSILON:
-                        best_unit_price = current_price
-                        best_store_id = store_id
-                    elif abs(current_price - best_unit_price) <= EPSILON and best_store_id is not None:
-                        if _store_name_key(stores_by_id[store_id]) < _store_name_key(stores_by_id[best_store_id]):
-                            best_store_id = store_id
+    # Precompute store masks for bitmask set cover check
+    num_products = len(cart_items)
+    product_to_bit = {item.product_id: (1 << idx) for idx, item in enumerate(cart_items)}
+    target_mask = (1 << num_products) - 1
 
-                if best_store_id is None:
-                    feasible = False
-                    break
+    store_masks = {}
+    for store_id in sorted_store_ids:
+        mask = 0
+        for item in cart_items:
+            if store_id in price_matrix.get(item.product_id, {}):
+                mask |= product_to_bit[item.product_id]
+        store_masks[store_id] = mask
 
-                assignment[cart_item.product_id] = best_store_id
-                unit_prices[cart_item.product_id] = best_unit_price
-                visited_stores.add(best_store_id)
-                total_cost += best_unit_price * cart_item.quantity
+    # Local cache for store distances to speed up distance sum computation
+    store_distances = {sid: stores_by_id[sid].distance_km for sid in sorted_store_ids}
 
-            if not feasible:
-                continue
+    # Pre-index store prices as list of float values for O(1) list lookup
+    store_prices_indexed = {}
+    for store_id in sorted_store_ids:
+        prices_list = [float('inf')] * num_products
+        for idx, item in enumerate(cart_items):
+            p = price_matrix.get(item.product_id, {}).get(store_id)
+            if p is not None:
+                prices_list[idx] = p
+        store_prices_indexed[store_id] = tuple(prices_list)
 
-            visited_store_ids = tuple(sorted(visited_stores))
-            average_distance = sum(stores_by_id[store_id].distance_km for store_id in visited_store_ids) / len(
+    # Pre-cache product attributes for fast looping
+    cart_product_ids = [item.product_id for item in cart_items]
+    cart_quantities = [item.quantity for item in cart_items]
+
+    deduplicated: dict[tuple[str, ...], CandidateSolution] = {}
+
+    # Generate combinations of non-mandatory stores to union with mandatory stores
+    combinations_list = []
+    if num_mandatory > 0:
+        max_additional = min(max_stores - num_mandatory, len(non_mandatory_stores))
+        store_index_map = {sid: idx for idx, sid in enumerate(sorted_store_ids)}
+        for k in range(max_additional + 1):
+            for extra in combinations(non_mandatory_stores, k):
+                # Union and sort by their position in sorted_store_ids to preserve abecedal ordering
+                combined = mandatory_stores.union(extra)
+                subset = tuple(sorted(combined, key=lambda sid: store_index_map[sid]))
+                combinations_list.append(subset)
+    else:
+        max_subset_size = min(max_stores, len(sorted_store_ids))
+        for subset_size in range(1, max_subset_size + 1):
+            for subset in combinations(sorted_store_ids, subset_size):
+                combinations_list.append(subset)
+
+    for subset in combinations_list:
+        # 1. Bitmask Set Cover pre-check
+        subset_mask = 0
+        for store_id in subset:
+            subset_mask |= store_masks[store_id]
+        if subset_mask != target_mask:
+            continue
+
+        assignment: dict[str, str] = {}
+        unit_prices: dict[str, float] = {}
+        assigned_stores = []
+        total_cost = 0.0
+
+        for i in range(num_products):
+            best_store_id = None
+            best_unit_price = float("inf")
+
+            for store_id in subset:
+                price = store_prices_indexed[store_id][i]
+                if price < best_unit_price - EPSILON:
+                    best_unit_price = price
+                    best_store_id = store_id
+
+            pid = cart_product_ids[i]
+            assignment[pid] = best_store_id
+            unit_prices[pid] = best_unit_price
+            assigned_stores.append(best_store_id)
+            total_cost += best_unit_price * cart_quantities[i]
+
+        visited_store_ids = tuple(sorted(set(assigned_stores)))
+        existing = deduplicated.get(visited_store_ids)
+        if existing is None or total_cost < existing.total_cost - EPSILON:
+            average_distance = sum(store_distances[store_id] for store_id in visited_store_ids) / len(
                 visited_store_ids
             )
-
-            signature = tuple((product_id, assignment[product_id]) for product_id in sorted(assignment))
-            candidate = CandidateSolution(
+            deduplicated[visited_store_ids] = CandidateSolution(
                 assignment=assignment,
                 unit_prices=unit_prices,
                 total_cost=total_cost,
@@ -453,10 +513,6 @@ def _enumerate_candidates(
                 store_count=len(visited_store_ids),
                 visited_store_ids=visited_store_ids,
             )
-
-            existing = deduplicated.get(signature)
-            if existing is None or candidate.total_cost < existing.total_cost - EPSILON:
-                deduplicated[signature] = candidate
 
     return list(deduplicated.values())
 

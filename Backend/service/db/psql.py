@@ -648,7 +648,7 @@ class PostgresDatabase(Database):
             param_idx = 2
 
             if store_ids is not None:
-                query += f" AND stores.id = ANY(${param_idx})"
+                query += f" AND prices.store_id = ANY(${param_idx})"
                 params.append(store_ids)
                 param_idx += 1
 
