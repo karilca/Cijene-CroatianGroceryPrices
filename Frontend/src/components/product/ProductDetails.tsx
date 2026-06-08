@@ -28,12 +28,14 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
   chains
 }) => {
   const [expandedChain, setExpandedChain] = React.useState<string | null>(null);
+  const [imageError, setImageError] = React.useState(false);
   const { isFavorite, toggleFavorite } = useProductFavorite(product);
   const addItem = useCartStore((state) => state.addItem);
   const { notifyError, notifySuccess } = useNotifications();
   const { t } = useLanguage();
   const imageBaseUrl = import.meta.env.VITE_IMAGE_BASE_URL;
   const imageUrl = product.ean ? `${imageBaseUrl}${product.ean}.png` : null;
+  const showImage = imageUrl && !imageError;
 
   const {
     data: priceComparison,
@@ -150,6 +152,7 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
 
   React.useEffect(() => {
     setExpandedChain(null);
+    setImageError(false);
   }, [product.ean, product.id]);
 
   return (
@@ -208,20 +211,20 @@ export const ProductDetails: React.FC<ProductDetailsProps> = ({
         </div>
         
         <div className="flex flex-col md:flex-row gap-6">
-          {imageUrl && (
+          {showImage && (
             <div className="flex-shrink-0 w-full md:w-1/3 flex justify-center items-start">
               <img 
                 src={imageUrl} 
                 alt={product.name} 
                 className="max-w-full h-auto rounded-lg shadow-sm object-contain max-h-[300px]"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
+                onError={() => {
+                  setImageError(true);
                 }}
               />
             </div>
           )}
           
-          <div className={`grid grid-cols-1 ${imageUrl ? 'md:grid-cols-1 lg:grid-cols-2' : 'md:grid-cols-2'} gap-6 flex-grow`}>
+          <div className={`grid grid-cols-1 ${showImage ? 'md:grid-cols-1 lg:grid-cols-2' : 'md:grid-cols-2'} gap-6 flex-grow`}>
             <div className="space-y-4">
             {product.ean && (
               <div className="flex items-center gap-3">
