@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Webcam from 'react-webcam';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import { X, Camera, Zap, ZapOff, RefreshCcw } from 'lucide-react';
@@ -149,7 +150,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
         }
     }, [webcamRef.current?.video?.readyState]);
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex flex-col items-center justify-center p-4">
             <div className="relative w-full max-w-lg bg-black rounded-lg overflow-hidden shadow-2xl">
                 {/* Header with controls */}
@@ -226,6 +227,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
                     90% { opacity: 1; }
                 }
             `}</style>
-        </div>
+        </div>,
+        document.body
     );
 };

@@ -1,6 +1,7 @@
 // Compare Floating Action Bar - shows selected products for comparison
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { X, Scale, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
@@ -28,7 +29,7 @@ export const CompareBar: React.FC = () => {
     removeProduct(productId);
   };
 
-  return (
+  return createPortal(
     <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl px-4">
       <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-4">
         <div className="flex items-center justify-between mb-3">
@@ -83,6 +84,7 @@ export const CompareBar: React.FC = () => {
           }
         </Button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
