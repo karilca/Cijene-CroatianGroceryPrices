@@ -61,7 +61,7 @@ export const BaseCard: React.FC<BaseCardProps> = ({
   const favoriteButton = onFavoriteToggle && (
     <button
       onClick={handleFavoriteClick}
-      className={`card-action-button absolute p-2 rounded-full bg-white shadow-md hover:bg-gray-50 transition-colors ${
+      className={`card-action-button absolute p-2 rounded-full bg-white/85 backdrop-blur-md border border-gray-200/40 shadow-sm hover:bg-white hover:scale-110 active:scale-95 transition-all duration-200 ${
         favoriteIconPosition === 'top-right' ? 'top-2 right-2' : 'bottom-2 right-2'
       }`}
       aria-label={isFavorite ? t('favoritesList.removeFromFavorites') : t('favoritesList.addToFavorites')}

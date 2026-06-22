@@ -150,12 +150,17 @@ export const ProductsPage: React.FC = () => {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {searchResults.products.map((product, index) => (
-                      <ProductCard
+                      <div
                         key={product.ean || product.id || index}
-                        product={product}
-                        onViewDetails={handleProductSelect}
-                        showPricing={true}
-                      />
+                        className="animate-slide-up"
+                        style={{ animationDelay: `${index * 35}ms`, animationFillMode: 'both' }}
+                      >
+                        <ProductCard
+                          product={product}
+                          onViewDetails={handleProductSelect}
+                          showPricing={true}
+                        />
+                      </div>
                     ))}
                   </div>
 

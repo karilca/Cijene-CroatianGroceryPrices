@@ -7,7 +7,7 @@ import type { Product, Store } from '../types';
 interface AppState {
   // UI state
   sidebarOpen: boolean;
-  theme: 'light' | 'dark' | 'system';
+  theme: 'light' | 'dark' | 'emerald' | 'amber' | 'ocean' | 'system';
 
   // User preferences
   defaultLocation: {
@@ -42,7 +42,7 @@ interface AppState {
   // Actions for UI state
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
-  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  setTheme: (theme: 'light' | 'dark' | 'emerald' | 'amber' | 'ocean' | 'system') => void;
 
   // Actions for user preferences
   setDefaultLocation: (location: {
@@ -152,7 +152,7 @@ export const useAppStore = create<AppState>()(
       // UI actions
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarOpen: (open: boolean) => set({ sidebarOpen: open }),
-      setTheme: (theme: 'light' | 'dark' | 'system') => set({ theme }),
+      setTheme: (theme: 'light' | 'dark' | 'emerald' | 'amber' | 'ocean' | 'system') => set({ theme }),
 
       // User preference actions
       setDefaultLocation: (location) => set({ defaultLocation: location }),

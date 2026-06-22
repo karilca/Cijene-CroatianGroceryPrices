@@ -15,12 +15,12 @@ export const Card: React.FC<CardProps> = ({
   className = '',
   ...props
 }) => {
-  const baseClasses = 'bg-white rounded-lg';
+  const baseClasses = 'theme-card-glass rounded-xl';
   
   const variantClasses = {
-    default: 'shadow-sm border border-gray-200',
-    elevated: 'shadow-lg border border-gray-100',
-    outlined: 'border-2 border-gray-200',
+    default: '',
+    elevated: 'shadow-lg border-primary-500/10',
+    outlined: 'border-2 border-primary-500/20',
   };
   
   const paddingClasses = {

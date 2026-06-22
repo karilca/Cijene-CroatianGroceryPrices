@@ -10,7 +10,7 @@ export interface AppState {
     stores: string[];
   };
   preferences: {
-    theme: 'light' | 'dark';
+    theme: 'light' | 'dark' | 'emerald' | 'amber' | 'ocean' | 'system';
     language: 'en' | 'hr';
     defaultRadius: number;
     currency: string;

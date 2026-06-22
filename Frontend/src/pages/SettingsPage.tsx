@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Globe, KeyRound, Trash2, UserRound } from 'lucide-react';
+import { Globe, KeyRound, Trash2, UserRound, Palette, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { Card } from '../components/ui/Card';
@@ -10,12 +10,15 @@ import { useNotifications } from '../components/common/NotificationContext';
 import { supabase } from '../lib/supabase';
 import { deleteOwnAccount, getUserProfile, updateUserProfile } from '../api/profile';
 import { resolveApiErrorMessage } from '../utils/apiErrors';
+import { useAppStore } from '../stores/appStore';
 
 export const SettingsPage = () => {
   const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguage();
   const { user, signOut } = useAuth();
   const { notifyError, notifySuccess } = useNotifications();
+  const theme = useAppStore((state) => state.theme);
+  const setTheme = useAppStore((state) => state.setTheme);
 
   const [loading, setLoading] = useState(true);
   const [profileEmail, setProfileEmail] = useState('');
@@ -32,6 +35,51 @@ export const SettingsPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const resolvedEmail = useMemo(() => profileEmail || user?.email || '', [profileEmail, user?.email]);
+
+  const themeOptions = useMemo(() => [
+    {
+      id: 'system' as const,
+      name: language === 'hr' ? 'Sustav (automatski)' : 'System Default',
+      primaryColor: '#6b7280',
+      bgColor: '#f3f4f6',
+      cardColor: '#ffffff',
+    },
+    {
+      id: 'light' as const,
+      name: language === 'hr' ? 'Svijetla (Crvena)' : 'Light (Red)',
+      primaryColor: '#ef4444',
+      bgColor: '#f9fafb',
+      cardColor: '#ffffff',
+    },
+    {
+      id: 'dark' as const,
+      name: language === 'hr' ? 'Tamna (Sleek)' : 'Dark (Sleek)',
+      primaryColor: '#f87171',
+      bgColor: '#080d1a',
+      cardColor: '#111827',
+    },
+    {
+      id: 'emerald' as const,
+      name: language === 'hr' ? 'Eko Zelena' : 'Emerald Eco',
+      primaryColor: '#10b981',
+      bgColor: '#f4fbf7',
+      cardColor: '#ffffff',
+    },
+    {
+      id: 'amber' as const,
+      name: language === 'hr' ? 'Topla Jantarna' : 'Warm Honey',
+      primaryColor: '#f59e0b',
+      bgColor: '#faf8f5',
+      cardColor: '#ffffff',
+    },
+    {
+      id: 'ocean' as const,
+      name: language === 'hr' ? 'Oceansko Plava' : 'Ocean Blue',
+      primaryColor: '#0ea5e9',
+      bgColor: '#f0f4f8',
+      cardColor: '#ffffff',
+    },
+  ], [language]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -204,6 +252,47 @@ export const SettingsPage = () => {
           />
 
           <Button onClick={() => void changePassword()} isLoading={isChangingPassword}>{t('settings.savePassword')}</Button>
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Palette className="w-5 h-5 text-primary-600" />
+          <h2 className="text-xl font-semibold text-gray-900">{language === 'hr' ? 'Vizualna Tema' : 'Visual Theme'}</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {themeOptions.map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => setTheme(opt.id)}
+              className={`flex flex-col items-start p-4 rounded-xl border text-left transition-all duration-200 ${
+                theme === opt.id
+                  ? 'border-primary-500 ring-2 ring-primary-100 bg-primary-500/5'
+                  : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50/50'
+              }`}
+            >
+              <div className="flex items-center justify-between w-full mb-3">
+                <span className="font-semibold text-sm text-gray-800">{opt.name}</span>
+                {theme === opt.id && (
+                  <Check className="w-4.5 h-4.5 text-primary-600 shrink-0" />
+                )}
+              </div>
+              <div className="flex gap-2.5 mt-auto">
+                <div className="flex flex-col items-center">
+                  <span className="w-5 h-5 rounded-full border border-black/10 shadow-sm" style={{ backgroundColor: opt.primaryColor }} />
+                  <span className="text-[10px] text-gray-400 mt-0.5">Accent</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="w-5 h-5 rounded-full border border-black/10 shadow-sm" style={{ backgroundColor: opt.bgColor }} />
+                  <span className="text-[10px] text-gray-400 mt-0.5">Bg</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="w-5 h-5 rounded-full border border-black/10 shadow-sm" style={{ backgroundColor: opt.cardColor }} />
+                  <span className="text-[10px] text-gray-400 mt-0.5">Card</span>
+                </div>
+              </div>
+            </button>
+          ))}
         </div>
       </Card>
 

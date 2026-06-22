@@ -1,14 +1,28 @@
 // src/components/layout/Navigation.tsx
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { ShoppingCart } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../hooks/useAuth';
+import { useCartStore } from '../../stores/cartStore';
 
 export const Navigation: React.FC = () => {
   const { t } = useLanguage();
   const { isAdmin } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const itemCount = useCartStore((state) => state.itemCount);
+  const [animateCart, setAnimateCart] = useState(false);
+
+  // Trigger bounce animation on cart count changes
+  useEffect(() => {
+    if (itemCount > 0) {
+      setAnimateCart(true);
+      const timer = setTimeout(() => setAnimateCart(false), 550);
+      return () => clearTimeout(timer);
+    }
+  }, [itemCount]);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -37,9 +51,27 @@ export const Navigation: React.FC = () => {
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center space-x-8 h-12">
           {navLinks.map((link) => (
-            <NavLink key={link.to} to={link.to as string} className={navLinkClass}>
-              {link.label}
-            </NavLink>
+            link.to === '/cart' ? (
+              <NavLink key={link.to} to={link.to} className={navLinkClass}>
+                <div className="flex items-center gap-1.5 relative">
+                  <ShoppingCart className="h-4 w-4 shrink-0" />
+                  <span>{link.label}</span>
+                  {itemCount > 0 && (
+                    <span 
+                      className={`flex items-center justify-center bg-primary-600 text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 rounded-full border-2 border-white shadow-sm transition-transform ${
+                        animateCart ? 'animate-badge-pop' : ''
+                      }`}
+                    >
+                      {itemCount}
+                    </span>
+                  )}
+                </div>
+              </NavLink>
+            ) : (
+              <NavLink key={link.to} to={link.to as string} className={navLinkClass}>
+                {link.label}
+              </NavLink>
+            )
           ))}
         </div>
 
@@ -81,7 +113,25 @@ export const Navigation: React.FC = () => {
                 }
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                <span>{link.label}</span>
+                {link.to === '/cart' ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShoppingCart className="h-5 w-5" />
+                      <span>{link.label}</span>
+                    </div>
+                    {itemCount > 0 && (
+                      <span 
+                        className={`flex items-center justify-center bg-primary-600 text-white text-[11px] font-bold h-5 min-w-[22px] px-1 rounded-full border-2 border-white shadow-sm ${
+                          animateCart ? 'animate-badge-pop' : ''
+                        }`}
+                      >
+                        {itemCount}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span>{link.label}</span>
+                )}
               </NavLink>
             ))}
           </div>

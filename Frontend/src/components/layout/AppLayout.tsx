@@ -18,11 +18,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   showBreadcrumbs = true 
 }) => {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col transition-colors duration-300">
       <OfflineIndicator />
       <Header />
       <Navigation />
-      <main className="flex-1 container mx-auto px-4 py-6">
+      <main className="flex-1 container mx-auto px-4 py-6 animate-page-in">
         {showBreadcrumbs && (
           <div className="mb-4">
             <Breadcrumb />

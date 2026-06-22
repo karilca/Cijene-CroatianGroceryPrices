@@ -6,8 +6,162 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Default Theme: Light (Red accents) */
+    --color-primary-50: #fef2f2;
+    --color-primary-100: #fee2e2;
+    --color-primary-200: #fecaca;
+    --color-primary-300: #fca5a5;
+    --color-primary-400: #f87171;
+    --color-primary-500: #ef4444;
+    --color-primary-600: #dc2626;
+    --color-primary-700: #b91c1c;
+    --color-primary-800: #991b1b;
+    --color-primary-900: #7f1d1d;
+
+    --color-bg-card: #ffffff;
+    --color-gray-50: #f9fafb;
+    --color-gray-100: #f3f4f6;
+    --color-gray-200: #e5e7eb;
+    --color-gray-300: #d1d5db;
+    --color-gray-400: #9ca3af;
+    --color-gray-500: #6b7280;
+    --color-gray-600: #4b5563;
+    --color-gray-700: #374151;
+    --color-gray-800: #1f2937;
+    --color-gray-900: #111827;
+
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-border: rgba(229, 231, 235, 0.4);
+    --glass-blur: 12px;
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
+  }
+
+  /* Dark Theme (Red accents, dark layout) */
+  .dark, [data-theme="dark"] {
+    --color-primary-50: #1a0808;
+    --color-primary-100: #2d0e0e;
+    --color-primary-200: #551414;
+    --color-primary-300: #7f1d1d;
+    --color-primary-400: #b91c1c;
+    --color-primary-500: #ef4444;
+    --color-primary-600: #f87171;
+    --color-primary-700: #fca5a5;
+    --color-primary-800: #fecaca;
+    --color-primary-900: #fee2e2;
+
+    --color-bg-card: rgba(17, 24, 39, 0.85); /* Rich dark slate semi-transparent */
+    --color-gray-50: #080d1a;       /* Dark base background */
+    --color-gray-100: #111827;
+    --color-gray-200: #1f2937;
+    --color-gray-300: #374151;
+    --color-gray-400: #9ca3af;
+    --color-gray-500: #d1d5db;
+    --color-gray-600: #e5e7eb;
+    --color-gray-700: #f3f4f6;
+    --color-gray-800: #f9fafb;
+    --color-gray-900: #ffffff;
+
+    --glass-bg: rgba(15, 23, 42, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  /* Emerald Green (Forest/Eco grocery vibe) */
+  [data-theme="emerald"] {
+    --color-primary-50: #f0fdf4;
+    --color-primary-100: #dcfce7;
+    --color-primary-200: #bbf7d0;
+    --color-primary-300: #86efac;
+    --color-primary-400: #4ade80;
+    --color-primary-500: #10b981;
+    --color-primary-600: #059669;
+    --color-primary-700: #047857;
+    --color-primary-800: #065f46;
+    --color-primary-900: #064e3b;
+
+    --color-bg-card: #ffffff;
+    --color-gray-50: #f4fbf7;       /* Fresh pale green-gray background */
+    --color-gray-100: #e6f7ee;
+    --color-gray-200: #d1fae5;
+    --color-gray-300: #a7f3d0;
+    --color-gray-400: #6ee7b7;
+    --color-gray-500: #34d399;
+    --color-gray-600: #059669;
+    --color-gray-700: #065f46;
+    --color-gray-800: #064e3b;
+    --color-gray-900: #022c22;
+
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(16, 185, 129, 0.12);
+    --glass-shadow: 0 8px 32px 0 rgba(6, 95, 70, 0.03);
+  }
+
+  /* Warm Amber/Honey (Cozy, warm organic vibe) */
+  [data-theme="amber"] {
+    --color-primary-50: #fffbeb;
+    --color-primary-100: #fef3c7;
+    --color-primary-200: #fde68a;
+    --color-primary-300: #fcd34d;
+    --color-primary-400: #fbbf24;
+    --color-primary-500: #f59e0b;
+    --color-primary-600: #d97706;
+    --color-primary-700: #b45309;
+    --color-primary-800: #92400e;
+    --color-primary-900: #78350f;
+
+    --color-bg-card: #ffffff;
+    --color-gray-50: #faf8f5;       /* Warm cream background */
+    --color-gray-100: #f5efe6;
+    --color-gray-200: #eddcd2;
+    --color-gray-300: #ddb892;
+    --color-gray-400: #b08968;
+    --color-gray-500: #7f5539;
+    --color-gray-600: #9c6644;
+    --color-gray-700: #582f0e;
+    --color-gray-800: #3b2c19;
+    --color-gray-900: #271b0c;
+
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(217, 119, 6, 0.1);
+    --glass-shadow: 0 8px 32px 0 rgba(146, 64, 14, 0.03);
+  }
+
+  /* Deep Ocean Blue (Modern, premium digital vibe) */
+  [data-theme="ocean"] {
+    --color-primary-50: #f0f9ff;
+    --color-primary-100: #e0f2fe;
+    --color-primary-200: #bae6fd;
+    --color-primary-300: #7dd3fc;
+    --color-primary-400: #38bdf8;
+    --color-primary-500: #0ea5e9;
+    --color-primary-600: #0284c7;
+    --color-primary-700: #0369a1;
+    --color-primary-800: #075985;
+    --color-primary-900: #0c4a6e;
+
+    --color-bg-card: #ffffff;
+    --color-gray-50: #f0f4f8;       /* Clean cool slate-blue background */
+    --color-gray-100: #e1e7f0;
+    --color-gray-200: #cfd8dc;
+    --color-gray-300: #90a4ae;
+    --color-gray-400: #78909c;
+    --color-gray-500: #607d8b;
+    --color-gray-600: #455a64;
+    --color-gray-700: #37474f;
+    --color-gray-800: #263238;
+    --color-gray-900: #1a252c;
+
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(14, 165, 233, 0.1);
+    --glass-shadow: 0 8px 32px 0 rgba(3, 105, 161, 0.03);
+  }
+
   body {
     font-family: 'Inter', system-ui, sans-serif;
+    background-color: var(--color-gray-50);
+    color: var(--color-gray-900);
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
   }
 }
 
@@ -52,7 +206,7 @@
   }
 
   .shimmer-skeleton {
-    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%) !important;
+    background: linear-gradient(90deg, var(--color-gray-100) 25%, var(--color-gray-200) 50%, var(--color-gray-100) 75%) !important;
     background-size: 200% 100% !important;
     animation: shimmer 1.5s infinite linear !important;
   }
@@ -72,5 +226,66 @@
   .card-exit-active {
     animation: card-fade-out 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
-}
 
+  /* 4. Frosted Glass styling for premium look */
+  .theme-card-glass {
+    background-color: var(--color-bg-card) !important;
+    backdrop-filter: blur(var(--glass-blur)) !important;
+    -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+    border: 1px solid var(--glass-border) !important;
+    box-shadow: var(--glass-shadow) !important;
+    transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+  }
+
+  .theme-card-glass:hover {
+    transform: translateY(-4px) scale(1.015);
+    box-shadow: 0 12px 30px 0 rgba(0, 0, 0, 0.12) !important;
+    border-color: var(--color-primary-300) !important;
+  }
+  
+  /* 5. Staggered list loading entry slide animations */
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-up {
+    opacity: 0;
+    animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* 6. Page transition fade-in and slide-up */
+  @keyframes page-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-page-in {
+    animation: page-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* 7. Cart Badge spring bounce pop animation */
+  @keyframes badge-pop {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.4) rotate(-8deg); }
+    60% { transform: scale(0.9) rotate(4deg); }
+    85% { transform: scale(1.15) rotate(-2deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+
+  .animate-badge-pop {
+    animation: badge-pop 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+  }
+}

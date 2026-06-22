@@ -65,6 +65,10 @@ export const STORAGE_KEYS = {
 export const THEMES = {
   LIGHT: 'light',
   DARK: 'dark',
+  EMERALD: 'emerald',
+  AMBER: 'amber',
+  OCEAN: 'ocean',
+  SYSTEM: 'system',
 } as const;
 
 export const LANGUAGES = {
